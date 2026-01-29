@@ -11,13 +11,17 @@ export interface Subscription {
 
 /**
  * Device capabilities interface.
+ * Reflects actual AI glasses hardware capabilities.
  */
 export interface DeviceCapabilities {
-  hasController: boolean;
-  hasHandTracking: boolean;
-  hasEyeTracking: boolean;
-  hasSpatialApi: boolean;
+  isXrPeripheral: boolean;    // Device is XR glasses
+  hasXrProjection: boolean;   // Device can project to glasses
+  hasTouchInput: boolean;     // Has touchpad/touch input
+  hasCamera: boolean;         // Has camera
+  hasMicrophone: boolean;     // Has microphone
+  hasAudioOutput: boolean;    // Has speakers
   isEmulated?: boolean;
+  deviceType?: string;
 }
 
 /**
@@ -207,10 +211,12 @@ class IOSXRGlassesService implements IXRGlassesService {
 
   async getDeviceCapabilities(): Promise<DeviceCapabilities> {
     return {
-      hasController: false,
-      hasHandTracking: false,
-      hasEyeTracking: false,
-      hasSpatialApi: false,
+      isXrPeripheral: false,
+      hasXrProjection: false,
+      hasTouchInput: false,
+      hasCamera: false,
+      hasMicrophone: false,
+      hasAudioOutput: false,
     };
   }
 
@@ -300,11 +306,14 @@ class WebXRGlassesService implements IXRGlassesService {
 
   async getDeviceCapabilities(): Promise<DeviceCapabilities> {
     return {
-      hasController: true,
-      hasHandTracking: true,
-      hasEyeTracking: true,
-      hasSpatialApi: true,
+      isXrPeripheral: true,
+      hasXrProjection: false,
+      hasTouchInput: true,
+      hasCamera: true,
+      hasMicrophone: true,
+      hasAudioOutput: true,
       isEmulated: true,
+      deviceType: 'emulated_glasses',
     };
   }
 

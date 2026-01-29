@@ -31,10 +31,12 @@ interface XRGlassesNativeModule extends NativeModule {
 
   /** Get device capabilities */
   getDeviceCapabilities(): Promise<{
-    hasController: boolean;
-    hasHandTracking: boolean;
-    hasEyeTracking: boolean;
-    hasSpatialApi: boolean;
+    isXrPeripheral: boolean;
+    hasXrProjection: boolean;
+    hasTouchInput: boolean;
+    hasCamera: boolean;
+    hasMicrophone: boolean;
+    hasAudioOutput: boolean;
   }>;
 }
 

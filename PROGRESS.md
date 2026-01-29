@@ -14,18 +14,15 @@
 - [x] Auto-navigate to dashboard after connecting
 - [x] Glasses context obtained for capability queries
 
-### Current Issue
-**Capabilities show "Not Available" even when connected to glasses**
+### Architecture Decision: Capabilities
+**Removed capabilities UI display** - Cannot remotely query glasses system features from phone.
 
-The logs show:
-```
-Got glasses device context for capability queries
-Querying capabilities from connected glasses
-```
-
-But all capabilities return false. This is likely because:
-1. The AI glasses emulator may not report capabilities via `PackageManager.hasSystemFeature()`
-2. Capabilities might need to be queried via a different API
+Instead, capabilities are now used for **validation**:
+- Before connecting, checks if phone has `com.google.android.feature.XR_PROJECTED`
+- Shows clear error messages if device is incompatible
+- Real AI glasses features (discovered via adb):
+  - Glasses: `android.hardware.type.xr_peripheral`, camera, touchscreen
+  - Phone: `com.google.android.feature.XR_PROJECTED` (required for projection)
 
 ---
 
@@ -49,12 +46,6 @@ But all capabilities return false. This is likely because:
 ---
 
 ## Next Steps
-
-### Immediate (Fix capabilities)
-- [ ] Research how to properly query AI glasses capabilities
-- [ ] Check if glasses emulator has different capability APIs
-- [ ] May need to use `ProjectedActivityCompat` methods instead of PackageManager
-- [ ] Check Jetpack XR docs for capability detection
 
 ### Short-term (Display content on glasses)
 - [ ] Add Jetpack Compose Glimmer dependency

@@ -3,13 +3,17 @@ import { subscribeWithSelector } from 'zustand/middleware';
 
 /**
  * Device capabilities interface.
+ * Reflects actual AI glasses hardware capabilities.
  */
 interface DeviceCapabilities {
-  hasController: boolean;
-  hasHandTracking: boolean;
-  hasEyeTracking: boolean;
-  hasSpatialApi: boolean;
+  isXrPeripheral: boolean;    // Device is XR glasses
+  hasXrProjection: boolean;   // Device can project to glasses
+  hasTouchInput: boolean;     // Has touchpad/touch input
+  hasCamera: boolean;         // Has camera
+  hasMicrophone: boolean;     // Has microphone
+  hasAudioOutput: boolean;    // Has speakers
   isEmulated?: boolean;
+  deviceType?: string;
 }
 
 /**

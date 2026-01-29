@@ -16,12 +16,15 @@ data class EngagementMode(
 
 /**
  * Device capabilities data class.
+ * Reflects actual AI glasses hardware capabilities.
  */
 data class DeviceCapabilities(
-    val hasController: Boolean,
-    val hasHandTracking: Boolean,
-    val hasEyeTracking: Boolean,
-    val hasSpatialApi: Boolean
+    val isXrPeripheral: Boolean,    // Device is XR glasses
+    val hasXrProjection: Boolean,   // Device can project to glasses
+    val hasTouchInput: Boolean,     // Has touchpad/touch input
+    val hasCamera: Boolean,         // Has camera
+    val hasMicrophone: Boolean,     // Has microphone
+    val hasAudioOutput: Boolean     // Has speakers
 )
 
 /**
@@ -48,11 +51,13 @@ class XRGlassesService(
     companion object {
         private const val TAG = "XRGlassesService"
 
-        // Jetpack XR feature constants
-        private const val FEATURE_XR_INPUT_CONTROLLER = "android.hardware.xr.input.controller"
-        private const val FEATURE_XR_INPUT_HAND_TRACKING = "android.hardware.xr.input.hand_tracking"
-        private const val FEATURE_XR_INPUT_EYE_TRACKING = "android.hardware.xr.input.eye_tracking"
-        private const val FEATURE_XR_API_SPATIAL = "android.software.xr.spatial"
+        // Real Android XR feature constants (discovered from actual device features)
+        private const val FEATURE_XR_PERIPHERAL = "android.hardware.type.xr_peripheral"  // Device is XR glasses
+        private const val FEATURE_XR_PROJECTED = "com.google.android.feature.XR_PROJECTED"  // Phone can project to glasses
+        private const val FEATURE_TOUCHSCREEN = "android.hardware.touchscreen"  // Has touch input (touchpad)
+        private const val FEATURE_CAMERA = "android.hardware.camera"  // Has camera
+        private const val FEATURE_MICROPHONE = "android.hardware.microphone"  // Has microphone
+        private const val FEATURE_AUDIO_OUTPUT = "android.hardware.audio.output"  // Has speakers
     }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -70,10 +75,12 @@ class XRGlassesService(
     private var emulationMode = false
     private var emulatedEngagementMode = EngagementMode(visualsOn = false, audioOn = false)
     private var emulatedCapabilities = DeviceCapabilities(
-        hasController = true,
-        hasHandTracking = true,
-        hasEyeTracking = true,
-        hasSpatialApi = true
+        isXrPeripheral = true,
+        hasXrProjection = false,  // Emulated glasses don't project, they receive
+        hasTouchInput = true,
+        hasCamera = true,
+        hasMicrophone = true,
+        hasAudioOutput = true
     )
 
     // Flow for connection state changes
@@ -105,26 +112,28 @@ class XRGlassesService(
     }
 
     /**
-     * Detect available XR capabilities on this device.
+     * Detect available XR capabilities on this device (the phone).
      */
     private fun detectXRCapabilities() {
         val pm = context.packageManager
 
-        val hasController = pm.hasSystemFeature(FEATURE_XR_INPUT_CONTROLLER)
-        val hasHandTracking = pm.hasSystemFeature(FEATURE_XR_INPUT_HAND_TRACKING)
-        val hasEyeTracking = pm.hasSystemFeature(FEATURE_XR_INPUT_EYE_TRACKING)
-        val hasSpatialApi = pm.hasSystemFeature(FEATURE_XR_API_SPATIAL)
+        val hasXrProjection = pm.hasSystemFeature(FEATURE_XR_PROJECTED)
+        val isXrPeripheral = pm.hasSystemFeature(FEATURE_XR_PERIPHERAL)
+        val hasTouchInput = pm.hasSystemFeature(FEATURE_TOUCHSCREEN)
+        val hasCamera = pm.hasSystemFeature(FEATURE_CAMERA)
+        val hasMicrophone = pm.hasSystemFeature(FEATURE_MICROPHONE)
+        val hasAudioOutput = pm.hasSystemFeature(FEATURE_AUDIO_OUTPUT)
 
-        Log.d(TAG, "XR Capabilities detected - Controller: $hasController, " +
-                "HandTracking: $hasHandTracking, EyeTracking: $hasEyeTracking, " +
-                "SpatialApi: $hasSpatialApi")
+        Log.d(TAG, "Phone XR Capabilities - XR Projection: $hasXrProjection, " +
+                "XR Peripheral: $isXrPeripheral, Touch: $hasTouchInput, " +
+                "Camera: $hasCamera, Mic: $hasMicrophone, Audio: $hasAudioOutput")
 
         // Check if Jetpack XR Projected is available via reflection
         val hasProjectedSupport = checkProjectedContextAvailable()
         Log.d(TAG, "Projected context available: $hasProjectedSupport")
 
-        if (!hasProjectedSupport && !hasController && !hasHandTracking && !hasEyeTracking && !hasSpatialApi) {
-            Log.d(TAG, "No XR hardware detected, emulation mode available")
+        if (!hasProjectedSupport && !hasXrProjection) {
+            Log.d(TAG, "No XR projection support detected, emulation mode available")
         }
     }
 
@@ -180,6 +189,7 @@ class XRGlassesService(
 
     /**
      * Connect to the XR glasses.
+     * Validates device compatibility before attempting connection.
      */
     suspend fun connect() = withContext(Dispatchers.Main) {
         Log.d(TAG, "Connecting to XR glasses (emulation: $emulationMode, xrSdkAvailable: $xrSdkAvailable)")
@@ -202,6 +212,32 @@ class XRGlassesService(
 
             Log.d(TAG, "Emulated connection established")
             return@withContext
+        }
+
+        // Validate device compatibility before attempting real connection
+        val pm = context.packageManager
+        val hasXrProjection = pm.hasSystemFeature(FEATURE_XR_PROJECTED)
+
+        if (!xrSdkAvailable) {
+            val errorMsg = "This device does not support XR glasses. The Jetpack XR SDK is not available."
+            Log.e(TAG, errorMsg)
+            connectionState = ConnectionState.ERROR
+            module.emitEvent("onDeviceStateChanged", mapOf(
+                "state" to "INCOMPATIBLE_DEVICE",
+                "error" to errorMsg
+            ))
+            throw Exception(errorMsg)
+        }
+
+        if (!hasXrProjection) {
+            val errorMsg = "This device does not support XR projection. Please use a compatible phone with Android XR support."
+            Log.e(TAG, errorMsg)
+            connectionState = ConnectionState.ERROR
+            module.emitEvent("onDeviceStateChanged", mapOf(
+                "state" to "MISSING_XR_PROJECTION",
+                "error" to errorMsg
+            ))
+            throw Exception(errorMsg)
         }
 
         // Real connection via Jetpack XR Projected
@@ -276,16 +312,23 @@ class XRGlassesService(
             } catch (e: Exception) {
                 Log.e(TAG, "Connection failed: ${e.message}", e)
                 connectionState = ConnectionState.ERROR
+
+                // Provide user-friendly error messages
+                val userMessage = when {
+                    e.message?.contains("no service") == true || e.message?.contains("System doesn't include") == true ->
+                        "No XR glasses detected. Please ensure your glasses are paired and connected via the Glasses companion app."
+                    e.message?.contains("null") == true ->
+                        "Failed to establish connection with XR glasses. Please try again."
+                    else ->
+                        e.message ?: "Connection failed. Please check your glasses are powered on and paired."
+                }
+
                 module.emitEvent("onDeviceStateChanged", mapOf(
                     "state" to "CONNECTION_FAILED",
-                    "error" to (e.message ?: "Unknown error")
+                    "error" to userMessage
                 ))
-                throw e
+                throw Exception(userMessage)
             }
-        } else {
-            Log.w(TAG, "XR SDK not available, enable emulation mode to test")
-            connectionState = ConnectionState.ERROR
-            throw Exception("XR SDK not available. Enable emulation mode to test.")
         }
     }
 
@@ -405,16 +448,18 @@ class XRGlassesService(
 
     /**
      * Get device capabilities.
-     * When connected to glasses, returns the glasses' capabilities.
+     * When connected to glasses, queries the glasses' actual system features.
      * Otherwise returns the phone's capabilities.
      */
     suspend fun getDeviceCapabilities(): Map<String, Any> = withContext(Dispatchers.Main) {
         if (emulationMode) {
             return@withContext mapOf(
-                "hasController" to emulatedCapabilities.hasController,
-                "hasHandTracking" to emulatedCapabilities.hasHandTracking,
-                "hasEyeTracking" to emulatedCapabilities.hasEyeTracking,
-                "hasSpatialApi" to emulatedCapabilities.hasSpatialApi,
+                "isXrPeripheral" to emulatedCapabilities.isXrPeripheral,
+                "hasXrProjection" to emulatedCapabilities.hasXrProjection,
+                "hasTouchInput" to emulatedCapabilities.hasTouchInput,
+                "hasCamera" to emulatedCapabilities.hasCamera,
+                "hasMicrophone" to emulatedCapabilities.hasMicrophone,
+                "hasAudioOutput" to emulatedCapabilities.hasAudioOutput,
                 "isEmulated" to true,
                 "deviceType" to "emulated_glasses"
             )
@@ -430,11 +475,23 @@ class XRGlassesService(
         }
 
         val pm = targetContext.packageManager
+        val isXrPeripheral = pm.hasSystemFeature(FEATURE_XR_PERIPHERAL)
+        val hasXrProjection = pm.hasSystemFeature(FEATURE_XR_PROJECTED)
+        val hasTouchInput = pm.hasSystemFeature(FEATURE_TOUCHSCREEN)
+        val hasCamera = pm.hasSystemFeature(FEATURE_CAMERA)
+        val hasMicrophone = pm.hasSystemFeature(FEATURE_MICROPHONE)
+        val hasAudioOutput = pm.hasSystemFeature(FEATURE_AUDIO_OUTPUT)
+
+        Log.d(TAG, "Capabilities - XR Peripheral: $isXrPeripheral, XR Projection: $hasXrProjection, " +
+                "Touch: $hasTouchInput, Camera: $hasCamera, Mic: $hasMicrophone, Audio: $hasAudioOutput")
+
         return@withContext mapOf(
-            "hasController" to pm.hasSystemFeature(FEATURE_XR_INPUT_CONTROLLER),
-            "hasHandTracking" to pm.hasSystemFeature(FEATURE_XR_INPUT_HAND_TRACKING),
-            "hasEyeTracking" to pm.hasSystemFeature(FEATURE_XR_INPUT_EYE_TRACKING),
-            "hasSpatialApi" to pm.hasSystemFeature(FEATURE_XR_API_SPATIAL),
+            "isXrPeripheral" to isXrPeripheral,
+            "hasXrProjection" to hasXrProjection,
+            "hasTouchInput" to hasTouchInput,
+            "hasCamera" to hasCamera,
+            "hasMicrophone" to hasMicrophone,
+            "hasAudioOutput" to hasAudioOutput,
             "isEmulated" to false,
             "xrSdkAvailable" to xrSdkAvailable,
             "deviceType" to if (isConnected && glassesContext != null) "glasses" else "phone"

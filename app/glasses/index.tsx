@@ -15,7 +15,6 @@ export default function GlassesDashboard() {
   const {
     connected,
     engagementMode,
-    capabilities,
     emulationMode,
     disconnect,
     simulateInputEvent,
@@ -124,38 +123,6 @@ export default function GlassesDashboard() {
           </View>
         )}
 
-        {/* Capabilities Overview */}
-        {capabilities && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Capabilities</Text>
-            <View style={styles.capsList}>
-              <View style={styles.capsRow}>
-                <Text style={styles.capsLabel}>Controller</Text>
-                <Text style={[styles.capsValue, capabilities.hasController && styles.capsValueActive]}>
-                  {capabilities.hasController ? 'Available' : 'Not Available'}
-                </Text>
-              </View>
-              <View style={styles.capsRow}>
-                <Text style={styles.capsLabel}>Hand Tracking</Text>
-                <Text style={[styles.capsValue, capabilities.hasHandTracking && styles.capsValueActive]}>
-                  {capabilities.hasHandTracking ? 'Available' : 'Not Available'}
-                </Text>
-              </View>
-              <View style={styles.capsRow}>
-                <Text style={styles.capsLabel}>Eye Tracking</Text>
-                <Text style={[styles.capsValue, capabilities.hasEyeTracking && styles.capsValueActive]}>
-                  {capabilities.hasEyeTracking ? 'Available' : 'Not Available'}
-                </Text>
-              </View>
-              <View style={styles.capsRow}>
-                <Text style={styles.capsLabel}>Spatial API</Text>
-                <Text style={[styles.capsValue, capabilities.hasSpatialApi && styles.capsValueActive]}>
-                  {capabilities.hasSpatialApi ? 'Available' : 'Not Available'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* Disconnect Button */}
         <Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
@@ -325,28 +292,6 @@ const styles = StyleSheet.create({
   eventTime: {
     color: '#888888',
     fontSize: 12,
-  },
-  capsList: {
-    gap: 8,
-  },
-  capsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
-  },
-  capsLabel: {
-    color: '#cccccc',
-    fontSize: 14,
-  },
-  capsValue: {
-    color: '#666666',
-    fontSize: 12,
-  },
-  capsValueActive: {
-    color: '#4ade80',
   },
   disconnectButton: {
     backgroundColor: '#2a2a2a',

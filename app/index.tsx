@@ -14,7 +14,6 @@ export default function HomeScreen() {
     initialized,
     connected,
     isProjectedDevice,
-    capabilities,
     engagementMode,
     emulationMode,
     loading,
@@ -92,46 +91,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Capabilities Card */}
-        {capabilities && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Device Capabilities</Text>
-            <View style={styles.capabilitiesGrid}>
-              <View style={styles.capabilityItem}>
-                <View style={[styles.capabilityIcon, capabilities.hasController && styles.capabilityActive]}>
-                  <Text style={styles.capabilityEmoji}>
-                    {capabilities.hasController ? '1' : '0'}
-                  </Text>
-                </View>
-                <Text style={styles.capabilityLabel}>Controller</Text>
-              </View>
-              <View style={styles.capabilityItem}>
-                <View style={[styles.capabilityIcon, capabilities.hasHandTracking && styles.capabilityActive]}>
-                  <Text style={styles.capabilityEmoji}>
-                    {capabilities.hasHandTracking ? '1' : '0'}
-                  </Text>
-                </View>
-                <Text style={styles.capabilityLabel}>Hands</Text>
-              </View>
-              <View style={styles.capabilityItem}>
-                <View style={[styles.capabilityIcon, capabilities.hasEyeTracking && styles.capabilityActive]}>
-                  <Text style={styles.capabilityEmoji}>
-                    {capabilities.hasEyeTracking ? '1' : '0'}
-                  </Text>
-                </View>
-                <Text style={styles.capabilityLabel}>Eyes</Text>
-              </View>
-              <View style={styles.capabilityItem}>
-                <View style={[styles.capabilityIcon, capabilities.hasSpatialApi && styles.capabilityActive]}>
-                  <Text style={styles.capabilityEmoji}>
-                    {capabilities.hasSpatialApi ? '1' : '0'}
-                  </Text>
-                </View>
-                <Text style={styles.capabilityLabel}>Spatial</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
@@ -250,34 +209,6 @@ const styles = StyleSheet.create({
     color: '#ffd700',
     fontSize: 12,
     fontWeight: '600',
-  },
-  capabilitiesGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  capabilityItem: {
-    alignItems: 'center',
-  },
-  capabilityIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#333333',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  capabilityActive: {
-    backgroundColor: '#1a4d1a',
-  },
-  capabilityEmoji: {
-    fontSize: 14,
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
-  capabilityLabel: {
-    fontSize: 12,
-    color: '#888888',
   },
   buttonContainer: {
     marginTop: 8,
