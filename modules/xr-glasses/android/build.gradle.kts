@@ -8,7 +8,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        minSdk = 28  // Android XR requires recent API level
+        minSdk = 30  // Jetpack XR requires API 30+
     }
 
     buildFeatures {
@@ -37,11 +37,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.core:core-ktx:1.12.0")
 
-    // Jetpack XR dependencies (optional - may not be available in all environments)
-    // These are commented out as they require the Android XR SDK preview
-    // When targeting real XR devices, uncomment and add the google() maven repository
-    // implementation("androidx.xr:xr-runtime:1.0.0-alpha01")
-    // implementation("androidx.xr:xr-runtime-manifest:1.0.0-alpha01")
-    // implementation("androidx.xr:xr-projected:1.0.0-alpha01")
-    // implementation("androidx.xr:xr-projected-binding:1.0.0-alpha01")
+    // Jetpack XR dependencies for glasses communication
+    implementation("androidx.xr.projected:projected:1.0.0-alpha03")
 }

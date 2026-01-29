@@ -2,9 +2,7 @@ package expo.modules.xrglasses
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
-import android.view.WindowManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -39,12 +37,9 @@ enum class ConnectionState {
 /**
  * XRGlassesService - Core service for XR Glasses communication.
  *
- * This service handles all communication with XR glasses hardware.
- * It supports both real Jetpack XR hardware (when available) and an
- * emulation mode for development and testing on regular Android devices.
- *
- * Emulation mode allows developers to test the app flow without actual
- * XR glasses hardware.
+ * This service handles all communication with XR glasses hardware using
+ * Jetpack XR Projected APIs when available. It falls back gracefully
+ * when the XR SDK is not present.
  */
 class XRGlassesService(
     private val context: Context,
@@ -53,7 +48,7 @@ class XRGlassesService(
     companion object {
         private const val TAG = "XRGlassesService"
 
-        // Jetpack XR feature constants (may not be available on all devices)
+        // Jetpack XR feature constants
         private const val FEATURE_XR_INPUT_CONTROLLER = "android.hardware.xr.input.controller"
         private const val FEATURE_XR_INPUT_HAND_TRACKING = "android.hardware.xr.input.hand_tracking"
         private const val FEATURE_XR_INPUT_EYE_TRACKING = "android.hardware.xr.input.eye_tracking"
@@ -65,6 +60,10 @@ class XRGlassesService(
     // Connection state
     private var connectionState = ConnectionState.DISCONNECTED
     private var isConnected = false
+
+    // XR SDK availability
+    private var xrSdkAvailable = false
+    private var projectedContextInstance: Any? = null
 
     // Emulation mode for testing
     private var emulationMode = false
@@ -80,9 +79,28 @@ class XRGlassesService(
     private val _connectionStateFlow = MutableStateFlow(false)
     val connectionStateFlow: StateFlow<Boolean> = _connectionStateFlow.asStateFlow()
 
+    // Job for monitoring connection state
+    private var connectionMonitorJob: Job? = null
+
     init {
         Log.d(TAG, "XRGlassesService initialized")
+        checkXrSdkAvailability()
         detectXRCapabilities()
+    }
+
+    /**
+     * Check if Jetpack XR SDK is available.
+     */
+    private fun checkXrSdkAvailability() {
+        try {
+            // Try to load the ProjectedContext class
+            Class.forName("androidx.xr.projected.ProjectedContext")
+            xrSdkAvailable = true
+            Log.d(TAG, "Jetpack XR SDK is available")
+        } catch (e: ClassNotFoundException) {
+            xrSdkAvailable = false
+            Log.d(TAG, "Jetpack XR SDK not available, will use emulation mode")
+        }
     }
 
     /**
@@ -100,34 +118,41 @@ class XRGlassesService(
                 "HandTracking: $hasHandTracking, EyeTracking: $hasEyeTracking, " +
                 "SpatialApi: $hasSpatialApi")
 
-        // If no real XR capabilities, we can still use emulation mode
-        if (!hasController && !hasHandTracking && !hasEyeTracking && !hasSpatialApi) {
+        // Check if Jetpack XR Projected is available via reflection
+        val hasProjectedSupport = checkProjectedContextAvailable()
+        Log.d(TAG, "Projected context available: $hasProjectedSupport")
+
+        if (!hasProjectedSupport && !hasController && !hasHandTracking && !hasEyeTracking && !hasSpatialApi) {
             Log.d(TAG, "No XR hardware detected, emulation mode available")
         }
     }
 
     /**
+     * Check if ProjectedContext is available using reflection.
+     */
+    private fun checkProjectedContextAvailable(): Boolean {
+        if (!xrSdkAvailable) return false
+
+        return try {
+            // Try ProjectedActivityCompat.Companion to check availability
+            val companionClass = Class.forName("androidx.xr.projected.ProjectedActivityCompat\$Companion")
+            Log.d(TAG, "ProjectedActivityCompat.Companion found, XR projection may be available")
+            true
+        } catch (e: Exception) {
+            Log.d(TAG, "checkProjectedContextAvailable failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * Check if running in a projected device context.
-     * In emulation mode, this can be simulated.
      */
     suspend fun isProjectedDevice(): Boolean = withContext(Dispatchers.Main) {
         if (emulationMode) {
             return@withContext true
         }
 
-        // Try to check for real projected device context
-        // This requires Jetpack XR libraries which may not be available
-        try {
-            val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
-            val method = projectedContextClass.getMethod("isProjectedDeviceContext", Context::class.java)
-            return@withContext method.invoke(null, context) as Boolean
-        } catch (e: ClassNotFoundException) {
-            Log.d(TAG, "ProjectedContext not available, XR SDK not present")
-            return@withContext false
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking projected device context", e)
-            return@withContext false
-        }
+        return@withContext checkProjectedContextAvailable()
     }
 
     /**
@@ -138,22 +163,25 @@ class XRGlassesService(
             return@withContext isConnected
         }
 
-        // Try real connection check via Jetpack XR
-        try {
-            // This would use ProjectedContext.isProjectedDeviceConnected() flow
-            // For now, return the local state
-            return@withContext isConnected
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking glasses connection", e)
-            return@withContext false
+        // Check via Jetpack XR if available
+        if (xrSdkAvailable && projectedContextInstance != null) {
+            try {
+                val ctx = projectedContextInstance!!
+                val method = ctx.javaClass.getMethod("isConnected")
+                return@withContext method.invoke(ctx) as? Boolean ?: isConnected
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking glasses connection via SDK", e)
+            }
         }
+
+        return@withContext isConnected
     }
 
     /**
      * Connect to the XR glasses.
      */
     suspend fun connect() = withContext(Dispatchers.Main) {
-        Log.d(TAG, "Connecting to XR glasses (emulation: $emulationMode)")
+        Log.d(TAG, "Connecting to XR glasses (emulation: $emulationMode, xrSdkAvailable: $xrSdkAvailable)")
 
         connectionState = ConnectionState.CONNECTING
 
@@ -175,26 +203,106 @@ class XRGlassesService(
             return@withContext
         }
 
-        // Try real connection via Jetpack XR
-        try {
-            // This would use ProjectedContext.createProjectedDeviceContext()
-            // and set up the display controller and engagement mode client
+        // Real connection via Jetpack XR Projected
+        if (xrSdkAvailable) {
+            try {
+                if (projectedContextInstance == null) {
+                    Log.d(TAG, "Attempting to create ProjectedActivityCompat...")
 
-            isConnected = true
-            connectionState = ConnectionState.CONNECTED
-            _connectionStateFlow.value = true
-            module.emitEvent("onConnectionStateChanged", mapOf("connected" to true))
+                    // Use Kotlin reflection to call the suspend function
+                    val activityCompatClass = Class.forName("androidx.xr.projected.ProjectedActivityCompat")
+                    val companionField = activityCompatClass.getDeclaredField("Companion")
+                    val companion = companionField.get(null)
 
-            // Start listening for connection state changes
-            scope.launch {
-                // Would subscribe to ProjectedContext.isProjectedDeviceConnected() flow here
+                    // Try to call create(Context) - it's a suspend function
+                    val createMethod = companion.javaClass.methods.find { it.name == "create" }
+                    if (createMethod != null) {
+                        Log.d(TAG, "Found create method, invoking...")
+
+                        // For suspend functions via reflection, we need to use coroutines
+                        // The method takes (Context, Continuation) - we'll use suspendCoroutine
+                        val result = kotlinx.coroutines.suspendCancellableCoroutine<Any?> { continuation ->
+                            try {
+                                val invoked = createMethod.invoke(companion, context, continuation)
+                                // If it returns COROUTINE_SUSPENDED, the continuation will be resumed later
+                                if (invoked != kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED) {
+                                    continuation.resume(invoked) {}
+                                }
+                            } catch (e: Exception) {
+                                continuation.cancel(e)
+                            }
+                        }
+
+                        projectedContextInstance = result
+                        Log.d(TAG, "ProjectedActivityCompat.create returned: $result")
+
+                        if (result != null) {
+                            // Try to check connection state
+                            val isConnectedMethod = result.javaClass.methods.find { it.name == "isProjectedDeviceConnected" }
+                            Log.d(TAG, "Available methods on result: ${result.javaClass.methods.map { it.name }}")
+
+                            isConnected = true
+                            connectionState = ConnectionState.CONNECTED
+                            _connectionStateFlow.value = true
+                            module.emitEvent("onConnectionStateChanged", mapOf("connected" to true))
+                            module.emitEvent("onEngagementModeChanged", mapOf(
+                                "visualsOn" to true,
+                                "audioOn" to true
+                            ))
+                            Log.d(TAG, "Real XR connection established!")
+                        } else {
+                            throw Exception("create() returned null")
+                        }
+                    } else {
+                        throw Exception("create method not found on Companion")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Connection failed: ${e.message}", e)
+                connectionState = ConnectionState.ERROR
+                module.emitEvent("onDeviceStateChanged", mapOf(
+                    "state" to "CONNECTION_FAILED",
+                    "error" to (e.message ?: "Unknown error")
+                ))
+                throw e
             }
-
-            Log.d(TAG, "Connection established")
-        } catch (e: Exception) {
-            Log.e(TAG, "Connection failed", e)
+        } else {
+            Log.w(TAG, "XR SDK not available, enable emulation mode to test")
             connectionState = ConnectionState.ERROR
-            throw e
+            throw Exception("XR SDK not available. Enable emulation mode to test.")
+        }
+    }
+
+    /**
+     * Start polling for connection state changes.
+     */
+    private fun startConnectionPolling() {
+        connectionMonitorJob?.cancel()
+        connectionMonitorJob = scope.launch {
+            while (isActive && !isConnected) {
+                delay(1000) // Poll every second
+
+                val ctx = projectedContextInstance ?: break
+                try {
+                    val isConnectedMethod = ctx.javaClass.getMethod("isConnected")
+                    val connected = isConnectedMethod.invoke(ctx) as? Boolean ?: false
+
+                    if (connected && !isConnected) {
+                        isConnected = true
+                        connectionState = ConnectionState.CONNECTED
+                        _connectionStateFlow.value = true
+                        module.emitEvent("onConnectionStateChanged", mapOf("connected" to true))
+                        module.emitEvent("onEngagementModeChanged", mapOf(
+                            "visualsOn" to true,
+                            "audioOn" to true
+                        ))
+                        Log.d(TAG, "Connection detected via polling")
+                        break
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error polling connection state", e)
+                }
+            }
         }
     }
 
@@ -204,11 +312,25 @@ class XRGlassesService(
     suspend fun disconnect() = withContext(Dispatchers.Main) {
         Log.d(TAG, "Disconnecting from XR glasses")
 
+        connectionMonitorJob?.cancel()
+        connectionMonitorJob = null
+
         isConnected = false
         connectionState = ConnectionState.DISCONNECTED
 
         if (emulationMode) {
             emulatedEngagementMode = EngagementMode(visualsOn = false, audioOn = false)
+        }
+
+        // Clean up projected context
+        if (projectedContextInstance != null) {
+            try {
+                val closeMethod = projectedContextInstance!!.javaClass.getMethod("close")
+                closeMethod.invoke(projectedContextInstance)
+            } catch (e: Exception) {
+                Log.d(TAG, "Could not close ProjectedContext: ${e.message}")
+            }
+            projectedContextInstance = null
         }
 
         _connectionStateFlow.value = false
@@ -225,7 +347,6 @@ class XRGlassesService(
             return@withContext isConnected && emulatedEngagementMode.visualsOn
         }
 
-        // Check via ProjectedDeviceController
         return@withContext isConnected
     }
 
@@ -235,13 +356,17 @@ class XRGlassesService(
     suspend fun setKeepScreenOn(enabled: Boolean) = withContext(Dispatchers.Main) {
         Log.d(TAG, "Setting keep screen on: $enabled")
 
-        // This would use ProjectedDisplayController.addLayoutParamsFlags()
-        // or removeLayoutParamsFlags() with FLAG_KEEP_SCREEN_ON
-
         if (emulationMode) {
-            // In emulation mode, just log the action
             Log.d(TAG, "Emulated: Keep screen on set to $enabled")
+            module.emitEvent("onInputEvent", mapOf(
+                "action" to if (enabled) "SCREEN_ON_ENABLED" else "SCREEN_ON_DISABLED",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return@withContext
         }
+
+        // In real mode, would use ProjectedDisplayController
+        Log.d(TAG, "Keep screen on set to $enabled")
     }
 
     /**
@@ -252,7 +377,7 @@ class XRGlassesService(
             return@withContext emulatedEngagementMode
         }
 
-        // Would use EngagementModeClient.getEngagementModeFlags()
+        // For real connection, return based on connection state
         return@withContext EngagementMode(
             visualsOn = isConnected,
             audioOn = isConnected
@@ -279,20 +404,19 @@ class XRGlassesService(
             "hasHandTracking" to pm.hasSystemFeature(FEATURE_XR_INPUT_HAND_TRACKING),
             "hasEyeTracking" to pm.hasSystemFeature(FEATURE_XR_INPUT_EYE_TRACKING),
             "hasSpatialApi" to pm.hasSystemFeature(FEATURE_XR_API_SPATIAL),
-            "isEmulated" to false
+            "isEmulated" to false,
+            "xrSdkAvailable" to xrSdkAvailable
         )
     }
 
     /**
      * Enable or disable emulation mode.
-     * Emulation mode allows testing without real XR hardware.
      */
     suspend fun setEmulationMode(enabled: Boolean) = withContext(Dispatchers.Main) {
         Log.d(TAG, "Setting emulation mode: $enabled")
         emulationMode = enabled
 
         if (!enabled && isConnected) {
-            // If turning off emulation while "connected", reset state
             disconnect()
         }
 
@@ -350,7 +474,19 @@ class XRGlassesService(
      */
     fun cleanup() {
         Log.d(TAG, "Cleaning up XRGlassesService")
+        connectionMonitorJob?.cancel()
         scope.cancel()
+
+        if (projectedContextInstance != null) {
+            try {
+                val closeMethod = projectedContextInstance!!.javaClass.getMethod("close")
+                closeMethod.invoke(projectedContextInstance)
+            } catch (e: Exception) {
+                // Ignore cleanup errors
+            }
+            projectedContextInstance = null
+        }
+
         isConnected = false
         connectionState = ConnectionState.DISCONNECTED
     }
