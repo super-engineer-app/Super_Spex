@@ -1,4 +1,5 @@
-import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
+import { EventEmitter, type EventSubscription } from 'expo-modules-core';
 import { XRGlassesNative, ConnectionStateEvent, InputEvent, EngagementModeEvent, DeviceStateEvent } from '../index';
 
 /**
@@ -75,15 +76,14 @@ export interface IXRGlassesService {
   onDeviceStateChanged(callback: (event: DeviceStateEvent) => void): Subscription;
 }
 
-// Create event emitter for native events (Android/iOS)
-let eventEmitter: NativeEventEmitter | null = null;
-if (Platform.OS === 'android' || Platform.OS === 'ios') {
-  try {
-    eventEmitter = new NativeEventEmitter(NativeModules.XRGlasses);
-  } catch {
-    // Event emitter not available, events will not work
-    console.warn('[XRGlasses] NativeEventEmitter not available');
+// Lazy-initialized Expo event emitter for native events (Android/iOS)
+let _emitter: EventEmitter | null = null;
+
+function getEmitter(): EventEmitter {
+  if (!_emitter) {
+    _emitter = new EventEmitter(XRGlassesNative);
   }
+  return _emitter;
 }
 
 /**
@@ -146,34 +146,22 @@ class AndroidXRGlassesService implements IXRGlassesService {
   }
 
   onConnectionStateChanged(callback: (event: ConnectionStateEvent) => void): Subscription {
-    if (!eventEmitter) {
-      return { remove: () => {} };
-    }
-    const subscription = eventEmitter.addListener('onConnectionStateChanged', callback);
+    const subscription = getEmitter().addListener('onConnectionStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
 
   onInputEvent(callback: (event: InputEvent) => void): Subscription {
-    if (!eventEmitter) {
-      return { remove: () => {} };
-    }
-    const subscription = eventEmitter.addListener('onInputEvent', callback);
+    const subscription = getEmitter().addListener('onInputEvent', callback);
     return { remove: () => subscription.remove() };
   }
 
   onEngagementModeChanged(callback: (event: EngagementModeEvent) => void): Subscription {
-    if (!eventEmitter) {
-      return { remove: () => {} };
-    }
-    const subscription = eventEmitter.addListener('onEngagementModeChanged', callback);
+    const subscription = getEmitter().addListener('onEngagementModeChanged', callback);
     return { remove: () => subscription.remove() };
   }
 
   onDeviceStateChanged(callback: (event: DeviceStateEvent) => void): Subscription {
-    if (!eventEmitter) {
-      return { remove: () => {} };
-    }
-    const subscription = eventEmitter.addListener('onDeviceStateChanged', callback);
+    const subscription = getEmitter().addListener('onDeviceStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
 }

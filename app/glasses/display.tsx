@@ -19,6 +19,15 @@ export default function DisplayControlsScreen() {
   } = useXRGlasses();
 
   const [screenAlwaysOn, setScreenAlwaysOn] = useState(false);
+  const [brightness, setBrightness] = useState(70);
+
+  // Handle brightness change
+  const handleBrightnessChange = (delta: number) => {
+    setBrightness(prev => Math.max(0, Math.min(100, prev + delta)));
+    if (emulationMode) {
+      simulateInputEvent(delta > 0 ? 'BRIGHTNESS_UP' : 'BRIGHTNESS_DOWN');
+    }
+  };
 
   // Handle screen always-on toggle
   const handleScreenAlwaysOn = async (value: boolean) => {
@@ -106,25 +115,33 @@ export default function DisplayControlsScreen() {
           </Text>
         </View>
 
-        {/* Brightness Control (Placeholder) */}
+        {/* Brightness Control */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Brightness</Text>
           <View style={styles.brightnessContainer}>
             <View style={styles.brightnessBar}>
-              <View style={[styles.brightnessLevel, { width: '70%' }]} />
+              <View style={[styles.brightnessLevel, { width: `${brightness}%` }]} />
             </View>
-            <Text style={styles.brightnessValue}>70%</Text>
+            <Text style={styles.brightnessValue}>{brightness}%</Text>
           </View>
           <View style={styles.brightnessButtons}>
-            <Pressable style={styles.brightnessButton}>
+            <Pressable
+              style={[styles.brightnessButton, brightness <= 0 && styles.brightnessButtonDisabled]}
+              onPress={() => handleBrightnessChange(-10)}
+              disabled={brightness <= 0}
+            >
               <Text style={styles.brightnessButtonText}>-</Text>
             </Pressable>
-            <Pressable style={styles.brightnessButton}>
+            <Pressable
+              style={[styles.brightnessButton, brightness >= 100 && styles.brightnessButtonDisabled]}
+              onPress={() => handleBrightnessChange(10)}
+              disabled={brightness >= 100}
+            >
               <Text style={styles.brightnessButtonText}>+</Text>
             </Pressable>
           </View>
           <Text style={styles.infoNote}>
-            Brightness control available on supported hardware.
+            {emulationMode ? 'Simulated brightness control' : 'Brightness control available on supported hardware.'}
           </Text>
         </View>
 
@@ -293,6 +310,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  brightnessButtonDisabled: {
+    opacity: 0.3,
   },
   brightnessButtonText: {
     color: '#ffffff',

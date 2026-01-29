@@ -253,7 +253,19 @@ export function useXRGlasses(): UseXRGlassesReturn {
 
     try {
       await service.setEmulationMode(enabled);
-      setState(prev => ({ ...prev, emulationMode: enabled }));
+
+      // Refetch capabilities after changing emulation mode
+      const [capabilities, isProjected] = await Promise.all([
+        service.getDeviceCapabilities(),
+        service.isProjectedDevice(),
+      ]);
+
+      setState(prev => ({
+        ...prev,
+        emulationMode: enabled,
+        capabilities,
+        isProjectedDevice: isProjected,
+      }));
     } catch (e) {
       setError(e as Error);
     }
