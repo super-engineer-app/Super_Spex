@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../src/hooks/useXRGlasses';
+import { useEffect, useRef } from 'react';
 
 /**
  * Connection screen component.
@@ -20,6 +21,18 @@ export default function ConnectScreen() {
     disconnect,
     setEmulationMode,
   } = useXRGlasses();
+
+  // Track if we just connected (to auto-navigate)
+  const wasConnected = useRef(connected);
+
+  // Auto-navigate to glasses dashboard when connection is established
+  useEffect(() => {
+    if (connected && !wasConnected.current) {
+      // Just connected - navigate to glasses dashboard
+      router.replace('/glasses');
+    }
+    wasConnected.current = connected;
+  }, [connected, router]);
 
   // Handle connect action
   const handleConnect = async () => {

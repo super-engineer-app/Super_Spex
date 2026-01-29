@@ -64,6 +64,7 @@ class XRGlassesService(
     // XR SDK availability
     private var xrSdkAvailable = false
     private var projectedContextInstance: Any? = null
+    private var glassesContext: android.content.Context? = null  // Context for the connected glasses
 
     // Emulation mode for testing
     private var emulationMode = false
@@ -237,9 +238,24 @@ class XRGlassesService(
                         Log.d(TAG, "ProjectedActivityCompat.create returned: $result")
 
                         if (result != null) {
-                            // Try to check connection state
-                            val isConnectedMethod = result.javaClass.methods.find { it.name == "isProjectedDeviceConnected" }
                             Log.d(TAG, "Available methods on result: ${result.javaClass.methods.map { it.name }}")
+
+                            // Try to get the glasses device context for capability queries
+                            try {
+                                val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
+                                val createDeviceContextMethod = projectedContextClass.methods.find {
+                                    it.name == "createProjectedDeviceContext"
+                                }
+                                if (createDeviceContextMethod != null) {
+                                    val deviceContext = createDeviceContextMethod.invoke(null, context)
+                                    if (deviceContext is android.content.Context) {
+                                        glassesContext = deviceContext
+                                        Log.d(TAG, "Got glasses device context for capability queries")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.d(TAG, "Could not get glasses context: ${e.message}")
+                            }
 
                             isConnected = true
                             connectionState = ConnectionState.CONNECTED
@@ -333,6 +349,9 @@ class XRGlassesService(
             projectedContextInstance = null
         }
 
+        // Clean up glasses context
+        glassesContext = null
+
         _connectionStateFlow.value = false
         module.emitEvent("onConnectionStateChanged", mapOf("connected" to false))
 
@@ -386,6 +405,8 @@ class XRGlassesService(
 
     /**
      * Get device capabilities.
+     * When connected to glasses, returns the glasses' capabilities.
+     * Otherwise returns the phone's capabilities.
      */
     suspend fun getDeviceCapabilities(): Map<String, Any> = withContext(Dispatchers.Main) {
         if (emulationMode) {
@@ -394,18 +415,29 @@ class XRGlassesService(
                 "hasHandTracking" to emulatedCapabilities.hasHandTracking,
                 "hasEyeTracking" to emulatedCapabilities.hasEyeTracking,
                 "hasSpatialApi" to emulatedCapabilities.hasSpatialApi,
-                "isEmulated" to true
+                "isEmulated" to true,
+                "deviceType" to "emulated_glasses"
             )
         }
 
-        val pm = context.packageManager
+        // Use glasses context if connected, otherwise use phone context
+        val targetContext = if (isConnected && glassesContext != null) {
+            Log.d(TAG, "Querying capabilities from connected glasses")
+            glassesContext!!
+        } else {
+            Log.d(TAG, "Querying capabilities from phone (not connected to glasses)")
+            context
+        }
+
+        val pm = targetContext.packageManager
         return@withContext mapOf(
             "hasController" to pm.hasSystemFeature(FEATURE_XR_INPUT_CONTROLLER),
             "hasHandTracking" to pm.hasSystemFeature(FEATURE_XR_INPUT_HAND_TRACKING),
             "hasEyeTracking" to pm.hasSystemFeature(FEATURE_XR_INPUT_EYE_TRACKING),
             "hasSpatialApi" to pm.hasSystemFeature(FEATURE_XR_API_SPATIAL),
             "isEmulated" to false,
-            "xrSdkAvailable" to xrSdkAvailable
+            "xrSdkAvailable" to xrSdkAvailable,
+            "deviceType" to if (isConnected && glassesContext != null) "glasses" else "phone"
         )
     }
 
@@ -487,6 +519,7 @@ class XRGlassesService(
             projectedContextInstance = null
         }
 
+        glassesContext = null
         isConnected = false
         connectionState = ConnectionState.DISCONNECTED
     }
