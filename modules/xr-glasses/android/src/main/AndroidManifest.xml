@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- XR Permissions -->
+    <uses-permission android:name="android.permission.EYE_TRACKING_COARSE" />
+    <uses-permission android:name="android.permission.EYE_TRACKING_FINE" />
+    <uses-permission android:name="android.permission.HAND_TRACKING" />
+    <uses-permission android:name="android.permission.HEAD_TRACKING" />
+    <uses-permission android:name="android.permission.FACE_TRACKING" />
+    <uses-permission android:name="android.permission.SCENE_UNDERSTANDING_COARSE" />
+    <uses-permission android:name="android.permission.SCENE_UNDERSTANDING_FINE" />
+
+    <!-- Bluetooth permissions for glasses communication -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+
+    <!-- WiFi permissions for direct connection -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Query for XR system services -->
+    <queries>
+        <intent>
+            <action android:name="androidx.xr.projected.ACTION_BIND" />
+        </intent>
+        <intent>
+            <action android:name="androidx.xr.projected.ACTION_ENGAGEMENT_BIND" />
+        </intent>
+    </queries>
+
+</manifest>
