@@ -4,7 +4,7 @@
 
 ### Progress Tracking
 - **ALWAYS** use the TodoWrite tool to track tasks and progress
-- Update `PROGRESS.md` when completing significant milestones
+- Update the status table in `XR_GLASSES_APP_PLAN.md` when completing milestones
 - Keep the user informed of what's being done
 
 ### Failure Handling
@@ -12,7 +12,7 @@
   1. What approach was tried
   2. Why it failed (error messages, root cause)
   3. What was learned
-- Add failed approaches to `PROGRESS.md` under a "Failed Approaches" section
+- Add failed approaches to `XR_GLASSES_APP_PLAN.md` under "Research Findings" or "Notes"
 - This prevents repeating the same mistakes in future sessions
 
 ### Code Quality Standards
@@ -35,6 +35,20 @@ Avoid:
 ## Project Overview
 
 XR Glasses React Native app for Android. Phone app that communicates with XR glasses via Jetpack XR APIs.
+
+### Critical Architecture Constraint
+
+**All Android XR features MUST be implemented in native Kotlin modules.**
+
+The Jetpack XR SDK (`androidx.xr.projected`, `SpeechRecognizer`, etc.) is Android-native and cannot be accessed directly from React Native/JavaScript.
+
+```
+React Native (TypeScript)  →  Expo Native Module (Kotlin)  →  Jetpack XR SDK  →  AI Glasses
+```
+
+- XR logic goes in: `modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/`
+- React Native receives data via events emitted from Kotlin
+- Never try to import Jetpack XR classes in TypeScript
 
 ## Build Instructions
 
@@ -123,4 +137,8 @@ For quick UI testing without emulators:
 
 ## Progress Tracking
 
-See `PROGRESS.md` for current status and next steps.
+See `XR_GLASSES_APP_PLAN.md` for:
+- Current status (status table at top)
+- Implementation specs and code examples
+- Research findings and architecture decisions
+- Key code files and quick commands

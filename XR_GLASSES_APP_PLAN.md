@@ -1,8 +1,54 @@
 # XR Glasses React Native App - Implementation Plan
 
+## Status Summary (2026-01-30)
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1.1 | Project Setup | ✅ COMPLETE |
+| 1.2 | Native Module Structure | ✅ COMPLETE |
+| 1.3 | Jetpack XR Integration | ✅ COMPLETE |
+| 1.4 | React Native Bridge | ✅ COMPLETE |
+| 1.5 | Connection Flow | ✅ COMPLETE |
+| **2.1** | **GlassesActivity + SpeechRecognizer** | 🔄 IN PROGRESS |
+| 2.2 | React Native Speech Hook | ⏳ PENDING |
+| 2.3 | Backend Integration | ⏳ PENDING |
+| 2.4 | End-to-End Testing | ⏳ PENDING |
+| 3 | Display Content on Glasses | ⏳ FUTURE |
+| 4 | iOS Implementation | ⏳ FUTURE |
+
+**Approach:** On-device SpeechRecognizer running ON THE GLASSES (not phone) for minimal latency
+
+---
+
 ## Overview
 
 Build a React Native (Expo) app that communicates with Android XR glasses using Jetpack XR APIs, with architecture designed for future iOS cross-platform support via C++ protocol implementation.
+
+**Current Goal:** Use on-device speech recognition from glasses microphone → Send transcribed text to backend → Return AI response to user.
+
+---
+
+## Critical Architecture Constraint
+
+> **All Android XR features MUST be implemented in native Kotlin modules.**
+>
+> The Jetpack XR SDK (`androidx.xr.projected`, `androidx.xr.runtime`, etc.) is Android-native
+> and cannot be accessed directly from React Native/JavaScript. The architecture is:
+>
+> ```
+> React Native (TypeScript)
+>        ↓ calls
+> Expo Native Module (Kotlin)
+>        ↓ uses
+> Jetpack XR SDK (Android native)
+>        ↓ communicates with
+> AI Glasses Hardware
+> ```
+>
+> **This means:**
+> - `SpeechRecognizer`, `ProjectedContext`, `ProjectedActivityCompat` → Kotlin only
+> - React Native receives data via events emitted from Kotlin
+> - All XR-related logic lives in `modules/xr-glasses/android/`
 
 ---
 
@@ -1475,9 +1521,1004 @@ func initProtocol() {
 
 ---
 
+## Phase 2: Speech Recognition & Backend Integration (CURRENT FOCUS)
+
+### Overview
+
+Use Android's built-in `SpeechRecognizer` running **on the glasses themselves** for on-device
+speech-to-text. The glasses capture audio locally, process it with on-device ASR, and send
+only text results to the phone app.
+
+**Key Architecture Insight (researched 2026-01-30):**
+ASR runs ON THE GLASSES, not on the phone. This is critical for latency:
+- No Bluetooth audio streaming required
+- Audio captured and processed locally on glasses hardware
+- Only text results are sent to phone via the Expo native module bridge
+- Works offline (on-device models)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AI GLASSES (on-device)                       │
+│                                                                 │
+│  ┌─────────────┐    ┌─────────────────┐    ┌────────────────┐  │
+│  │ Microphone  │───▶│ SpeechRecognizer│───▶│ GlassesActivity│  │
+│  │ (hardware)  │    │ (local ASR)     │    │ (sends events) │  │
+│  └─────────────┘    └─────────────────┘    └───────┬────────┘  │
+│                                                     │           │
+└─────────────────────────────────────────────────────│───────────┘
+                                                      │ text only
+                                                      │ (minimal latency)
+                                                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    PHONE (React Native App)                     │
+│                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────┐ │
+│  │ XRGlassesModule │───▶│ useSpeechReco.. │───▶│ Backend API │ │
+│  │ (receives text) │    │ (React hook)    │    │ (AI response)│ │
+│  └─────────────────┘    └─────────────────┘    └─────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why this architecture:**
+- **No Bluetooth audio latency** - Audio never leaves the glasses
+- **Works offline** - On-device ASR, no network for transcription
+- **Battery efficient** - No audio streaming over Bluetooth
+- **Lower bandwidth** - Only text sent to phone
+
+---
+
+### Step 2.1: GlassesActivity with SpeechRecognizer
+
+**Key Insight:** ASR must run in a **Glasses Activity** - an Android Activity that runs on the glasses
+hardware itself, declared with `android:requiredDisplayCategory="xr_projected"`.
+
+**Key API:** `android.speech.SpeechRecognizer`
+- Built into Android, no external libraries needed
+- Works offline with on-device models
+- Must be instantiated in the glasses activity context (not phone context)
+
+#### Architecture Components
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GLASSES (GlassesActivity.kt)                 │
+│                                                                 │
+│  - SpeechRecognizer runs here                                   │
+│  - Captures audio from glasses mic                              │
+│  - Processes speech locally                                     │
+│  - Sends text results via broadcast/binding to phone service    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ IPC (broadcast or bound service)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    PHONE (XRGlassesModule.kt)                   │
+│                                                                 │
+│  - Receives text events from glasses activity                   │
+│  - Emits events to React Native                                 │
+│  - Controls start/stop via IPC to glasses                       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### File Structure
+
+```
+modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
+├── XRGlassesModule.kt           # Expo module (phone-side)
+├── XRGlassesService.kt          # Phone-side service
+├── glasses/
+│   ├── GlassesActivity.kt       # NEW: Runs on glasses
+│   ├── SpeechRecognitionManager.kt  # NEW: ASR logic
+│   └── GlassesBridge.kt         # NEW: IPC to phone
+```
+
+#### Step 2.1.1: AndroidManifest.xml - Declare Glasses Activity
+
+```xml
+<!-- In modules/xr-glasses/android/src/main/AndroidManifest.xml -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Existing permissions... -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application>
+        <!-- Glasses Activity - runs on the glasses hardware -->
+        <activity
+            android:name=".glasses.GlassesActivity"
+            android:exported="true"
+            android:requiredDisplayCategory="xr_projected"
+            android:theme="@style/Theme.AppCompat.NoActionBar">
+
+            <!-- Intent filter for launching from phone app -->
+            <intent-filter>
+                <action android:name="expo.modules.xrglasses.LAUNCH_GLASSES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Broadcast receiver for glasses → phone communication -->
+        <receiver
+            android:name=".GlassesBroadcastReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="expo.modules.xrglasses.SPEECH_RESULT" />
+                <action android:name="expo.modules.xrglasses.SPEECH_PARTIAL" />
+                <action android:name="expo.modules.xrglasses.SPEECH_ERROR" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
+```
+
+#### Step 2.1.2: GlassesActivity.kt - Main Glasses-Side Activity
+
+```kotlin
+package expo.modules.xrglasses.glasses
+
+import android.Manifest
+import android.content.Intent
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.xr.projected.ProjectedPermissionsRequestParams
+import androidx.xr.projected.ProjectedPermissionsResultContract
+
+class GlassesActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "GlassesActivity"
+
+        // Broadcast actions for IPC to phone
+        const val ACTION_SPEECH_RESULT = "expo.modules.xrglasses.SPEECH_RESULT"
+        const val ACTION_SPEECH_PARTIAL = "expo.modules.xrglasses.SPEECH_PARTIAL"
+        const val ACTION_SPEECH_ERROR = "expo.modules.xrglasses.SPEECH_ERROR"
+        const val ACTION_SPEECH_STATE = "expo.modules.xrglasses.SPEECH_STATE"
+
+        // Extras
+        const val EXTRA_TEXT = "text"
+        const val EXTRA_CONFIDENCE = "confidence"
+        const val EXTRA_ERROR_CODE = "error_code"
+        const val EXTRA_ERROR_MESSAGE = "error_message"
+        const val EXTRA_IS_LISTENING = "is_listening"
+    }
+
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isListening = false
+    private var continuousMode = false
+
+    // Permission launcher for glasses-specific permissions
+    private val requestPermissionLauncher: ActivityResultLauncher<List<ProjectedPermissionsRequestParams>> =
+        registerForActivityResult(ProjectedPermissionsResultContract()) { results ->
+            if (results[Manifest.permission.RECORD_AUDIO] == true) {
+                Log.d(TAG, "RECORD_AUDIO permission granted")
+                initSpeechRecognizer()
+            } else {
+                Log.e(TAG, "RECORD_AUDIO permission denied")
+                sendError(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS, "Microphone permission denied")
+            }
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Log.d(TAG, "GlassesActivity created")
+
+        // Request microphone permission using glasses-specific API
+        requestAudioPermission()
+    }
+
+    private fun requestAudioPermission() {
+        val params = ProjectedPermissionsRequestParams(
+            permissions = listOf(Manifest.permission.RECORD_AUDIO),
+            rationale = "Microphone access is needed for voice commands."
+        )
+        requestPermissionLauncher.launch(listOf(params))
+    }
+
+    private fun initSpeechRecognizer() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Log.e(TAG, "Speech recognition not available on this device")
+            sendError(-1, "Speech recognition not available")
+            return
+        }
+
+        // Create ON-DEVICE recognizer (important for latency)
+        speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+        speechRecognizer?.setRecognitionListener(createRecognitionListener())
+
+        Log.d(TAG, "SpeechRecognizer initialized")
+
+        // Check if we should start listening immediately (from intent)
+        if (intent?.getBooleanExtra("start_listening", false) == true) {
+            continuousMode = intent.getBooleanExtra("continuous", true)
+            startListening()
+        }
+    }
+
+    private fun createRecognitionListener() = object : RecognitionListener {
+
+        override fun onReadyForSpeech(params: Bundle?) {
+            Log.d(TAG, "Ready for speech")
+            sendState(isListening = true)
+        }
+
+        override fun onBeginningOfSpeech() {
+            Log.d(TAG, "Speech started")
+        }
+
+        override fun onRmsChanged(rmsdB: Float) {
+            // Could send audio level updates if needed
+        }
+
+        override fun onBufferReceived(buffer: ByteArray?) {}
+
+        override fun onEndOfSpeech() {
+            Log.d(TAG, "Speech ended")
+        }
+
+        override fun onError(error: Int) {
+            val errorMessage = when (error) {
+                SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Missing RECORD_AUDIO permission"
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
+                SpeechRecognizer.ERROR_SERVER -> "Server error"
+                else -> "Recognition error: $error"
+            }
+
+            Log.e(TAG, "Speech error: $errorMessage (code: $error)")
+            sendError(error, errorMessage)
+
+            // Restart on recoverable errors if in continuous mode
+            if (continuousMode && isListening && isRecoverableError(error)) {
+                android.os.Handler(mainLooper).postDelayed({
+                    if (isListening) startListeningInternal()
+                }, 500)
+            }
+        }
+
+        override fun onResults(results: Bundle?) {
+            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            val confidences = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+
+            if (!matches.isNullOrEmpty()) {
+                val text = matches[0]
+                val confidence = confidences?.getOrNull(0) ?: 0f
+
+                Log.d(TAG, "Speech result: '$text' (confidence: $confidence)")
+                sendResult(text, confidence)
+            }
+
+            // Restart listening if in continuous mode
+            if (continuousMode && isListening) {
+                startListeningInternal()
+            }
+        }
+
+        override fun onPartialResults(partialResults: Bundle?) {
+            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!matches.isNullOrEmpty()) {
+                val text = matches[0]
+                Log.d(TAG, "Partial result: '$text'")
+                sendPartialResult(text)
+            }
+        }
+
+        override fun onEvent(eventType: Int, params: Bundle?) {}
+    }
+
+    private fun isRecoverableError(error: Int): Boolean {
+        return error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS &&
+               error != SpeechRecognizer.ERROR_CLIENT
+    }
+
+    fun startListening() {
+        isListening = true
+        startListeningInternal()
+    }
+
+    private fun startListeningInternal() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            // Use on-device recognition for lower latency
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+        }
+        speechRecognizer?.startListening(intent)
+    }
+
+    fun stopListening() {
+        isListening = false
+        continuousMode = false
+        speechRecognizer?.stopListening()
+        sendState(isListening = false)
+    }
+
+    // IPC methods - send results to phone app via broadcast
+    private fun sendResult(text: String, confidence: Float) {
+        val intent = Intent(ACTION_SPEECH_RESULT).apply {
+            putExtra(EXTRA_TEXT, text)
+            putExtra(EXTRA_CONFIDENCE, confidence)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendPartialResult(text: String) {
+        val intent = Intent(ACTION_SPEECH_PARTIAL).apply {
+            putExtra(EXTRA_TEXT, text)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendError(code: Int, message: String) {
+        val intent = Intent(ACTION_SPEECH_ERROR).apply {
+            putExtra(EXTRA_ERROR_CODE, code)
+            putExtra(EXTRA_ERROR_MESSAGE, message)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendState(isListening: Boolean) {
+        val intent = Intent(ACTION_SPEECH_STATE).apply {
+            putExtra(EXTRA_IS_LISTENING, isListening)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+
+        // Handle commands from phone app
+        when (intent.action) {
+            "expo.modules.xrglasses.START_LISTENING" -> {
+                continuousMode = intent.getBooleanExtra("continuous", true)
+                startListening()
+            }
+            "expo.modules.xrglasses.STOP_LISTENING" -> {
+                stopListening()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        Log.d(TAG, "GlassesActivity destroyed")
+    }
+}
+```
+
+#### Step 2.1.3: GlassesBroadcastReceiver.kt - Phone-Side Receiver
+
+```kotlin
+package expo.modules.xrglasses
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+import expo.modules.xrglasses.glasses.GlassesActivity
+
+/**
+ * Receives broadcasts from GlassesActivity and forwards to XRGlassesModule
+ */
+class GlassesBroadcastReceiver : BroadcastReceiver() {
+
+    companion object {
+        private const val TAG = "GlassesBroadcastReceiver"
+        var moduleCallback: ((String, Map<String, Any?>) -> Unit)? = null
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        Log.d(TAG, "Received broadcast: ${intent.action}")
+
+        when (intent.action) {
+            GlassesActivity.ACTION_SPEECH_RESULT -> {
+                val text = intent.getStringExtra(GlassesActivity.EXTRA_TEXT) ?: ""
+                val confidence = intent.getFloatExtra(GlassesActivity.EXTRA_CONFIDENCE, 0f)
+
+                moduleCallback?.invoke("onSpeechResult", mapOf(
+                    "text" to text,
+                    "confidence" to confidence,
+                    "isFinal" to true
+                ))
+            }
+
+            GlassesActivity.ACTION_SPEECH_PARTIAL -> {
+                val text = intent.getStringExtra(GlassesActivity.EXTRA_TEXT) ?: ""
+
+                moduleCallback?.invoke("onPartialResult", mapOf(
+                    "text" to text,
+                    "isFinal" to false
+                ))
+            }
+
+            GlassesActivity.ACTION_SPEECH_ERROR -> {
+                val code = intent.getIntExtra(GlassesActivity.EXTRA_ERROR_CODE, -1)
+                val message = intent.getStringExtra(GlassesActivity.EXTRA_ERROR_MESSAGE) ?: "Unknown error"
+
+                moduleCallback?.invoke("onSpeechError", mapOf(
+                    "code" to code,
+                    "message" to message
+                ))
+            }
+
+            GlassesActivity.ACTION_SPEECH_STATE -> {
+                val isListening = intent.getBooleanExtra(GlassesActivity.EXTRA_IS_LISTENING, false)
+
+                moduleCallback?.invoke("onSpeechStateChanged", mapOf(
+                    "isListening" to isListening
+                ))
+            }
+        }
+    }
+}
+```
+
+#### Step 2.1.4: Update XRGlassesModule.kt - Add Speech Control
+
+```kotlin
+// Add to XRGlassesModule.kt
+
+// In definition():
+Events(
+    "onConnectionStateChanged",
+    "onInputEvent",
+    "onEngagementModeChanged",
+    "onDeviceStateChanged",
+    "onSpeechResult",        // NEW: Final transcription from glasses
+    "onPartialResult",       // NEW: Interim transcription
+    "onSpeechError",         // NEW: Recognition errors
+    "onSpeechStateChanged"   // NEW: Listening state changes
+)
+
+// Register broadcast receiver callback
+Function("initialize") {
+    val context = appContext.reactContext ?: throw CodedException("NO_CONTEXT", "No context available", null)
+    glassesService = XRGlassesService(context, this@XRGlassesModule)
+
+    // Set up callback for speech events from glasses
+    GlassesBroadcastReceiver.moduleCallback = { eventName, data ->
+        this@XRGlassesModule.sendEvent(eventName, data)
+    }
+}
+
+// Launch glasses activity and start listening
+AsyncFunction("startSpeechRecognition") { continuous: Boolean, promise: Promise ->
+    val context = appContext.reactContext ?: throw CodedException("NO_CONTEXT", "No context", null)
+
+    try {
+        val intent = Intent("expo.modules.xrglasses.LAUNCH_GLASSES").apply {
+            putExtra("start_listening", true)
+            putExtra("continuous", continuous)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+        promise.resolve(true)
+    } catch (e: Exception) {
+        promise.reject(CodedException("LAUNCH_FAILED", e.message, e))
+    }
+}
+
+// Stop speech recognition
+AsyncFunction("stopSpeechRecognition") { promise: Promise ->
+    val context = appContext.reactContext ?: throw CodedException("NO_CONTEXT", "No context", null)
+
+    try {
+        val intent = Intent("expo.modules.xrglasses.STOP_LISTENING").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+        promise.resolve(true)
+    } catch (e: Exception) {
+        promise.reject(CodedException("STOP_FAILED", e.message, e))
+    }
+}
+
+// Check if speech recognition is available
+AsyncFunction("isSpeechRecognitionAvailable") { promise: Promise ->
+    val context = appContext.reactContext ?: throw CodedException("NO_CONTEXT", "No context", null)
+    val available = SpeechRecognizer.isRecognitionAvailable(context)
+    promise.resolve(available)
+}
+```
+
+---
+
+### Step 2.2: React Native Integration (Cross-Platform)
+
+All TypeScript changes must maintain the platform abstraction. Update these files:
+
+#### 1. Native Module Interface (`modules/xr-glasses/index.ts`)
+```typescript
+interface XRGlassesNativeModule extends NativeModule {
+    // ... existing methods
+
+    // Speech recognition (native bridge)
+    startSpeechRecognition(): Promise<boolean>;
+    stopSpeechRecognition(): Promise<boolean>;
+    isSpeechRecognitionAvailable(): Promise<boolean>;
+}
+
+// New event types
+export type SpeechResultEvent = {
+    text: string;
+    confidence: number;
+    alternatives: string[];
+    isFinal: boolean;
+};
+
+export type PartialResultEvent = {
+    text: string;
+    isFinal: boolean;
+};
+
+export type SpeechErrorEvent = {
+    code: number;
+    message: string;
+};
+```
+
+#### 2. Platform-Agnostic Interface (`modules/xr-glasses/src/XRGlassesModule.ts`)
+```typescript
+// Add to IXRGlassesService interface:
+export interface IXRGlassesService {
+    // ... existing methods
+
+    // Speech recognition (platform-agnostic)
+    startSpeechRecognition(): Promise<boolean>;
+    stopSpeechRecognition(): Promise<boolean>;
+    isSpeechRecognitionAvailable(): Promise<boolean>;
+
+    // Speech events
+    onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription;
+    onPartialResult(callback: (event: PartialResultEvent) => void): Subscription;
+    onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription;
+}
+```
+
+#### 3. Android Implementation (in same file)
+```typescript
+class AndroidXRGlassesService implements IXRGlassesService {
+    // ... existing methods
+
+    async startSpeechRecognition(): Promise<boolean> {
+        return XRGlassesNative.startSpeechRecognition();
+    }
+
+    async stopSpeechRecognition(): Promise<boolean> {
+        return XRGlassesNative.stopSpeechRecognition();
+    }
+
+    async isSpeechRecognitionAvailable(): Promise<boolean> {
+        return XRGlassesNative.isSpeechRecognitionAvailable();
+    }
+
+    onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription {
+        const subscription = getEmitter().addListener('onSpeechResult', callback);
+        return { remove: () => subscription.remove() };
+    }
+
+    onPartialResult(callback: (event: PartialResultEvent) => void): Subscription {
+        const subscription = getEmitter().addListener('onPartialResult', callback);
+        return { remove: () => subscription.remove() };
+    }
+
+    onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription {
+        const subscription = getEmitter().addListener('onSpeechError', callback);
+        return { remove: () => subscription.remove() };
+    }
+}
+```
+
+#### 4. iOS Stub (for future implementation)
+```typescript
+class IOSXRGlassesService implements IXRGlassesService {
+    // ... existing methods
+
+    async startSpeechRecognition(): Promise<boolean> {
+        console.warn('iOS speech recognition not yet implemented');
+        throw new Error('iOS speech recognition not yet implemented');
+    }
+
+    async stopSpeechRecognition(): Promise<boolean> {
+        throw new Error('iOS speech recognition not yet implemented');
+    }
+
+    async isSpeechRecognitionAvailable(): Promise<boolean> {
+        return false;
+    }
+
+    onSpeechResult(_callback: (event: SpeechResultEvent) => void): Subscription {
+        return { remove: () => {} };
+    }
+
+    onPartialResult(_callback: (event: PartialResultEvent) => void): Subscription {
+        return { remove: () => {} };
+    }
+
+    onSpeechError(_callback: (event: SpeechErrorEvent) => void): Subscription {
+        return { remove: () => {} };
+    }
+}
+```
+
+#### 5. Web Emulation (for development)
+```typescript
+class WebXRGlassesService implements IXRGlassesService {
+    private speechResultCallbacks: Set<(event: SpeechResultEvent) => void> = new Set();
+    // ... other callbacks
+
+    async startSpeechRecognition(): Promise<boolean> {
+        console.log('[WebXR] Speech recognition started (emulation)');
+        // Optionally use Web Speech API for dev testing
+        return true;
+    }
+
+    async stopSpeechRecognition(): Promise<boolean> {
+        console.log('[WebXR] Speech recognition stopped (emulation)');
+        return true;
+    }
+
+    async isSpeechRecognitionAvailable(): Promise<boolean> {
+        return true; // Emulated
+    }
+
+    // Emulation helper to simulate speech results
+    simulateSpeechResult(text: string): void {
+        this.speechResultCallbacks.forEach(cb => cb({
+            text,
+            confidence: 0.95,
+            alternatives: [text],
+            isFinal: true,
+        }));
+    }
+
+    onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription {
+        this.speechResultCallbacks.add(callback);
+        return { remove: () => this.speechResultCallbacks.delete(callback) };
+    }
+
+    // ... other event subscriptions
+}
+```
+
+---
+
+#### 6. Create Hook (`src/hooks/useSpeechRecognition.ts`)
+```typescript
+import { useEffect, useState, useCallback } from 'react';
+import { getXRGlassesService } from '../../modules/xr-glasses/src/XRGlassesModule';
+
+export function useSpeechRecognition() {
+    const [isListening, setIsListening] = useState(false);
+    const [transcript, setTranscript] = useState('');
+    const [partialTranscript, setPartialTranscript] = useState('');
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const service = getXRGlassesService();
+
+        const resultSub = service.onSpeechResult((event) => {
+            setTranscript(event.text);
+            setPartialTranscript('');
+        });
+
+        const partialSub = service.onPartialResult((event) => {
+            setPartialTranscript(event.text);
+        });
+
+        const errorSub = service.onSpeechError((event) => {
+            setError(event.message);
+        });
+
+        return () => {
+            resultSub.remove();
+            partialSub.remove();
+            errorSub.remove();
+        };
+    }, []);
+
+    const startListening = useCallback(async () => {
+        setError(null);
+        const service = getXRGlassesService();
+        await service.startSpeechRecognition();
+        setIsListening(true);
+    }, []);
+
+    const stopListening = useCallback(async () => {
+        const service = getXRGlassesService();
+        await service.stopSpeechRecognition();
+        setIsListening(false);
+    }, []);
+
+    return {
+        isListening,
+        transcript,
+        partialTranscript,
+        error,
+        startListening,
+        stopListening,
+    };
+}
+```
+
+---
+
+### Step 2.3: Backend Integration
+
+**API Design:**
+```typescript
+// POST /api/speech/process
+// Content-Type: application/json
+{
+    "text": "User's transcribed speech",
+    "context": {
+        "sessionId": "uuid",
+        "previousMessages": []
+    }
+}
+
+// Response:
+{
+    "response": "AI assistant response text",
+    "action": null | { type: "navigate", destination: "..." }
+}
+```
+
+**Create backend service (`src/services/BackendService.ts`):**
+```typescript
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://api.example.com';
+
+export interface ProcessSpeechRequest {
+    text: string;
+    sessionId: string;
+}
+
+export interface ProcessSpeechResponse {
+    response: string;
+    action?: {
+        type: string;
+        [key: string]: any;
+    };
+}
+
+export async function processSpeech(request: ProcessSpeechRequest): Promise<ProcessSpeechResponse> {
+    const response = await fetch(`${API_BASE}/api/speech/process`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+    }
+
+    return response.json();
+}
+```
+
+---
+
+### Step 2.4: Permissions Handling
+
+**Update AndroidManifest.xml:**
+```xml
+<!-- Add RECORD_AUDIO permission -->
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+```
+
+**Permission request in React Native:**
+```typescript
+import { PermissionsAndroid, Platform } from 'react-native';
+
+export async function requestMicrophonePermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return false;
+
+    const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+            title: 'Microphone Permission',
+            message: 'This app needs access to your microphone for voice commands.',
+            buttonPositive: 'Grant',
+            buttonNegative: 'Deny',
+        }
+    );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+}
+```
+
+---
+
+### Step 2.5: End-to-End Flow Implementation
+
+**Create speech processing screen or component:**
+```typescript
+// Example usage in a component
+function VoiceAssistant() {
+    const { isListening, transcript, partialTranscript, startListening, stopListening } = useSpeechRecognition();
+    const [response, setResponse] = useState('');
+    const [processing, setProcessing] = useState(false);
+
+    // Process transcript when we get a final result
+    useEffect(() => {
+        if (transcript && !processing) {
+            handleTranscript(transcript);
+        }
+    }, [transcript]);
+
+    const handleTranscript = async (text: string) => {
+        setProcessing(true);
+        try {
+            const result = await processSpeech({
+                text,
+                sessionId: 'current-session-id',
+            });
+            setResponse(result.response);
+            // TODO: Display response on glasses or use TTS
+        } catch (error) {
+            console.error('Failed to process speech:', error);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    return (
+        <View>
+            <Text>Listening: {isListening ? 'Yes' : 'No'}</Text>
+            <Text>Partial: {partialTranscript}</Text>
+            <Text>Final: {transcript}</Text>
+            <Text>Response: {response}</Text>
+            <Button onPress={isListening ? stopListening : startListening}>
+                {isListening ? 'Stop' : 'Start'} Listening
+            </Button>
+        </View>
+    );
+}
+```
+
+---
+
+### Step 2.6: Testing Plan
+
+#### Unit Tests
+- [ ] SpeechRecognizer initialization with ProjectedContext
+- [ ] Event emission for results, partial results, errors
+- [ ] Continuous listening restart after results
+- [ ] Error recovery and restart logic
+- [ ] Permission handling
+
+#### Integration Tests
+- [ ] End-to-end: speak → transcribe → backend → response
+- [ ] React Native hook state updates correctly
+- [ ] Event subscriptions and cleanup
+
+#### Emulator Tests
+- [ ] Use Android Studio emulator microphone input
+- [ ] Verify glasses context uses emulated glasses mic
+- [ ] Test partial results streaming
+- [ ] Test error scenarios (no speech, timeout)
+
+#### Device Tests (with real glasses)
+- [ ] Speech recognized from glasses microphone (not phone)
+- [ ] Latency measurement: speech → final result
+- [ ] Background/foreground transitions
+- [ ] Battery impact assessment
+- [ ] Network connectivity handling for backend
+
+#### Test Scenarios
+| Scenario | Expected Result |
+|----------|-----------------|
+| Say "Hello world" | Transcript: "hello world", confidence > 0.8 |
+| Silence for 5s | onError with SPEECH_TIMEOUT, auto-restart |
+| No RECORD_AUDIO permission | onError with INSUFFICIENT_PERMISSIONS |
+| Backend unavailable | Error shown, transcript still captured |
+| Rapid start/stop | No crashes, clean state |
+
+---
+
+### Implementation Order
+
+1. **Kotlin: SpeechRecognizer in XRGlassesService** - Core recognition logic
+2. **Kotlin: Module bridge functions** - Expose to React Native
+3. **TypeScript: Event types and hook** - useSpeechRecognition
+4. **TypeScript: Backend service** - API integration
+5. **UI: Voice assistant component** - Display and controls
+6. **Testing: Emulator validation** - All test scenarios
+7. **Testing: Real device** - Glasses microphone verification
+
+---
+
+## Research Findings
+
+Research conducted 2026-01-29 to determine audio capture approach:
+
+| Question | Answer |
+|----------|--------|
+| Built-in transcription? | YES - `SpeechRecognizer.createOnDeviceSpeechRecognizer()` works offline |
+| Audio routing? | Glasses connect as Bluetooth audio (A2DP/HFP), ~100-200ms latency |
+| WiFi audio streaming? | NO - Jetpack XR only supports Bluetooth for audio |
+| Best approach? | On-device SpeechRecognizer - avoids latency, sends text not audio |
+
+**Sources:**
+- https://developer.android.com/develop/xr/jetpack-xr-sdk/asr
+- https://developer.android.com/develop/xr/jetpack-xr-sdk/access-hardware-projected-context
+
+---
+
+## Architecture Decisions
+
+### Capabilities UI Removed
+Cannot remotely query glasses system features from phone. Capabilities are used internally for **validation only**:
+- Checks for `com.google.android.feature.XR_PROJECTED` before connecting
+- Shows clear error if device is incompatible
+- No capabilities displayed in UI
+
+---
+
+## Key Code Files
+
+### Kotlin (Native Module)
+| File | Purpose |
+|------|---------|
+| `modules/xr-glasses/android/.../XRGlassesService.kt` | Core XR service, connection, speech |
+| `modules/xr-glasses/android/.../XRGlassesModule.kt` | Expo module bridge to React Native |
+
+### TypeScript (React Native)
+| File | Purpose |
+|------|---------|
+| `modules/xr-glasses/src/XRGlassesModule.ts` | Platform service abstraction (IXRGlassesService) |
+| `src/hooks/useXRGlasses.ts` | Main React hook for glasses state |
+| `src/hooks/useGlassesInput.ts` | Input event tracking hook |
+| `app/connect.tsx` | Connection screen |
+| `app/glasses/index.tsx` | Glasses dashboard UI |
+
+---
+
+## Quick Commands
+
+```bash
+# Build release APK
+export ANDROID_HOME=~/Android/Sdk
+cd android && ./gradlew clean && ./gradlew assembleRelease
+
+# APK location
+android/app/build/outputs/apk/release/app-release.apk
+
+# List emulators
+~/Android/Sdk/platform-tools/adb devices -l
+
+# Install on phone emulator (replace 5556 with actual port)
+~/Android/Sdk/platform-tools/adb -s emulator-5556 install -r android/app/build/outputs/apk/release/app-release.apk
+
+# Watch logs
+~/Android/Sdk/platform-tools/adb -s emulator-5556 logcat | grep XRGlassesService
+```
+
+---
+
 ## Notes
 
 - Jetpack XR library versions may change - check Maven for latest
 - Android XR requires API 28+ minimum
-- Test on actual XR-capable device, not emulator
-- Keep packet captures organized by date/feature for analysis
+- See `CLAUDE.md` for emulator setup and testing instructions

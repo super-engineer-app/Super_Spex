@@ -25,7 +25,12 @@ class XRGlassesModule : Module() {
             "onConnectionStateChanged",
             "onInputEvent",
             "onEngagementModeChanged",
-            "onDeviceStateChanged"
+            "onDeviceStateChanged",
+            // Speech recognition events (from GlassesActivity via broadcast)
+            "onSpeechResult",        // Final transcription
+            "onPartialResult",       // Interim transcription
+            "onSpeechError",         // Recognition errors
+            "onSpeechStateChanged"   // Listening state changes
         )
 
         // Initialize the XR Glasses service
@@ -33,6 +38,11 @@ class XRGlassesModule : Module() {
             val context = appContext.reactContext
                 ?: throw CodedException("NO_CONTEXT", "No context available", null)
             glassesService = XRGlassesService(context, this@XRGlassesModule)
+
+            // Register callback for speech events from GlassesActivity
+            GlassesBroadcastReceiver.moduleCallback = { eventName, data ->
+                this@XRGlassesModule.sendEvent(eventName, data)
+            }
         }
 
         // Check if this is a projected device context (running on XR glasses)
@@ -158,10 +168,47 @@ class XRGlassesModule : Module() {
             }
         }
 
+        // ============================================================
+        // Speech Recognition Functions
+        // Runs on phone using glasses context for mic routing
+        // ============================================================
+
+        // Start speech recognition
+        AsyncFunction("startSpeechRecognition") { continuous: Boolean, promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.startSpeechRecognition(continuous)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("SPEECH_START_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Stop speech recognition
+        AsyncFunction("stopSpeechRecognition") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.stopSpeechRecognition()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("SPEECH_STOP_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Check if speech recognition is available on this device
+        AsyncFunction("isSpeechRecognitionAvailable") { promise: Promise ->
+            val available = glassesService?.isSpeechRecognitionAvailable() ?: false
+            promise.resolve(available)
+        }
+
         // Cleanup on module destroy
         OnDestroy {
             scope.cancel()
             glassesService?.cleanup()
+            // Clear the broadcast receiver callback
+            GlassesBroadcastReceiver.moduleCallback = null
         }
     }
 

@@ -1,7 +1,14 @@
 package expo.modules.xrglasses
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -89,6 +96,13 @@ class XRGlassesService(
 
     // Job for monitoring connection state
     private var connectionMonitorJob: Job? = null
+
+    // Speech recognition
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isListening = false
+    private var continuousMode = false
+    private var useNetworkRecognizer = false  // Falls back to true if on-device fails
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     init {
         Log.d(TAG, "XRGlassesService initialized")
@@ -558,6 +572,235 @@ class XRGlassesService(
         }
     }
 
+    // ============================================================
+    // Speech Recognition (runs on phone, uses glasses mic via projected context)
+    // ============================================================
+
+    /**
+     * Initialize speech recognizer.
+     * Tries on-device first for low latency, falls back to network if language packs unavailable.
+     */
+    private fun initSpeechRecognizer() {
+        val recognizerContext = context
+
+        if (!SpeechRecognizer.isRecognitionAvailable(recognizerContext)) {
+            Log.e(TAG, "Speech recognition not available")
+            module.emitEvent("onSpeechError", mapOf(
+                "code" to -1,
+                "message" to "Speech recognition not available on this device",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
+        speechRecognizer = if (useNetworkRecognizer) {
+            Log.d(TAG, "Creating network-based speech recognizer")
+            SpeechRecognizer.createSpeechRecognizer(recognizerContext)
+        } else {
+            // Try on-device first for lower latency
+            try {
+                Log.d(TAG, "Creating on-device speech recognizer")
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(recognizerContext)
+            } catch (e: Exception) {
+                Log.w(TAG, "On-device recognizer failed, using network: ${e.message}")
+                useNetworkRecognizer = true
+                SpeechRecognizer.createSpeechRecognizer(recognizerContext)
+            }
+        }
+
+        speechRecognizer?.setRecognitionListener(createRecognitionListener())
+        Log.d(TAG, "SpeechRecognizer initialized (network=$useNetworkRecognizer)")
+    }
+
+    private fun createRecognitionListener() = object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) {
+            Log.d(TAG, "Speech: Ready for speech")
+            module.emitEvent("onSpeechStateChanged", mapOf(
+                "isListening" to true,
+                "timestamp" to System.currentTimeMillis()
+            ))
+        }
+
+        override fun onBeginningOfSpeech() {
+            Log.d(TAG, "Speech: Beginning of speech")
+        }
+
+        override fun onRmsChanged(rmsdB: Float) {
+            // Audio level - could emit if needed
+        }
+
+        override fun onBufferReceived(buffer: ByteArray?) {}
+
+        override fun onEndOfSpeech() {
+            Log.d(TAG, "Speech: End of speech")
+        }
+
+        override fun onError(error: Int) {
+            // Error 13 = LANGUAGE_PACK_ERROR (on-device model not available)
+            val isLanguagePackError = error == 13
+
+            // If on-device failed with language pack error, switch to network and retry
+            if (isLanguagePackError && !useNetworkRecognizer) {
+                Log.w(TAG, "On-device language pack not available, switching to network recognizer")
+                useNetworkRecognizer = true
+                speechRecognizer?.destroy()
+                speechRecognizer = null
+                initSpeechRecognizer()
+                if (isListening) {
+                    mainHandler.postDelayed({
+                        startListeningInternal()
+                    }, 100)
+                }
+                return
+            }
+
+            val errorMessage = when (error) {
+                SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required"
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
+                SpeechRecognizer.ERROR_SERVER -> "Server error"
+                13 -> "Language pack not available"
+                else -> "Recognition error: $error"
+            }
+
+            Log.e(TAG, "Speech error: $errorMessage (code: $error)")
+            module.emitEvent("onSpeechError", mapOf(
+                "code" to error,
+                "message" to errorMessage,
+                "timestamp" to System.currentTimeMillis()
+            ))
+
+            // Restart on recoverable errors if in continuous mode
+            if (continuousMode && isListening && isRecoverableError(error)) {
+                mainHandler.postDelayed({
+                    if (isListening) startListeningInternal()
+                }, 500)
+            }
+        }
+
+        override fun onResults(results: Bundle?) {
+            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            val confidences = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+
+            if (!matches.isNullOrEmpty()) {
+                val bestIndex = if (confidences != null && confidences.isNotEmpty()) {
+                    confidences.indices.maxByOrNull { confidences[it] } ?: 0
+                } else {
+                    0
+                }
+
+                val text = matches[bestIndex]
+                val confidence = confidences?.getOrNull(bestIndex) ?: 0f
+
+                Log.d(TAG, "Speech result: '$text' (confidence: $confidence)")
+                module.emitEvent("onSpeechResult", mapOf(
+                    "text" to text,
+                    "confidence" to confidence,
+                    "isFinal" to true,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+
+            // Restart listening if in continuous mode
+            if (continuousMode && isListening) {
+                mainHandler.postDelayed({
+                    if (isListening) startListeningInternal()
+                }, 100)
+            }
+        }
+
+        override fun onPartialResults(partialResults: Bundle?) {
+            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!matches.isNullOrEmpty()) {
+                val text = matches[0]
+                Log.d(TAG, "Speech partial: '$text'")
+                module.emitEvent("onPartialResult", mapOf(
+                    "text" to text,
+                    "isFinal" to false,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+        }
+
+        override fun onEvent(eventType: Int, params: Bundle?) {
+            Log.d(TAG, "Speech event: $eventType")
+        }
+    }
+
+    private fun isRecoverableError(error: Int): Boolean {
+        return error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS &&
+               error != SpeechRecognizer.ERROR_CLIENT &&
+               error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+    }
+
+    /**
+     * Start speech recognition.
+     */
+    fun startSpeechRecognition(continuous: Boolean) {
+        Log.d(TAG, "Starting speech recognition (continuous: $continuous)")
+
+        if (speechRecognizer == null) {
+            initSpeechRecognizer()
+        }
+
+        if (speechRecognizer == null) {
+            Log.e(TAG, "Failed to initialize speech recognizer")
+            return
+        }
+
+        continuousMode = continuous
+        isListening = true
+        startListeningInternal()
+    }
+
+    private fun startListeningInternal() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            // Don't prefer offline - emulator may not have language packs
+            // On real device with language packs, could set to true for lower latency
+        }
+
+        try {
+            speechRecognizer?.startListening(intent)
+            Log.d(TAG, "Speech recognition started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start listening: ${e.message}")
+            module.emitEvent("onSpeechError", mapOf(
+                "code" to -1,
+                "message" to "Failed to start speech recognition: ${e.message}",
+                "timestamp" to System.currentTimeMillis()
+            ))
+        }
+    }
+
+    /**
+     * Stop speech recognition.
+     */
+    fun stopSpeechRecognition() {
+        Log.d(TAG, "Stopping speech recognition")
+        isListening = false
+        continuousMode = false
+        speechRecognizer?.stopListening()
+        module.emitEvent("onSpeechStateChanged", mapOf(
+            "isListening" to false,
+            "timestamp" to System.currentTimeMillis()
+        ))
+    }
+
+    /**
+     * Check if speech recognition is available.
+     */
+    fun isSpeechRecognitionAvailable(): Boolean {
+        return SpeechRecognizer.isRecognitionAvailable(context)
+    }
+
     /**
      * Cleanup resources.
      */
@@ -565,6 +808,11 @@ class XRGlassesService(
         Log.d(TAG, "Cleaning up XRGlassesService")
         connectionMonitorJob?.cancel()
         scope.cancel()
+
+        // Cleanup speech recognizer
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        isListening = false
 
         if (projectedContextInstance != null) {
             try {

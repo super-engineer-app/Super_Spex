@@ -1,6 +1,16 @@
 import { Platform } from 'react-native';
 import { EventEmitter, type EventSubscription } from 'expo-modules-core';
-import { XRGlassesNative, ConnectionStateEvent, InputEvent, EngagementModeEvent, DeviceStateEvent } from '../index';
+import {
+  XRGlassesNative,
+  ConnectionStateEvent,
+  InputEvent,
+  EngagementModeEvent,
+  DeviceStateEvent,
+  SpeechResultEvent,
+  PartialResultEvent,
+  SpeechErrorEvent,
+  SpeechStateEvent,
+} from '../index';
 
 /**
  * Subscription interface for event listeners.
@@ -73,11 +83,35 @@ export interface IXRGlassesService {
   /** Simulate an input event (for testing in emulation mode) */
   simulateInputEvent(action: string): Promise<boolean>;
 
+  // ============================================================
+  // Speech Recognition (runs on glasses via GlassesActivity)
+  // ============================================================
+
+  /**
+   * Start speech recognition on glasses.
+   * This launches GlassesActivity which runs SpeechRecognizer directly on glasses hardware,
+   * avoiding Bluetooth audio latency.
+   * @param continuous - If true, continuously restarts after each result
+   */
+  startSpeechRecognition(continuous?: boolean): Promise<boolean>;
+
+  /** Stop speech recognition */
+  stopSpeechRecognition(): Promise<boolean>;
+
+  /** Check if speech recognition is available */
+  isSpeechRecognitionAvailable(): Promise<boolean>;
+
   // Event subscriptions
   onConnectionStateChanged(callback: (event: ConnectionStateEvent) => void): Subscription;
   onInputEvent(callback: (event: InputEvent) => void): Subscription;
   onEngagementModeChanged(callback: (event: EngagementModeEvent) => void): Subscription;
   onDeviceStateChanged(callback: (event: DeviceStateEvent) => void): Subscription;
+
+  // Speech recognition events (from glasses)
+  onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription;
+  onPartialResult(callback: (event: PartialResultEvent) => void): Subscription;
+  onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription;
+  onSpeechStateChanged(callback: (event: SpeechStateEvent) => void): Subscription;
 }
 
 // Lazy-initialized Expo event emitter for native events (Android/iOS)
@@ -168,6 +202,40 @@ class AndroidXRGlassesService implements IXRGlassesService {
     const subscription = getEmitter().addListener('onDeviceStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
+
+  // Speech recognition methods (control GlassesActivity on glasses)
+  async startSpeechRecognition(continuous: boolean = true): Promise<boolean> {
+    return XRGlassesNative.startSpeechRecognition(continuous);
+  }
+
+  async stopSpeechRecognition(): Promise<boolean> {
+    return XRGlassesNative.stopSpeechRecognition();
+  }
+
+  async isSpeechRecognitionAvailable(): Promise<boolean> {
+    return XRGlassesNative.isSpeechRecognitionAvailable();
+  }
+
+  // Speech recognition event subscriptions
+  onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onSpeechResult', callback);
+    return { remove: () => subscription.remove() };
+  }
+
+  onPartialResult(callback: (event: PartialResultEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onPartialResult', callback);
+    return { remove: () => subscription.remove() };
+  }
+
+  onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onSpeechError', callback);
+    return { remove: () => subscription.remove() };
+  }
+
+  onSpeechStateChanged(callback: (event: SpeechStateEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onSpeechStateChanged', callback);
+    return { remove: () => subscription.remove() };
+  }
 }
 
 /**
@@ -245,6 +313,36 @@ class IOSXRGlassesService implements IXRGlassesService {
   onDeviceStateChanged(_callback: (event: DeviceStateEvent) => void): Subscription {
     return { remove: () => {} };
   }
+
+  // Speech recognition stubs for iOS
+  async startSpeechRecognition(_continuous?: boolean): Promise<boolean> {
+    console.warn('iOS speech recognition not yet implemented');
+    throw new Error('iOS speech recognition not yet implemented');
+  }
+
+  async stopSpeechRecognition(): Promise<boolean> {
+    throw new Error('iOS speech recognition not yet implemented');
+  }
+
+  async isSpeechRecognitionAvailable(): Promise<boolean> {
+    return false;
+  }
+
+  onSpeechResult(_callback: (event: SpeechResultEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onPartialResult(_callback: (event: PartialResultEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onSpeechError(_callback: (event: SpeechErrorEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onSpeechStateChanged(_callback: (event: SpeechStateEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
 }
 
 /**
@@ -258,6 +356,12 @@ class WebXRGlassesService implements IXRGlassesService {
   private inputCallbacks: Set<(event: InputEvent) => void> = new Set();
   private engagementCallbacks: Set<(event: EngagementModeEvent) => void> = new Set();
   private deviceStateCallbacks: Set<(event: DeviceStateEvent) => void> = new Set();
+  // Speech recognition callbacks for emulation
+  private speechResultCallbacks: Set<(event: SpeechResultEvent) => void> = new Set();
+  private partialResultCallbacks: Set<(event: PartialResultEvent) => void> = new Set();
+  private speechErrorCallbacks: Set<(event: SpeechErrorEvent) => void> = new Set();
+  private speechStateCallbacks: Set<(event: SpeechStateEvent) => void> = new Set();
+  private isListening = false;
 
   async initialize(): Promise<void> {
     console.log('[WebXR] Initialized in web mode - using emulation');
@@ -377,6 +481,91 @@ class WebXRGlassesService implements IXRGlassesService {
     return {
       remove: () => {
         this.deviceStateCallbacks.delete(callback);
+      },
+    };
+  }
+
+  // Speech recognition for web emulation
+  async startSpeechRecognition(continuous: boolean = true): Promise<boolean> {
+    console.log('[WebXR] Speech recognition started (emulation)', { continuous });
+    this.isListening = true;
+    this.speechStateCallbacks.forEach(cb => cb({
+      isListening: true,
+      timestamp: Date.now(),
+    }));
+    return true;
+  }
+
+  async stopSpeechRecognition(): Promise<boolean> {
+    console.log('[WebXR] Speech recognition stopped (emulation)');
+    this.isListening = false;
+    this.speechStateCallbacks.forEach(cb => cb({
+      isListening: false,
+      timestamp: Date.now(),
+    }));
+    return true;
+  }
+
+  async isSpeechRecognitionAvailable(): Promise<boolean> {
+    return true; // Always available in emulation
+  }
+
+  /**
+   * Simulate a speech result for testing.
+   * Call this from dev tools or test code to simulate voice input.
+   */
+  simulateSpeechResult(text: string, confidence: number = 0.95): void {
+    this.speechResultCallbacks.forEach(cb => cb({
+      text,
+      confidence,
+      isFinal: true,
+      timestamp: Date.now(),
+    }));
+  }
+
+  /**
+   * Simulate a partial speech result for testing.
+   */
+  simulatePartialResult(text: string): void {
+    this.partialResultCallbacks.forEach(cb => cb({
+      text,
+      isFinal: false,
+      timestamp: Date.now(),
+    }));
+  }
+
+  onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription {
+    this.speechResultCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.speechResultCallbacks.delete(callback);
+      },
+    };
+  }
+
+  onPartialResult(callback: (event: PartialResultEvent) => void): Subscription {
+    this.partialResultCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.partialResultCallbacks.delete(callback);
+      },
+    };
+  }
+
+  onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription {
+    this.speechErrorCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.speechErrorCallbacks.delete(callback);
+      },
+    };
+  }
+
+  onSpeechStateChanged(callback: (event: SpeechStateEvent) => void): Subscription {
+    this.speechStateCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.speechStateCallbacks.delete(callback);
       },
     };
   }

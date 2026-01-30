@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, PermissionsAndroid, Platform } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../../src/hooks/useXRGlasses';
 import { useGlassesInput } from '../../src/hooks/useGlassesInput';
+import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
+import { useState, useCallback } from 'react';
 
 /**
  * Glasses dashboard screen.
@@ -21,6 +23,45 @@ export default function GlassesDashboard() {
   } = useXRGlasses();
 
   const { lastEvent } = useGlassesInput();
+  const {
+    isListening,
+    transcript,
+    partialTranscript,
+    error: speechError,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition();
+
+  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown');
+
+  // Request microphone permission and start listening
+  const handleStartListening = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Microphone Permission',
+            message: 'This app needs microphone access for voice commands.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          setMicPermission('granted');
+          await startListening(true);
+        } else {
+          setMicPermission('denied');
+        }
+      } catch (err) {
+        console.warn('Permission request error:', err);
+      }
+    } else {
+      // iOS or other platforms
+      await startListening(true);
+    }
+  }, [startListening]);
 
   // Redirect if not connected
   if (!connected) {
@@ -108,6 +149,40 @@ export default function GlassesDashboard() {
               </Pressable>
             </Link>
           </View>
+        </View>
+
+        {/* Speech Recognition */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Voice Input</Text>
+          <Pressable
+            style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
+            onPress={isListening ? stopListening : handleStartListening}
+          >
+            <Text style={styles.voiceButtonIcon}>{isListening ? 'MIC' : 'MIC'}</Text>
+            <Text style={styles.voiceButtonText}>
+              {isListening ? 'Stop Listening' : 'Start Listening'}
+            </Text>
+          </Pressable>
+          {(partialTranscript || transcript) && (
+            <View style={styles.transcriptBox}>
+              <Text style={styles.transcriptLabel}>
+                {partialTranscript ? 'Listening...' : 'Transcript:'}
+              </Text>
+              <Text style={styles.transcriptText}>
+                {partialTranscript || transcript}
+              </Text>
+            </View>
+          )}
+          {micPermission === 'denied' && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>Microphone permission denied. Please enable in Settings.</Text>
+            </View>
+          )}
+          {speechError && micPermission !== 'denied' && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{speechError}</Text>
+            </View>
+          )}
         </View>
 
         {/* Last Input Event */}
@@ -306,5 +381,53 @@ const styles = StyleSheet.create({
     color: '#cc3300',
     fontSize: 16,
     fontWeight: '500',
+  },
+  voiceButton: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  voiceButtonActive: {
+    borderColor: '#ff6b6b',
+    backgroundColor: '#3d1a1a',
+  },
+  voiceButtonIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+    color: '#ff6b6b',
+    fontWeight: 'bold',
+  },
+  voiceButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  transcriptBox: {
+    marginTop: 12,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 8,
+    padding: 12,
+  },
+  transcriptLabel: {
+    color: '#888888',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  transcriptText: {
+    color: '#ffffff',
+    fontSize: 16,
+  },
+  errorBox: {
+    marginTop: 12,
+    backgroundColor: '#3d1515',
+    borderRadius: 8,
+    padding: 12,
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
   },
 });

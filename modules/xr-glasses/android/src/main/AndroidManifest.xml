@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.SCENE_UNDERSTANDING_COARSE" />
     <uses-permission android:name="android.permission.SCENE_UNDERSTANDING_FINE" />
 
+    <!-- Microphone permission for speech recognition -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Bluetooth permissions for glasses communication -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
@@ -30,5 +33,33 @@
             <action android:name="androidx.xr.projected.ACTION_ENGAGEMENT_BIND" />
         </intent>
     </queries>
+
+    <application>
+        <!-- Glasses Activity - runs on the glasses hardware -->
+        <activity
+            android:name=".glasses.GlassesActivity"
+            android:exported="true"
+            android:requiredDisplayCategory="xr_projected"
+            android:theme="@android:style/Theme.NoTitleBar">
+
+            <!-- Intent filter for launching from phone app -->
+            <intent-filter>
+                <action android:name="expo.modules.xrglasses.LAUNCH_GLASSES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Broadcast receiver for glasses → phone communication -->
+        <receiver
+            android:name=".GlassesBroadcastReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="expo.modules.xrglasses.SPEECH_RESULT" />
+                <action android:name="expo.modules.xrglasses.SPEECH_PARTIAL" />
+                <action android:name="expo.modules.xrglasses.SPEECH_ERROR" />
+                <action android:name="expo.modules.xrglasses.SPEECH_STATE" />
+            </intent-filter>
+        </receiver>
+    </application>
 
 </manifest>

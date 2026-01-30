@@ -38,6 +38,23 @@ interface XRGlassesNativeModule extends NativeModule {
     hasMicrophone: boolean;
     hasAudioOutput: boolean;
   }>;
+
+  // ============================================================
+  // Speech Recognition (runs on glasses via GlassesActivity)
+  // ============================================================
+
+  /**
+   * Start speech recognition on glasses.
+   * Launches GlassesActivity which runs SpeechRecognizer on glasses hardware.
+   * @param continuous - If true, continuously restarts after each result
+   */
+  startSpeechRecognition(continuous: boolean): Promise<boolean>;
+
+  /** Stop speech recognition */
+  stopSpeechRecognition(): Promise<boolean>;
+
+  /** Check if speech recognition is available */
+  isSpeechRecognitionAvailable(): Promise<boolean>;
 }
 
 // Export the native module
@@ -48,6 +65,31 @@ export type ConnectionStateEvent = { connected: boolean };
 export type InputEvent = { action: string; timestamp: number };
 export type EngagementModeEvent = { visualsOn: boolean; audioOn: boolean };
 export type DeviceStateEvent = { state: 'INACTIVE' | 'ACTIVE' | 'DESTROYED' };
+
+// Speech recognition event types (from GlassesActivity on glasses)
+export type SpeechResultEvent = {
+  text: string;
+  confidence: number;
+  isFinal: boolean;
+  timestamp: number;
+};
+
+export type PartialResultEvent = {
+  text: string;
+  isFinal: boolean;
+  timestamp: number;
+};
+
+export type SpeechErrorEvent = {
+  code: number;
+  message: string;
+  timestamp: number;
+};
+
+export type SpeechStateEvent = {
+  isListening: boolean;
+  timestamp: number;
+};
 
 // Re-export the service module
 export { createXRGlassesService, getXRGlassesService } from './src/XRGlassesModule';
