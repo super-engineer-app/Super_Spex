@@ -10,6 +10,9 @@ import {
   PartialResultEvent,
   SpeechErrorEvent,
   SpeechStateEvent,
+  ImageCapturedEvent,
+  CameraErrorEvent,
+  CameraStateEvent,
 } from '../index';
 
 /**
@@ -112,6 +115,32 @@ export interface IXRGlassesService {
   onPartialResult(callback: (event: PartialResultEvent) => void): Subscription;
   onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription;
   onSpeechStateChanged(callback: (event: SpeechStateEvent) => void): Subscription;
+
+  // ============================================================
+  // Camera Capture (uses ProjectedContext for glasses camera)
+  // ============================================================
+
+  /**
+   * Initialize camera for capturing images from glasses.
+   * Uses ProjectedContext to access glasses camera when connected.
+   * Falls back to phone camera in emulation mode.
+   * @param lowPowerMode - If true, uses lower resolution (640x480 vs 1280x720)
+   */
+  initializeCamera(lowPowerMode?: boolean): Promise<boolean>;
+
+  /** Capture an image from the camera. Result delivered via onImageCaptured event. */
+  captureImage(): Promise<boolean>;
+
+  /** Release camera resources */
+  releaseCamera(): Promise<boolean>;
+
+  /** Check if camera is initialized and ready */
+  isCameraReady(): Promise<boolean>;
+
+  // Camera events
+  onImageCaptured(callback: (event: ImageCapturedEvent) => void): Subscription;
+  onCameraError(callback: (event: CameraErrorEvent) => void): Subscription;
+  onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription;
 }
 
 // Lazy-initialized Expo event emitter for native events (Android/iOS)
@@ -236,6 +265,43 @@ class AndroidXRGlassesService implements IXRGlassesService {
     const subscription = getEmitter().addListener('onSpeechStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
+
+  // Camera capture methods
+  async initializeCamera(lowPowerMode: boolean = false): Promise<boolean> {
+    // @ts-ignore - initializeCamera may not be in the base type definition
+    return XRGlassesNative.initializeCamera(lowPowerMode);
+  }
+
+  async captureImage(): Promise<boolean> {
+    // @ts-ignore - captureImage may not be in the base type definition
+    return XRGlassesNative.captureImage();
+  }
+
+  async releaseCamera(): Promise<boolean> {
+    // @ts-ignore - releaseCamera may not be in the base type definition
+    return XRGlassesNative.releaseCamera();
+  }
+
+  async isCameraReady(): Promise<boolean> {
+    // @ts-ignore - isCameraReady may not be in the base type definition
+    return XRGlassesNative.isCameraReady();
+  }
+
+  // Camera event subscriptions
+  onImageCaptured(callback: (event: ImageCapturedEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onImageCaptured', callback);
+    return { remove: () => subscription.remove() };
+  }
+
+  onCameraError(callback: (event: CameraErrorEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onCameraError', callback);
+    return { remove: () => subscription.remove() };
+  }
+
+  onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription {
+    const subscription = getEmitter().addListener('onCameraStateChanged', callback);
+    return { remove: () => subscription.remove() };
+  }
 }
 
 /**
@@ -341,6 +407,36 @@ class IOSXRGlassesService implements IXRGlassesService {
   }
 
   onSpeechStateChanged(_callback: (event: SpeechStateEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  // Camera stubs for iOS
+  async initializeCamera(_lowPowerMode?: boolean): Promise<boolean> {
+    console.warn('iOS camera not yet implemented');
+    throw new Error('iOS camera not yet implemented');
+  }
+
+  async captureImage(): Promise<boolean> {
+    throw new Error('iOS camera not yet implemented');
+  }
+
+  async releaseCamera(): Promise<boolean> {
+    return true;
+  }
+
+  async isCameraReady(): Promise<boolean> {
+    return false;
+  }
+
+  onImageCaptured(_callback: (event: ImageCapturedEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onCameraError(_callback: (event: CameraErrorEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onCameraStateChanged(_callback: (event: CameraStateEvent) => void): Subscription {
     return { remove: () => {} };
   }
 }
@@ -566,6 +662,78 @@ class WebXRGlassesService implements IXRGlassesService {
     return {
       remove: () => {
         this.speechStateCallbacks.delete(callback);
+      },
+    };
+  }
+
+  // Camera capture for web emulation
+  private cameraReady = false;
+  private imageCapturedCallbacks: Set<(event: ImageCapturedEvent) => void> = new Set();
+  private cameraErrorCallbacks: Set<(event: CameraErrorEvent) => void> = new Set();
+  private cameraStateCallbacks: Set<(event: CameraStateEvent) => void> = new Set();
+
+  async initializeCamera(_lowPowerMode?: boolean): Promise<boolean> {
+    console.log('[WebXR] Camera initialized (emulation)');
+    this.cameraReady = true;
+    this.cameraStateCallbacks.forEach(cb => cb({
+      isReady: true,
+      isEmulated: true,
+      timestamp: Date.now(),
+    }));
+    return true;
+  }
+
+  async captureImage(): Promise<boolean> {
+    console.log('[WebXR] Capturing image (emulation)');
+    // Simulate capture with a placeholder
+    this.imageCapturedCallbacks.forEach(cb => cb({
+      imageBase64: '', // Empty for emulation
+      width: 640,
+      height: 480,
+      isEmulated: true,
+      timestamp: Date.now(),
+    }));
+    return true;
+  }
+
+  async releaseCamera(): Promise<boolean> {
+    console.log('[WebXR] Camera released (emulation)');
+    this.cameraReady = false;
+    this.cameraStateCallbacks.forEach(cb => cb({
+      isReady: false,
+      isEmulated: true,
+      timestamp: Date.now(),
+    }));
+    return true;
+  }
+
+  async isCameraReady(): Promise<boolean> {
+    return this.cameraReady;
+  }
+
+  onImageCaptured(callback: (event: ImageCapturedEvent) => void): Subscription {
+    this.imageCapturedCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.imageCapturedCallbacks.delete(callback);
+      },
+    };
+  }
+
+  onCameraError(callback: (event: CameraErrorEvent) => void): Subscription {
+    this.cameraErrorCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.cameraErrorCallbacks.delete(callback);
+      },
+    };
+  }
+
+  onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription {
+    this.cameraStateCallbacks.add(callback);
+    return {
+      remove: () => {
+        this.cameraStateCallbacks.delete(callback);
       },
     };
   }

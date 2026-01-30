@@ -12,3 +12,6 @@ export type { InputEventWithId, UseGlassesInputReturn } from './useGlassesInput'
 
 export { useSpeechRecognition, useSpeechProcessor } from './useSpeechRecognition';
 export type { SpeechRecognitionState, UseSpeechRecognitionReturn } from './useSpeechRecognition';
+
+export { useGlassesCamera } from './useGlassesCamera';
+export type { CameraState, UseGlassesCameraReturn } from './useGlassesCamera';

@@ -10,6 +10,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -103,6 +104,10 @@ class XRGlassesService(
     private var continuousMode = false
     private var useNetworkRecognizer = false  // Falls back to true if on-device fails
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Camera capture
+    private var cameraManager: GlassesCameraManager? = null
+    private var isCameraInitialized = false
 
     init {
         Log.d(TAG, "XRGlassesService initialized")
@@ -836,6 +841,102 @@ class XRGlassesService(
         return SpeechRecognizer.isRecognitionAvailable(context)
     }
 
+    // ============================================================
+    // Camera Capture (uses ProjectedContext for glasses camera)
+    // ============================================================
+
+    /**
+     * Initialize camera for capturing images from glasses.
+     * Uses ProjectedContext to access glasses camera when connected.
+     * Falls back to phone camera in emulation mode.
+     *
+     * @param lifecycleOwner Lifecycle owner for camera binding
+     * @param lowPowerMode If true, uses lower resolution (640x480 vs 1280x720)
+     */
+    fun initializeCamera(lifecycleOwner: LifecycleOwner, lowPowerMode: Boolean = false) {
+        Log.d(TAG, "Initializing camera (emulation: $emulationMode, lowPower: $lowPowerMode)")
+
+        if (cameraManager != null) {
+            Log.d(TAG, "Camera already initialized, releasing first")
+            releaseCamera()
+        }
+
+        cameraManager = GlassesCameraManager(
+            context = context,
+            onImageCaptured = { base64, width, height ->
+                Log.d(TAG, "Image captured: ${width}x${height}")
+                module.emitEvent("onImageCaptured", mapOf(
+                    "imageBase64" to base64,
+                    "width" to width,
+                    "height" to height,
+                    "isEmulated" to emulationMode,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            },
+            onError = { message ->
+                Log.e(TAG, "Camera error: $message")
+                module.emitEvent("onCameraError", mapOf(
+                    "message" to message,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            },
+            onCameraStateChanged = { ready ->
+                isCameraInitialized = ready
+                Log.d(TAG, "Camera state changed: ready=$ready")
+                module.emitEvent("onCameraStateChanged", mapOf(
+                    "isReady" to ready,
+                    "isEmulated" to emulationMode,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+        )
+
+        cameraManager?.initializeCamera(lifecycleOwner, emulationMode, lowPowerMode)
+    }
+
+    /**
+     * Capture an image from the glasses camera.
+     * The result will be delivered via the onImageCaptured event.
+     */
+    fun captureImage() {
+        if (cameraManager == null) {
+            Log.e(TAG, "Camera not initialized")
+            module.emitEvent("onCameraError", mapOf(
+                "message" to "Camera not initialized. Call initializeCamera first.",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
+        if (!isCameraInitialized) {
+            Log.e(TAG, "Camera not ready")
+            module.emitEvent("onCameraError", mapOf(
+                "message" to "Camera not ready yet. Wait for onCameraStateChanged event.",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
+        cameraManager?.captureImage()
+    }
+
+    /**
+     * Release camera resources.
+     */
+    fun releaseCamera() {
+        Log.d(TAG, "Releasing camera")
+        cameraManager?.release()
+        cameraManager = null
+        isCameraInitialized = false
+    }
+
+    /**
+     * Check if camera is initialized and ready.
+     */
+    fun isCameraReady(): Boolean {
+        return isCameraInitialized && cameraManager?.isCameraReady() == true
+    }
+
     /**
      * Cleanup resources.
      */
@@ -848,6 +949,9 @@ class XRGlassesService(
         speechRecognizer?.destroy()
         speechRecognizer = null
         isListening = false
+
+        // Cleanup camera
+        releaseCamera()
 
         if (projectedContextInstance != null) {
             try {

@@ -24,7 +24,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.xrglasses.app",
-      "minSdkVersion": 28
+      "minSdkVersion": 30
     },
     "web": {
       "favicon": "./assets/favicon.png",

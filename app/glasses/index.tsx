@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../../src/hooks/useXRGlasses';
 import { useGlassesInput } from '../../src/hooks/useGlassesInput';
 import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
-import { useState, useCallback } from 'react';
+import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
+import { useState, useCallback, useEffect } from 'react';
 
 /**
  * Glasses dashboard screen.
@@ -32,7 +33,57 @@ export default function GlassesDashboard() {
     stopListening,
   } = useSpeechRecognition();
 
+  const {
+    isReady: cameraReady,
+    isCapturing,
+    lastImage,
+    lastImageSize,
+    error: cameraError,
+    isEmulated: cameraEmulated,
+    initializeCamera,
+    captureImage,
+    releaseCamera,
+  } = useGlassesCamera();
+
   const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown');
+  const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown');
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraReady) {
+        releaseCamera();
+      }
+    };
+  }, [cameraReady, releaseCamera]);
+
+  // Request camera permission and initialize camera
+  const handleInitializeCamera = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'This app needs camera access to capture images from glasses.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          setCameraPermission('granted');
+          await initializeCamera(false); // false = high quality mode
+        } else {
+          setCameraPermission('denied');
+        }
+      } catch (err) {
+        console.warn('Camera permission request error:', err);
+      }
+    } else {
+      await initializeCamera(false);
+    }
+  }, [initializeCamera]);
 
   // Request microphone permission and start listening
   const handleStartListening = useCallback(async () => {
@@ -181,6 +232,68 @@ export default function GlassesDashboard() {
           {speechError && micPermission !== 'denied' && !transcript && !partialTranscript && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>{speechError}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Camera Capture */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Camera Capture</Text>
+
+          {!cameraReady ? (
+            <Pressable
+              style={styles.cameraButton}
+              onPress={handleInitializeCamera}
+            >
+              <Text style={styles.cameraButtonIcon}>CAM</Text>
+              <Text style={styles.cameraButtonText}>Initialize Camera</Text>
+            </Pressable>
+          ) : (
+            <View>
+              <View style={styles.cameraStatusRow}>
+                <Text style={styles.cameraStatusText}>
+                  Camera ready ({cameraEmulated ? 'emulated' : 'glasses'})
+                </Text>
+                <Pressable style={styles.releaseButton} onPress={releaseCamera}>
+                  <Text style={styles.releaseButtonText}>Release</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                style={[styles.captureButton, isCapturing && styles.captureButtonActive]}
+                onPress={captureImage}
+                disabled={isCapturing}
+              >
+                <Text style={styles.captureButtonIcon}>
+                  {isCapturing ? '...' : 'SNAP'}
+                </Text>
+                <Text style={styles.captureButtonText}>
+                  {isCapturing ? 'Capturing...' : 'Capture Photo'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {lastImage && lastImageSize && (
+            <View style={styles.imagePreviewContainer}>
+              <Text style={styles.imagePreviewLabel}>
+                Last capture: {lastImageSize.width}x{lastImageSize.height}
+              </Text>
+              <Image
+                source={{ uri: `data:image/jpeg;base64,${lastImage}` }}
+                style={styles.imagePreview}
+                resizeMode="contain"
+              />
+            </View>
+          )}
+
+          {cameraPermission === 'denied' && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>Camera permission denied. Please enable in Settings.</Text>
+            </View>
+          )}
+          {cameraError && cameraPermission !== 'denied' && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{cameraError}</Text>
             </View>
           )}
         </View>
@@ -429,5 +542,84 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff6b6b',
     fontSize: 14,
+  },
+  cameraButton: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  cameraButtonIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+    color: '#0066cc',
+    fontWeight: 'bold',
+  },
+  cameraButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  cameraStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cameraStatusText: {
+    color: '#4ade80',
+    fontSize: 14,
+  },
+  releaseButton: {
+    backgroundColor: '#3d2a2a',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  releaseButtonText: {
+    color: '#cc6666',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  captureButton: {
+    backgroundColor: '#1a3d1a',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#4ade80',
+  },
+  captureButtonActive: {
+    opacity: 0.6,
+  },
+  captureButtonIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+    color: '#4ade80',
+    fontWeight: 'bold',
+  },
+  captureButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  imagePreviewContainer: {
+    marginTop: 16,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 8,
+    padding: 12,
+  },
+  imagePreviewLabel: {
+    color: '#888888',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    backgroundColor: '#1a1a1a',
   },
 });

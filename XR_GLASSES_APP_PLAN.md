@@ -2570,3 +2570,19 @@ android/app/build/outputs/apk/release/app-release.apk
 - Complex implementation (Opus encoding, streaming, decoding)
 - Jetpack XR may not expose raw audio streaming APIs
 - Not recommended unless on-device ASR unavailable
+
+### Emulator Stability Issues (2026-01-30)
+
+**Symptom:** Camera/connection works initially, then stops working after several uses.
+
+**Fix:** Fully close and restart the phone emulator. No need to create new AVD.
+
+**Root cause (suspected):**
+- NOT hot module reloading (release APK has no Metro bundler)
+- Likely CameraX/Camera2 resource leak in emulator's camera HAL
+- Or Jetpack XR Projected service binding gets stuck (alpha SDK)
+- Or emulator's glasses↔phone pairing state corrupts in memory
+
+**Key insight:** Restart fixes it → runtime state corruption, not image corruption.
+
+**Workaround:** If camera stops working, restart the phone emulator.

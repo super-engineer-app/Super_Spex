@@ -55,6 +55,25 @@ interface XRGlassesNativeModule extends NativeModule {
 
   /** Check if speech recognition is available */
   isSpeechRecognitionAvailable(): Promise<boolean>;
+
+  // ============================================================
+  // Camera Capture (uses ProjectedContext for glasses camera)
+  // ============================================================
+
+  /**
+   * Initialize camera for capturing images from glasses.
+   * @param lowPowerMode - If true, uses lower resolution (640x480 vs 1280x720)
+   */
+  initializeCamera(lowPowerMode: boolean): Promise<boolean>;
+
+  /** Capture an image from the camera. Result delivered via onImageCaptured event. */
+  captureImage(): Promise<boolean>;
+
+  /** Release camera resources */
+  releaseCamera(): Promise<boolean>;
+
+  /** Check if camera is initialized and ready */
+  isCameraReady(): Promise<boolean>;
 }
 
 // Export the native module
@@ -88,6 +107,26 @@ export type SpeechErrorEvent = {
 
 export type SpeechStateEvent = {
   isListening: boolean;
+  timestamp: number;
+};
+
+// Camera capture event types
+export type ImageCapturedEvent = {
+  imageBase64: string;
+  width: number;
+  height: number;
+  isEmulated: boolean;
+  timestamp: number;
+};
+
+export type CameraErrorEvent = {
+  message: string;
+  timestamp: number;
+};
+
+export type CameraStateEvent = {
+  isReady: boolean;
+  isEmulated: boolean;
   timestamp: number;
 };
 

@@ -1,5 +1,7 @@
 package expo.modules.xrglasses
 
+import android.app.Activity
+import androidx.lifecycle.LifecycleOwner
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
@@ -30,7 +32,11 @@ class XRGlassesModule : Module() {
             "onSpeechResult",        // Final transcription
             "onPartialResult",       // Interim transcription
             "onSpeechError",         // Recognition errors
-            "onSpeechStateChanged"   // Listening state changes
+            "onSpeechStateChanged",  // Listening state changes
+            // Camera capture events
+            "onImageCaptured",       // Image captured successfully
+            "onCameraError",         // Camera error
+            "onCameraStateChanged"   // Camera ready state changes
         )
 
         // Initialize the XR Glasses service
@@ -201,6 +207,64 @@ class XRGlassesModule : Module() {
         AsyncFunction("isSpeechRecognitionAvailable") { promise: Promise ->
             val available = glassesService?.isSpeechRecognitionAvailable() ?: false
             promise.resolve(available)
+        }
+
+        // ============================================================
+        // Camera Capture Functions
+        // Uses ProjectedContext to access glasses camera
+        // ============================================================
+
+        // Initialize camera for image capture
+        AsyncFunction("initializeCamera") { lowPowerMode: Boolean, promise: Promise ->
+            scope.launch {
+                try {
+                    val activity = appContext.currentActivity
+                    if (activity == null) {
+                        promise.reject(CodedException("NO_ACTIVITY", "No activity available", null))
+                        return@launch
+                    }
+
+                    if (activity !is LifecycleOwner) {
+                        promise.reject(CodedException("NOT_LIFECYCLE_OWNER", "Activity is not a LifecycleOwner", null))
+                        return@launch
+                    }
+
+                    glassesService?.initializeCamera(activity, lowPowerMode)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("CAMERA_INIT_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Capture an image from the camera
+        AsyncFunction("captureImage") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.captureImage()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("CAPTURE_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Release camera resources
+        AsyncFunction("releaseCamera") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.releaseCamera()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("RELEASE_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Check if camera is ready
+        AsyncFunction("isCameraReady") { promise: Promise ->
+            val ready = glassesService?.isCameraReady() ?: false
+            promise.resolve(ready)
         }
 
         // Cleanup on module destroy

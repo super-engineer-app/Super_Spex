@@ -40,5 +40,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
 
     // Jetpack XR dependencies for glasses communication
-    implementation("androidx.xr.projected:projected:1.0.0-alpha03")
+    implementation("androidx.xr.projected:projected:1.0.0-alpha04")
+
+    // CameraX for glasses camera capture
+    implementation("androidx.camera:camera-core:1.3.1")
+    implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.3.1")
 }
