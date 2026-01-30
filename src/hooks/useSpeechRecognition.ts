@@ -79,6 +79,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   // Track if component is mounted
   const mountedRef = useRef(true);
 
+  // Accumulate final results during a session (concatenate instead of replace)
+  const accumulatedTranscriptRef = useRef('');
+
   useEffect(() => {
     mountedRef.current = true;
 
@@ -99,7 +102,17 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     const resultSub = service.onSpeechResult((event: SpeechResultEvent) => {
       if (!mountedRef.current) return;
 
-      setTranscript(event.text);
+      // Accumulate results - append new text to existing transcript
+      const newText = event.text.trim();
+      if (newText) {
+        if (accumulatedTranscriptRef.current) {
+          accumulatedTranscriptRef.current += ' ' + newText;
+        } else {
+          accumulatedTranscriptRef.current = newText;
+        }
+        setTranscript(accumulatedTranscriptRef.current);
+      }
+
       setConfidence(event.confidence);
       setPartialTranscript(''); // Clear partial when we get final
       setError(null);
@@ -111,13 +124,24 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     const partialSub = service.onPartialResult((event: PartialResultEvent) => {
       if (!mountedRef.current) return;
 
-      setPartialTranscript(event.text);
+      // Show accumulated transcript + current partial
+      const partial = event.text.trim();
+      if (accumulatedTranscriptRef.current && partial) {
+        setPartialTranscript(accumulatedTranscriptRef.current + ' ' + partial);
+      } else if (partial) {
+        setPartialTranscript(partial);
+      } else if (accumulatedTranscriptRef.current) {
+        setPartialTranscript(accumulatedTranscriptRef.current);
+      }
     });
 
     const errorSub = service.onSpeechError((event: SpeechErrorEvent) => {
       if (!mountedRef.current) return;
 
-      setError(event.message);
+      // Only show error if we don't have any transcript yet
+      if (!accumulatedTranscriptRef.current) {
+        setError(event.message);
+      }
       // Don't set isListening to false here - the native side handles restart
     });
 
@@ -142,6 +166,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       return;
     }
 
+    // Clear accumulated transcript when starting a new session
+    accumulatedTranscriptRef.current = '';
+    setTranscript('');
     setError(null);
     setPartialTranscript('');
 
@@ -169,6 +196,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   }, []);
 
   const clearTranscript = useCallback(() => {
+    accumulatedTranscriptRef.current = '';
     setTranscript('');
     setPartialTranscript('');
     setConfidence(0);
