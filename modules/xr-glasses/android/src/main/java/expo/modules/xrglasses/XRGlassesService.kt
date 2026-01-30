@@ -578,10 +578,15 @@ class XRGlassesService(
 
     /**
      * Initialize speech recognizer.
+     * Always uses phone context (which has RECORD_AUDIO permission).
+     * When connected via Jetpack XR, the system routes glasses mic audio automatically.
      * Tries on-device first for low latency, falls back to network if language packs unavailable.
      */
     private fun initSpeechRecognizer() {
+        // Always use phone context for SpeechRecognizer - it has the RECORD_AUDIO permission
+        // When connected via Jetpack XR, audio from glasses mic is routed automatically
         val recognizerContext = context
+        Log.d(TAG, "Creating speech recognizer with phone context (connected=$isConnected)")
 
         if (!SpeechRecognizer.isRecognitionAvailable(recognizerContext)) {
             Log.e(TAG, "Speech recognition not available")
@@ -612,9 +617,14 @@ class XRGlassesService(
         Log.d(TAG, "SpeechRecognizer initialized (network=$useNetworkRecognizer)")
     }
 
+    // Track audio levels for debugging
+    private var lastLoggedRms = 0L
+    private var maxRmsThisSession = -100f
+
     private fun createRecognitionListener() = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
-            Log.d(TAG, "Speech: Ready for speech")
+            Log.d(TAG, "Speech: Ready for speech - SPEAK NOW")
+            maxRmsThisSession = -100f  // Reset max RMS for new session
             module.emitEvent("onSpeechStateChanged", mapOf(
                 "isListening" to true,
                 "timestamp" to System.currentTimeMillis()
@@ -622,11 +632,24 @@ class XRGlassesService(
         }
 
         override fun onBeginningOfSpeech() {
-            Log.d(TAG, "Speech: Beginning of speech")
+            Log.d(TAG, "Speech: Beginning of speech DETECTED - voice activity found!")
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            // Audio level - could emit if needed
+            // Track max audio level
+            if (rmsdB > maxRmsThisSession) {
+                maxRmsThisSession = rmsdB
+            }
+            // Log audio levels periodically (every 500ms) for debugging
+            val now = System.currentTimeMillis()
+            if (now - lastLoggedRms > 500) {
+                lastLoggedRms = now
+                Log.d(TAG, "Speech: Audio level RMS=$rmsdB dB (max this session: $maxRmsThisSession dB)")
+                // RMS values: -2 to 10 is typical for speech, negative values indicate silence/low audio
+                if (rmsdB < 0) {
+                    Log.w(TAG, "Speech: Audio level very low - check microphone input!")
+                }
+            }
         }
 
         override fun onBufferReceived(buffer: ByteArray?) {}
@@ -655,20 +678,30 @@ class XRGlassesService(
             }
 
             val errorMessage = when (error) {
-                SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
-                SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                SpeechRecognizer.ERROR_NETWORK -> "Network error"
-                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                SpeechRecognizer.ERROR_NO_MATCH -> {
+                    // Log diagnostic info when no speech detected
+                    Log.w(TAG, "Speech: ERROR_NO_MATCH - Max audio RMS this session: $maxRmsThisSession dB")
+                    if (maxRmsThisSession < 0) {
+                        "No speech detected (microphone may not be working - max audio level: $maxRmsThisSession dB)"
+                    } else if (maxRmsThisSession < 2) {
+                        "No speech detected (audio level low - max: $maxRmsThisSession dB, try speaking louder)"
+                    } else {
+                        "No speech detected"
+                    }
+                }
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout - no voice activity detected"
+                SpeechRecognizer.ERROR_AUDIO -> "Audio recording error - check microphone permissions and hardware"
+                SpeechRecognizer.ERROR_NETWORK -> "Network error - check internet connection"
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout - slow internet connection"
+                SpeechRecognizer.ERROR_CLIENT -> "Client error - speech recognizer issue"
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required"
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
-                SpeechRecognizer.ERROR_SERVER -> "Server error"
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy - try again"
+                SpeechRecognizer.ERROR_SERVER -> "Server error - Google speech service unavailable"
                 13 -> "Language pack not available"
                 else -> "Recognition error: $error"
             }
 
-            Log.e(TAG, "Speech error: $errorMessage (code: $error)")
+            Log.e(TAG, "Speech error: $errorMessage (code: $error, maxRms: $maxRmsThisSession)")
             module.emitEvent("onSpeechError", mapOf(
                 "code" to error,
                 "message" to errorMessage,
@@ -706,10 +739,13 @@ class XRGlassesService(
                 ))
             }
 
-            // Restart listening if in continuous mode
+            // Restart listening in continuous mode
             if (continuousMode && isListening) {
                 mainHandler.postDelayed({
-                    if (isListening) startListeningInternal()
+                    if (isListening) {
+                        Log.d(TAG, "Speech: Continuous mode - restarting listener")
+                        startListeningInternal()
+                    }
                 }, 100)
             }
         }
@@ -763,13 +799,12 @@ class XRGlassesService(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            // Don't prefer offline - emulator may not have language packs
-            // On real device with language packs, could set to true for lower latency
+
         }
 
         try {
             speechRecognizer?.startListening(intent)
-            Log.d(TAG, "Speech recognition started")
+            Log.d(TAG, "Speech recognition started (network=$useNetworkRecognizer) - listening for speech...")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start listening: ${e.message}")
             module.emitEvent("onSpeechError", mapOf(

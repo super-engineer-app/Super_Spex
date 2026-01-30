@@ -118,24 +118,48 @@ class GlassesActivity : Activity() {
         }
     }
 
+    private var useNetworkRecognizer = false
+
     private fun initSpeechRecognizer() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            Log.e(TAG, "Speech recognition not available on this device")
-            sendError(-1, "Speech recognition not available on this device")
+        // Check both on-device and network recognition availability
+        val onDeviceAvailable = try {
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+        } catch (e: Exception) {
+            false
+        }
+
+        val networkAvailable = SpeechRecognizer.isRecognitionAvailable(this)
+
+        Log.d(TAG, "Speech recognition availability - on-device: $onDeviceAvailable, network: $networkAvailable")
+
+        if (!onDeviceAvailable && !networkAvailable) {
+            Log.e(TAG, "No speech recognition available on this device")
+            sendError(-1, "Speech recognition not available on this device. Please ensure Google app is installed.")
             return
         }
 
-        // Create ON-DEVICE recognizer for low latency
-        // This runs on the glasses hardware, using the glasses microphone directly
-        speechRecognizer = try {
-            SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-        } catch (e: Exception) {
-            Log.w(TAG, "On-device recognizer not available, falling back to default: ${e.message}")
+        // Create recognizer - prefer on-device for low latency, fall back to network
+        speechRecognizer = if (onDeviceAvailable && !useNetworkRecognizer) {
+            try {
+                Log.d(TAG, "Creating on-device speech recognizer for low latency")
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } catch (e: Exception) {
+                Log.w(TAG, "On-device recognizer failed, falling back to network: ${e.message}")
+                useNetworkRecognizer = true
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }
+        } else if (networkAvailable) {
+            Log.d(TAG, "Using network-based speech recognizer")
+            useNetworkRecognizer = true
             SpeechRecognizer.createSpeechRecognizer(this)
+        } else {
+            Log.e(TAG, "Cannot create speech recognizer")
+            sendError(-1, "Failed to create speech recognizer")
+            return
         }
 
         speechRecognizer?.setRecognitionListener(createRecognitionListener())
-        Log.d(TAG, "SpeechRecognizer initialized on glasses")
+        Log.d(TAG, "SpeechRecognizer initialized on glasses (network=$useNetworkRecognizer)")
     }
 
     private fun createRecognitionListener() = object : RecognitionListener {
@@ -162,6 +186,24 @@ class GlassesActivity : Activity() {
         }
 
         override fun onError(error: Int) {
+            // Error 13 = LANGUAGE_PACK_ERROR (on-device model not available)
+            val isLanguagePackError = error == 13
+
+            // If on-device failed with language pack error, switch to network and retry
+            if (isLanguagePackError && !useNetworkRecognizer) {
+                Log.w(TAG, "On-device language pack not available, switching to network recognizer")
+                useNetworkRecognizer = true
+                speechRecognizer?.destroy()
+                speechRecognizer = null
+                initSpeechRecognizer()
+                if (isListening) {
+                    mainHandler.postDelayed({
+                        startListeningInternal()
+                    }, 100)
+                }
+                return
+            }
+
             val errorMessage = when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
                 SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
@@ -172,6 +214,7 @@ class GlassesActivity : Activity() {
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required"
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
                 SpeechRecognizer.ERROR_SERVER -> "Server error"
+                13 -> "Language pack not available"
                 else -> "Recognition error: $error"
             }
 

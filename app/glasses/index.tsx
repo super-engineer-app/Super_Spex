@@ -178,7 +178,7 @@ export default function GlassesDashboard() {
               <Text style={styles.errorText}>Microphone permission denied. Please enable in Settings.</Text>
             </View>
           )}
-          {speechError && micPermission !== 'denied' && (
+          {speechError && micPermission !== 'denied' && !transcript && !partialTranscript && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>{speechError}</Text>
             </View>

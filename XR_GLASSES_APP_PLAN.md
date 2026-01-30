@@ -9,14 +9,34 @@
 | 1.3 | Jetpack XR Integration | ✅ COMPLETE |
 | 1.4 | React Native Bridge | ✅ COMPLETE |
 | 1.5 | Connection Flow | ✅ COMPLETE |
-| **2.1** | **GlassesActivity + SpeechRecognizer** | 🔄 IN PROGRESS |
-| 2.2 | React Native Speech Hook | ⏳ PENDING |
-| 2.3 | Backend Integration | ⏳ PENDING |
-| 2.4 | End-to-End Testing | ⏳ PENDING |
+| 2.1 | GlassesActivity + SpeechRecognizer | ✅ COMPLETE |
+| 2.2 | React Native Speech Hook | ✅ COMPLETE |
+| **2.3** | **Speech Recognition Testing** | 🔄 IN PROGRESS |
+| 2.4 | Backend Integration | ⏳ PENDING |
+| 2.5 | End-to-End Testing | ⏳ PENDING |
 | 3 | Display Content on Glasses | ⏳ FUTURE |
 | 4 | iOS Implementation | ⏳ FUTURE |
 
 **Approach:** On-device SpeechRecognizer running ON THE GLASSES (not phone) for minimal latency
+
+### Current Status Notes (2026-01-30)
+
+**What's implemented:**
+- GlassesActivity.kt - runs on glasses, handles speech recognition on glasses mic
+- GlassesBroadcastReceiver.kt - receives speech events on phone
+- XRGlassesService.kt - fallback phone-side speech recognition (for emulator testing)
+- useSpeechRecognition.ts hook - React Native integration
+- UI in app/glasses/index.tsx - Voice Input card with mic button
+
+**Emulator limitations:**
+- Glasses emulator does NOT have SpeechRecognizer available (no Google Speech Services)
+- Phone-side fallback works: uses phone mic + network-based ASR
+- On real AI glasses hardware, GlassesActivity will use on-device ASR with glasses mic
+
+**Next step:** Test speech recognition on phone emulator (phone mic → network ASR → transcript displayed)
+- Ensure emulator's microphone is enabled in Android Studio
+- Test continuous listening mode
+- Verify transcript appears in UI
 
 ---
 
@@ -2522,3 +2542,31 @@ android/app/build/outputs/apk/release/app-release.apk
 - Jetpack XR library versions may change - check Maven for latest
 - Android XR requires API 28+ minimum
 - See `CLAUDE.md` for emulator setup and testing instructions
+
+### Emulator Testing Notes (2026-01-30)
+
+**Glasses emulator (emulator-5554):**
+- Does NOT have SpeechRecognizer available
+- `SpeechRecognizer.isRecognitionAvailable()` returns false
+- `SpeechRecognizer.isOnDeviceRecognitionAvailable()` returns false
+- This is expected - glasses emulator is minimal image without Google services
+- GlassesActivity works but speech recognition fails with "not available"
+
+**Phone emulator (emulator-5556):**
+- Has network-based SpeechRecognizer (via Google app)
+- On-device ASR fails with error 13 (language pack not available)
+- Fallback to network ASR works correctly
+- Must have microphone enabled in emulator settings
+- Uses phone mic (not glasses mic) in emulator environment
+
+**Production behavior:**
+- Real AI glasses have on-device ASR with glasses microphone
+- GlassesActivity will run speech recognition locally on glasses
+- Only text results sent to phone (no audio streaming)
+- Expected latency: ~100ms for on-device ASR
+
+**Audio streaming alternative (if needed):**
+- Would add ~100-600ms latency vs on-device ASR
+- Complex implementation (Opus encoding, streaming, decoding)
+- Jetpack XR may not expose raw audio streaming APIs
+- Not recommended unless on-device ASR unavailable
