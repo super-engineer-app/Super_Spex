@@ -7,6 +7,15 @@
 - Update the status table in `XR_GLASSES_APP_PLAN.md` when completing milestones
 - Keep the user informed of what's being done
 
+### Research Before Implementation
+- **ALWAYS** conduct extensive research of official documentation before:
+  - Implementing any new feature
+  - Making adjustments to existing code
+  - Integrating new libraries or APIs
+- Use WebFetch/WebSearch to read official docs, not just Stack Overflow or tutorials
+- Document key findings from official docs in the relevant `docs/` file
+- If official docs contradict existing code patterns, flag this to the user
+
 ### Failure Handling
 - If an approach fails **more than 2 iterations**, STOP and document:
   1. What approach was tried
@@ -14,6 +23,17 @@
   3. What was learned
 - Add failed approaches to `XR_GLASSES_APP_PLAN.md` under "Research Findings" or "Notes"
 - This prevents repeating the same mistakes in future sessions
+
+### Documentation Standards
+- **NEVER** exceed 2000 lines in any single documentation file
+- Split documentation logically into multiple files in the `docs/` folder:
+  - `docs/architecture.md` - System design and architecture decisions
+  - `docs/api-reference.md` - API endpoints and data structures
+  - `docs/setup.md` - Installation and configuration
+  - `docs/troubleshooting.md` - Common issues and solutions
+  - Create topic-specific files as needed (e.g., `docs/speech-recognition.md`)
+- Keep `CLAUDE.md` focused on agent instructions only
+- Keep `XR_GLASSES_APP_PLAN.md` focused on project status and roadmap
 
 ### Code Quality Standards
 Write code that is:
