@@ -321,6 +321,9 @@ class XRGlassesService(
                                 "audioOn" to true
                             ))
                             Log.d(TAG, "Real XR connection established!")
+
+                            // Launch the GlassesActivity to project UI onto glasses
+                            launchGlassesActivity()
                         } else {
                             throw Exception("create() returned null")
                         }
@@ -348,6 +351,103 @@ class XRGlassesService(
                 ))
                 throw Exception(userMessage)
             }
+        }
+    }
+
+    // Store activity reference for launching glasses activity
+    private var currentActivity: android.app.Activity? = null
+
+    /**
+     * Set the current activity for launching glasses experiences.
+     * Should be called before connect() with the current activity.
+     */
+    fun setCurrentActivity(activity: android.app.Activity?) {
+        currentActivity = activity
+    }
+
+    /**
+     * Launch the GlassesActivity to display UI on the glasses.
+     * Uses ProjectedContext.createProjectedDeviceContext() and createProjectedActivityOptions()
+     * as per the official Android XR sample pattern.
+     */
+    private fun launchGlassesActivity() {
+        try {
+            Log.d(TAG, "Launching GlassesActivity on glasses display...")
+
+            val activity = currentActivity
+            if (activity == null) {
+                Log.w(TAG, "No activity available, falling back to context-based launch")
+                launchGlassesActivityFallback()
+                return
+            }
+
+            // Get ProjectedContext class
+            val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
+
+            // Step 1: Create projected device context from activity (official pattern)
+            val createDeviceContextMethod = projectedContextClass.methods.find {
+                it.name == "createProjectedDeviceContext"
+            }
+
+            // Step 2: Create activity options from device context
+            val createOptionsMethod = projectedContextClass.methods.find {
+                it.name == "createProjectedActivityOptions"
+            }
+
+            if (createDeviceContextMethod != null && createOptionsMethod != null) {
+                // Create projected device context first
+                val projectedDeviceContext = createDeviceContextMethod.invoke(null, activity)
+                Log.d(TAG, "Created projected device context: $projectedDeviceContext")
+
+                // Create options from the projected device context
+                val options = createOptionsMethod.invoke(null, projectedDeviceContext)
+                Log.d(TAG, "Created projected activity options: $options")
+
+                // Create intent for GlassesActivity
+                val intent = Intent(activity, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+
+                // Get the toBundle() method from options and start activity
+                if (options != null) {
+                    val toBundleMethod = options.javaClass.getMethod("toBundle")
+                    val bundle = toBundleMethod.invoke(options) as? android.os.Bundle
+
+                    if (bundle != null) {
+                        activity.startActivity(intent, bundle)
+                        Log.d(TAG, "GlassesActivity launched with projected device context options!")
+                    } else {
+                        activity.startActivity(intent)
+                        Log.d(TAG, "GlassesActivity launched without projected bundle")
+                    }
+                } else {
+                    activity.startActivity(intent)
+                    Log.d(TAG, "GlassesActivity launched (no options)")
+                }
+            } else {
+                Log.w(TAG, "ProjectedContext methods not found, using fallback")
+                launchGlassesActivityFallback()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch GlassesActivity: ${e.message}", e)
+            // Try fallback method
+            launchGlassesActivityFallback()
+        }
+    }
+
+    /**
+     * Fallback launch method when activity is not available or ProjectedContext fails.
+     */
+    private fun launchGlassesActivityFallback() {
+        try {
+            val intent = Intent(context, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
+                action = "expo.modules.xrglasses.LAUNCH_GLASSES"
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            Log.d(TAG, "GlassesActivity launched via fallback method")
+        } catch (e: Exception) {
+            Log.e(TAG, "Fallback launch also failed: ${e.message}", e)
         }
     }
 

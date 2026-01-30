@@ -1,8 +1,6 @@
 package expo.modules.xrglasses.glasses
 
 import android.Manifest
-import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -12,18 +10,26 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * GlassesActivity - Activity that runs ON THE GLASSES hardware.
  *
  * This activity is declared with android:requiredDisplayCategory="xr_projected"
- * which means it runs on the glasses display, not the phone. The SpeechRecognizer
- * created here uses the glasses' microphone directly, avoiding Bluetooth audio latency.
- *
- * Communication with the phone app is done via broadcasts.
+ * which means it runs on the glasses display, not the phone. Uses Jetpack Compose
+ * Glimmer for the UI, optimized for AI glasses displays.
  */
-class GlassesActivity : Activity() {
+class GlassesActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "GlassesActivity"
@@ -46,20 +52,33 @@ class GlassesActivity : Activity() {
     private var isListening = false
     private var continuousMode = false
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    // Permission request code
     private val PERMISSION_REQUEST_RECORD_AUDIO = 1001
+
+    // UI State
+    private val _uiState = MutableStateFlow(GlassesUiState())
+    val uiState: StateFlow<GlassesUiState> = _uiState.asStateFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "GlassesActivity created on glasses display")
 
-        // Check/request microphone permission
+        setContent {
+            GlassesScreen(
+                uiState = uiState.collectAsStateWithLifecycle().value,
+                onClose = { finish() }
+            )
+        }
+
+        // Check microphone permission - don't request on glasses (dialog can't show)
+        // Permission should be granted from phone before launching this activity
         if (checkAudioPermission()) {
+            Log.d(TAG, "RECORD_AUDIO permission granted, initializing speech")
             initSpeechRecognizer()
             handleIntent(intent)
         } else {
-            requestAudioPermission()
+            Log.w(TAG, "RECORD_AUDIO permission not granted - speech recognition disabled")
+            // Still show UI, just without speech recognition
+            updateUiState { copy(error = "Mic permission needed - grant on phone") }
         }
     }
 
@@ -72,31 +91,15 @@ class GlassesActivity : Activity() {
 
     private fun requestAudioPermission() {
         Log.d(TAG, "Requesting RECORD_AUDIO permission")
-
-        // Try using ProjectedPermissionsResultContract if available
-        try {
-            val contractClass = Class.forName("androidx.xr.projected.ProjectedPermissionsResultContract")
-            val paramsClass = Class.forName("androidx.xr.projected.ProjectedPermissionsRequestParams")
-
-            // For now, fall back to standard permission request
-            // ProjectedPermissionsResultContract requires ActivityResultLauncher setup
-            requestPermissions(
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                PERMISSION_REQUEST_RECORD_AUDIO
-            )
-        } catch (e: ClassNotFoundException) {
-            // ProjectedPermissionsResultContract not available, use standard API
-            Log.d(TAG, "Using standard permission request")
-            requestPermissions(
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                PERMISSION_REQUEST_RECORD_AUDIO
-            )
-        }
+        requestPermissions(
+            arrayOf(Manifest.permission.RECORD_AUDIO),
+            PERMISSION_REQUEST_RECORD_AUDIO
+        )
     }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array<out String>,
+        permissions: Array<String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -108,12 +111,8 @@ class GlassesActivity : Activity() {
                 handleIntent(intent)
             } else {
                 Log.e(TAG, "RECORD_AUDIO permission denied")
-                sendError(
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS,
-                    "Microphone permission denied. Voice commands require microphone access."
-                )
-                // Finish activity since we can't do speech recognition without permission
-                finish()
+                updateUiState { copy(error = "Mic permission denied - grant on phone") }
+                // Don't finish - keep UI visible without speech
             }
         }
     }
@@ -121,7 +120,6 @@ class GlassesActivity : Activity() {
     private var useNetworkRecognizer = false
 
     private fun initSpeechRecognizer() {
-        // Check both on-device and network recognition availability
         val onDeviceAvailable = try {
             SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
         } catch (e: Exception) {
@@ -129,22 +127,21 @@ class GlassesActivity : Activity() {
         }
 
         val networkAvailable = SpeechRecognizer.isRecognitionAvailable(this)
-
-        Log.d(TAG, "Speech recognition availability - on-device: $onDeviceAvailable, network: $networkAvailable")
+        Log.d(TAG, "Speech recognition - on-device: $onDeviceAvailable, network: $networkAvailable")
 
         if (!onDeviceAvailable && !networkAvailable) {
-            Log.e(TAG, "No speech recognition available on this device")
-            sendError(-1, "Speech recognition not available on this device. Please ensure Google app is installed.")
+            Log.e(TAG, "No speech recognition available")
+            updateUiState { copy(error = "Speech recognition not available") }
+            sendError(-1, "Speech recognition not available on this device.")
             return
         }
 
-        // Create recognizer - prefer on-device for low latency, fall back to network
         speechRecognizer = if (onDeviceAvailable && !useNetworkRecognizer) {
             try {
-                Log.d(TAG, "Creating on-device speech recognizer for low latency")
+                Log.d(TAG, "Creating on-device speech recognizer")
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
             } catch (e: Exception) {
-                Log.w(TAG, "On-device recognizer failed, falling back to network: ${e.message}")
+                Log.w(TAG, "On-device failed, using network: ${e.message}")
                 useNetworkRecognizer = true
                 SpeechRecognizer.createSpeechRecognizer(this)
             }
@@ -159,13 +156,14 @@ class GlassesActivity : Activity() {
         }
 
         speechRecognizer?.setRecognitionListener(createRecognitionListener())
-        Log.d(TAG, "SpeechRecognizer initialized on glasses (network=$useNetworkRecognizer)")
+        Log.d(TAG, "SpeechRecognizer initialized (network=$useNetworkRecognizer)")
     }
 
     private fun createRecognitionListener() = object : RecognitionListener {
 
         override fun onReadyForSpeech(params: Bundle?) {
             Log.d(TAG, "Ready for speech")
+            updateUiState { copy(isListening = true, error = null) }
             sendState(isListening = true)
         }
 
@@ -173,33 +171,24 @@ class GlassesActivity : Activity() {
             Log.d(TAG, "Speech started")
         }
 
-        override fun onRmsChanged(rmsdB: Float) {
-            // Could send audio level updates if needed for UI feedback
-        }
-
-        override fun onBufferReceived(buffer: ByteArray?) {
-            // Raw audio buffer - not typically needed
-        }
+        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBufferReceived(buffer: ByteArray?) {}
 
         override fun onEndOfSpeech() {
             Log.d(TAG, "Speech ended")
         }
 
         override fun onError(error: Int) {
-            // Error 13 = LANGUAGE_PACK_ERROR (on-device model not available)
             val isLanguagePackError = error == 13
 
-            // If on-device failed with language pack error, switch to network and retry
             if (isLanguagePackError && !useNetworkRecognizer) {
-                Log.w(TAG, "On-device language pack not available, switching to network recognizer")
+                Log.w(TAG, "Language pack not available, switching to network")
                 useNetworkRecognizer = true
                 speechRecognizer?.destroy()
                 speechRecognizer = null
                 initSpeechRecognizer()
                 if (isListening) {
-                    mainHandler.postDelayed({
-                        startListeningInternal()
-                    }, 100)
+                    mainHandler.postDelayed({ startListeningInternal() }, 100)
                 }
                 return
             }
@@ -219,9 +208,9 @@ class GlassesActivity : Activity() {
             }
 
             Log.e(TAG, "Speech error: $errorMessage (code: $error)")
+            updateUiState { copy(error = errorMessage) }
             sendError(error, errorMessage)
 
-            // Restart on recoverable errors if in continuous mode
             if (continuousMode && isListening && isRecoverableError(error)) {
                 mainHandler.postDelayed({
                     if (isListening) startListeningInternal()
@@ -234,7 +223,6 @@ class GlassesActivity : Activity() {
             val confidences = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
 
             if (!matches.isNullOrEmpty()) {
-                // Get the best result (highest confidence or first)
                 val bestIndex = if (confidences != null && confidences.isNotEmpty()) {
                     confidences.indices.maxByOrNull { confidences[it] } ?: 0
                 } else {
@@ -245,10 +233,14 @@ class GlassesActivity : Activity() {
                 val confidence = confidences?.getOrNull(bestIndex) ?: 0f
 
                 Log.d(TAG, "Speech result: '$text' (confidence: $confidence)")
+                updateUiState { copy(
+                    transcript = text,
+                    partialTranscript = "",
+                    isListening = false
+                )}
                 sendResult(text, confidence)
             }
 
-            // Restart listening if in continuous mode
             if (continuousMode && isListening) {
                 mainHandler.postDelayed({
                     if (isListening) startListeningInternal()
@@ -261,6 +253,7 @@ class GlassesActivity : Activity() {
             if (!matches.isNullOrEmpty()) {
                 val text = matches[0]
                 Log.d(TAG, "Partial result: '$text'")
+                updateUiState { copy(partialTranscript = text) }
                 sendPartialResult(text)
             }
         }
@@ -291,6 +284,10 @@ class GlassesActivity : Activity() {
             "expo.modules.xrglasses.STOP_LISTENING" -> {
                 stopListening()
             }
+            "expo.modules.xrglasses.SHOW_RESPONSE" -> {
+                val response = intent.getStringExtra("response") ?: ""
+                updateUiState { copy(aiResponse = response) }
+            }
         }
     }
 
@@ -307,13 +304,9 @@ class GlassesActivity : Activity() {
 
     private fun startListeningInternal() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            // Prefer offline recognition for lower latency
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
 
@@ -330,8 +323,13 @@ class GlassesActivity : Activity() {
         isListening = false
         continuousMode = false
         speechRecognizer?.stopListening()
+        updateUiState { copy(isListening = false) }
         sendState(isListening = false)
         Log.d(TAG, "Stopped listening")
+    }
+
+    private fun updateUiState(update: GlassesUiState.() -> GlassesUiState) {
+        _uiState.value = _uiState.value.update()
     }
 
     // IPC methods - send results to phone app via broadcast
@@ -383,3 +381,14 @@ class GlassesActivity : Activity() {
         Log.d(TAG, "GlassesActivity destroyed")
     }
 }
+
+/**
+ * UI State for the glasses display
+ */
+data class GlassesUiState(
+    val isListening: Boolean = false,
+    val transcript: String = "",
+    val partialTranscript: String = "",
+    val aiResponse: String = "",
+    val error: String? = null
+)

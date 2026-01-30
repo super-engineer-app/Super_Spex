@@ -79,6 +79,8 @@ class XRGlassesModule : Module() {
         AsyncFunction("connect") { promise: Promise ->
             scope.launch {
                 try {
+                    // Pass current activity to service for proper projected context creation
+                    glassesService?.setCurrentActivity(appContext.currentActivity)
                     glassesService?.connect()
                     promise.resolve(true)
                 } catch (e: Exception) {

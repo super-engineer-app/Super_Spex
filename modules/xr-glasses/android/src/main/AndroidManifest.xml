@@ -43,17 +43,23 @@
         <!-- Glasses Activity - runs on the glasses hardware -->
         <!-- Note: Removed requiredDisplayCategory for emulator testing -->
         <!-- On real glasses, this would have android:requiredDisplayCategory="xr_projected" -->
-        <!-- Glasses Activity - runs on the glasses hardware only -->
-        <!-- Do NOT add LAUNCHER intent - this should only run on glasses -->
+        <!-- Glasses Activity - runs on the glasses hardware via projection -->
         <activity
             android:name=".glasses.GlassesActivity"
             android:exported="true"
+            android:requiredDisplayCategory="xr_projected"
             android:theme="@android:style/Theme.NoTitleBar">
 
             <!-- Intent filter for launching from phone app via IPC -->
             <intent-filter>
                 <action android:name="expo.modules.xrglasses.LAUNCH_GLASSES" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- Intent filter for glasses system recognition (official category) -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="androidx.xr.projected.CATEGORY_PROJECTED" />
             </intent-filter>
         </activity>
 
