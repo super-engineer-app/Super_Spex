@@ -1,29 +1,29 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, ScrollView, Image } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../../src/hooks/useXRGlasses';
-import { useGlassesInput } from '../../src/hooks/useGlassesInput';
 import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
 import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useState, useCallback, useEffect } from 'react';
 
 /**
- * Glasses dashboard screen.
+ * Glasses Dashboard
  *
- * Main control panel for connected XR glasses, showing status,
- * engagement mode, and navigation to detailed screens.
+ * Clean card-based UI matching the original design with:
+ * - Engagement Mode toggles (Visuals/Audio)
+ * - Quick Actions (Display/Input)
+ * - Voice Input with MIC button
+ * - Camera Capture with CAM button
  */
 export default function GlassesDashboard() {
   const router = useRouter();
   const {
     connected,
-    engagementMode,
     emulationMode,
     disconnect,
-    simulateInputEvent,
+    engagementMode,
   } = useXRGlasses();
 
-  const { lastEvent } = useGlassesInput();
   const {
     isListening,
     transcript,
@@ -45,8 +45,19 @@ export default function GlassesDashboard() {
     releaseCamera,
   } = useGlassesCamera();
 
-  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown');
-  const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown');
+  const [isSending, setIsSending] = useState(false);
+
+  // Local engagement mode state for emulation toggling
+  const [localVisualsOn, setLocalVisualsOn] = useState(engagementMode?.visualsOn ?? true);
+  const [localAudioOn, setLocalAudioOn] = useState(engagementMode?.audioOn ?? true);
+
+  // Sync with real engagement mode when available
+  useEffect(() => {
+    if (engagementMode) {
+      setLocalVisualsOn(engagementMode.visualsOn);
+      setLocalAudioOn(engagementMode.audioOn);
+    }
+  }, [engagementMode]);
 
   // Cleanup camera on unmount
   useEffect(() => {
@@ -57,227 +68,224 @@ export default function GlassesDashboard() {
     };
   }, [cameraReady, releaseCamera]);
 
-  // Request camera permission and initialize camera
-  const handleInitializeCamera = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: 'Camera Permission',
-            message: 'This app needs camera access to capture images from glasses.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          setCameraPermission('granted');
-          await initializeCamera(false); // false = high quality mode
-        } else {
-          setCameraPermission('denied');
-        }
-      } catch (err) {
-        console.warn('Camera permission request error:', err);
-      }
+  // Toggle listening
+  const handleMicPress = useCallback(async () => {
+    if (isListening) {
+      await stopListening();
     } else {
-      await initializeCamera(false);
-    }
-  }, [initializeCamera]);
-
-  // Request microphone permission and start listening
-  const handleStartListening = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          {
-            title: 'Microphone Permission',
-            message: 'This app needs microphone access for voice commands.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          setMicPermission('granted');
-          await startListening(true);
-        } else {
-          setMicPermission('denied');
-        }
-      } catch (err) {
-        console.warn('Permission request error:', err);
-      }
-    } else {
-      // iOS or other platforms
       await startListening(true);
     }
-  }, [startListening]);
+  }, [isListening, startListening, stopListening]);
+
+  // Initialize or capture
+  const handleCameraPress = useCallback(async () => {
+    if (!cameraReady) {
+      await initializeCamera(false);
+    } else {
+      await captureImage();
+    }
+  }, [cameraReady, initializeCamera, captureImage]);
+
+  // Send to backend
+  const handleSendToAI = useCallback(async () => {
+    if (!transcript && !lastImage) return;
+
+    setIsSending(true);
+    try {
+      // TODO: Replace with actual backend endpoint
+      const payload = {
+        transcript: transcript || null,
+        image: lastImage || null,
+        imageSize: lastImageSize || null,
+        timestamp: Date.now(),
+      };
+      console.log('Sending to AI:', { hasTranscript: !!transcript, hasImage: !!lastImage });
+
+      // Simulate backend call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error('Backend error:', error);
+    } finally {
+      setIsSending(false);
+    }
+  }, [transcript, lastImage, lastImageSize]);
+
+  // Clear captured image
+  const handleClearImage = useCallback(() => {
+    // This would need to be implemented in the hook
+    // For now, release and re-init
+    releaseCamera();
+  }, [releaseCamera]);
+
+  // Disconnect handler
+  const handleDisconnect = async () => {
+    if (cameraReady) {
+      await releaseCamera();
+    }
+    await disconnect();
+    router.replace('/');
+  };
+
+  // Toggle engagement modes (emulation only)
+  const toggleVisuals = () => {
+    if (emulationMode) {
+      setLocalVisualsOn(!localVisualsOn);
+    }
+  };
+
+  const toggleAudio = () => {
+    if (emulationMode) {
+      setLocalAudioOn(!localAudioOn);
+    }
+  };
 
   // Redirect if not connected
   if (!connected) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.notConnectedContainer}>
+        <View style={styles.centerContent}>
           <Text style={styles.notConnectedTitle}>Not Connected</Text>
           <Text style={styles.notConnectedText}>
-            Please connect to your XR glasses first.
+            Connect to your XR glasses to continue.
           </Text>
-          <Pressable style={styles.connectButton} onPress={() => router.replace('/connect')}>
-            <Text style={styles.buttonText}>Go to Connect</Text>
+          <Pressable style={styles.primaryButton} onPress={() => router.replace('/connect')}>
+            <Text style={styles.primaryButtonText}>Connect</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Handle quick actions
-  const handleToggleVisuals = () => simulateInputEvent('TOGGLE_VISUALS');
-  const handleToggleAudio = () => simulateInputEvent('TOGGLE_AUDIO');
-  const handleDisconnect = async () => {
-    await disconnect();
-    router.replace('/');
-  };
+  const displayText = partialTranscript || transcript || '';
+  const hasContent = !!(transcript || lastImage);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Connection Status */}
-        <View style={styles.statusHeader}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Connected</Text>
-          {emulationMode && (
-            <View style={styles.emulationBadge}>
-              <Text style={styles.emulationText}>EMU</Text>
-            </View>
-          )}
-        </View>
 
         {/* Engagement Mode Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Engagement Mode</Text>
-          <View style={styles.engagementGrid}>
+          <View style={styles.toggleRow}>
             <Pressable
-              style={[styles.engagementItem, engagementMode.visualsOn && styles.engagementItemActive]}
-              onPress={handleToggleVisuals}
+              style={[styles.toggleButton, localVisualsOn && styles.toggleButtonActive]}
+              onPress={toggleVisuals}
             >
-              <Text style={styles.engagementIcon}>V</Text>
-              <Text style={styles.engagementLabel}>Visuals</Text>
-              <Text style={styles.engagementStatus}>
-                {engagementMode.visualsOn ? 'ON' : 'OFF'}
+              <Text style={[styles.toggleLetter, localVisualsOn && styles.toggleLetterActive]}>V</Text>
+              <Text style={styles.toggleLabel}>Visuals</Text>
+              <Text style={[styles.toggleStatus, localVisualsOn && styles.toggleStatusActive]}>
+                {localVisualsOn ? 'ON' : 'OFF'}
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.engagementItem, engagementMode.audioOn && styles.engagementItemActive]}
-              onPress={handleToggleAudio}
+              style={[styles.toggleButton, localAudioOn && styles.toggleButtonActive]}
+              onPress={toggleAudio}
             >
-              <Text style={styles.engagementIcon}>A</Text>
-              <Text style={styles.engagementLabel}>Audio</Text>
-              <Text style={styles.engagementStatus}>
-                {engagementMode.audioOn ? 'ON' : 'OFF'}
+              <Text style={[styles.toggleLetter, localAudioOn && styles.toggleLetterActive]}>A</Text>
+              <Text style={styles.toggleLabel}>Audio</Text>
+              <Text style={[styles.toggleStatus, localAudioOn && styles.toggleStatusActive]}>
+                {localAudioOn ? 'ON' : 'OFF'}
               </Text>
             </Pressable>
           </View>
           {emulationMode && (
-            <Text style={styles.emulationHint}>Tap to toggle (emulation mode)</Text>
+            <Text style={styles.hintText}>Tap to toggle (emulation mode)</Text>
           )}
         </View>
 
-        {/* Quick Actions */}
+        {/* Quick Actions Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
-            <Link href="/glasses/display" asChild>
-              <Pressable style={styles.actionButton}>
-                <Text style={styles.actionIcon}>D</Text>
-                <Text style={styles.actionLabel}>Display</Text>
-              </Pressable>
-            </Link>
-            <Link href="/glasses/input" asChild>
-              <Pressable style={styles.actionButton}>
-                <Text style={styles.actionIcon}>I</Text>
-                <Text style={styles.actionLabel}>Input</Text>
-              </Pressable>
-            </Link>
+          <View style={styles.toggleRow}>
+            <Pressable style={styles.actionButton}>
+              <Text style={styles.actionLetter}>D</Text>
+              <Text style={styles.actionLabel}>Display</Text>
+            </Pressable>
+            <Pressable style={styles.actionButton}>
+              <Text style={styles.actionLetter}>I</Text>
+              <Text style={styles.actionLabel}>Input</Text>
+            </Pressable>
           </View>
         </View>
 
-        {/* Speech Recognition */}
+        {/* Voice Input Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Voice Input</Text>
           <Pressable
-            style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-            onPress={isListening ? stopListening : handleStartListening}
+            style={[styles.micButton, isListening && styles.micButtonActive]}
+            onPress={handleMicPress}
           >
-            <Text style={styles.voiceButtonIcon}>{isListening ? 'MIC' : 'MIC'}</Text>
-            <Text style={styles.voiceButtonText}>
+            <Text style={[styles.micLabel, isListening && styles.micLabelActive]}>MIC</Text>
+            <Text style={styles.micStatus}>
               {isListening ? 'Stop Listening' : 'Start Listening'}
             </Text>
           </Pressable>
-          {(partialTranscript || transcript) && (
+
+          {/* Transcript */}
+          {displayText ? (
             <View style={styles.transcriptBox}>
-              <Text style={styles.transcriptLabel}>
-                {partialTranscript ? 'Listening...' : 'Transcript:'}
+              <Text style={styles.transcriptLabel}>Transcript:</Text>
+              <Text style={styles.transcriptText}>{displayText}</Text>
+            </View>
+          ) : null}
+
+          {/* Send to AI Button */}
+          {(transcript || lastImage) && (
+            <Pressable
+              style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
+              onPress={handleSendToAI}
+              disabled={isSending}
+            >
+              <Text style={styles.sendButtonText}>
+                {isSending ? 'Sending...' : 'Send to AI'}
               </Text>
-              <Text style={styles.transcriptText}>
-                {partialTranscript || transcript}
-              </Text>
-            </View>
+            </Pressable>
           )}
-          {micPermission === 'denied' && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>Microphone permission denied. Please enable in Settings.</Text>
-            </View>
-          )}
-          {speechError && micPermission !== 'denied' && !transcript && !partialTranscript && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{speechError}</Text>
-            </View>
+
+          {speechError && (
+            <Text style={styles.errorText}>{speechError}</Text>
           )}
         </View>
 
-        {/* Camera Capture */}
+        {/* Camera Capture Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Camera Capture</Text>
-
-          {!cameraReady ? (
+          <View style={styles.cameraRow}>
             <Pressable
-              style={styles.cameraButton}
-              onPress={handleInitializeCamera}
+              style={[styles.camButton, cameraReady && styles.camButtonActive]}
+              onPress={handleCameraPress}
+              disabled={isCapturing}
             >
-              <Text style={styles.cameraButtonIcon}>CAM</Text>
-              <Text style={styles.cameraButtonText}>Initialize Camera</Text>
+              <Text style={[styles.camLabel, cameraReady && styles.camLabelActive]}>CAM</Text>
+              <Text style={styles.camStatus}>
+                {isCapturing ? 'Capturing...' : cameraReady ? 'Capture Photo' : 'Enable Camera'}
+              </Text>
             </Pressable>
-          ) : (
-            <View>
-              <View style={styles.cameraStatusRow}>
-                <Text style={styles.cameraStatusText}>
-                  Camera ready ({cameraEmulated ? 'emulated' : 'glasses'})
-                </Text>
-                <Pressable style={styles.releaseButton} onPress={releaseCamera}>
-                  <Text style={styles.releaseButtonText}>Release</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                style={[styles.captureButton, isCapturing && styles.captureButtonActive]}
-                onPress={captureImage}
-                disabled={isCapturing}
-              >
-                <Text style={styles.captureButtonIcon}>
-                  {isCapturing ? '...' : 'SNAP'}
-                </Text>
-                <Text style={styles.captureButtonText}>
-                  {isCapturing ? 'Capturing...' : 'Capture Photo'}
-                </Text>
+            {cameraReady && (
+              <Pressable style={styles.releaseButton} onPress={releaseCamera}>
+                <Text style={styles.releaseButtonText}>Release</Text>
               </Pressable>
-            </View>
+            )}
+          </View>
+
+          {/* Camera Status */}
+          {cameraReady && (
+            <Text style={styles.cameraStatus}>
+              Camera ready{cameraEmulated ? ' (emulated)' : ''}
+            </Text>
           )}
 
+          {/* Image Preview */}
           {lastImage && lastImageSize && (
             <View style={styles.imagePreviewContainer}>
-              <Text style={styles.imagePreviewLabel}>
-                Last capture: {lastImageSize.width}x{lastImageSize.height}
-              </Text>
+              <View style={styles.imageHeader}>
+                <Text style={styles.imageSize}>
+                  Captured: {lastImageSize.width}x{lastImageSize.height}
+                </Text>
+                <Pressable onPress={handleClearImage}>
+                  <Text style={styles.clearLink}>Clear</Text>
+                </Pressable>
+              </View>
               <Image
                 source={{ uri: `data:image/jpeg;base64,${lastImage}` }}
                 style={styles.imagePreview}
@@ -286,36 +294,23 @@ export default function GlassesDashboard() {
             </View>
           )}
 
-          {cameraPermission === 'denied' && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>Camera permission denied. Please enable in Settings.</Text>
-            </View>
+          {/* Camera Note */}
+          {emulationMode && (
+            <Text style={styles.noteText}>
+              Note: Camera capture not available in emulator
+            </Text>
           )}
-          {cameraError && cameraPermission !== 'denied' && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{cameraError}</Text>
-            </View>
+
+          {cameraError && (
+            <Text style={styles.errorText}>{cameraError}</Text>
           )}
         </View>
-
-        {/* Last Input Event */}
-        {lastEvent && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Last Input Event</Text>
-            <View style={styles.eventInfo}>
-              <Text style={styles.eventAction}>{lastEvent.action}</Text>
-              <Text style={styles.eventTime}>
-                {new Date(lastEvent.timestamp).toLocaleTimeString()}
-              </Text>
-            </View>
-          </View>
-        )}
-
 
         {/* Disconnect Button */}
         <Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
           <Text style={styles.disconnectButtonText}>Disconnect</Text>
         </Pressable>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -331,9 +326,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
-  notConnectedContainer: {
+  centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -341,285 +336,275 @@ const styles = StyleSheet.create({
   },
   notConnectedTitle: {
     color: '#ff6b6b',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
     marginBottom: 8,
   },
   notConnectedText: {
     color: '#888888',
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
     marginBottom: 24,
   },
-  connectButton: {
+  primaryButton: {
     backgroundColor: '#0066cc',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
   },
-  buttonText: {
+  primaryButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#4ade80',
-    marginRight: 8,
-  },
-  statusText: {
-    color: '#4ade80',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  emulationBadge: {
-    marginLeft: 12,
-    backgroundColor: '#3b3b00',
-    borderRadius: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  emulationText: {
-    color: '#ffd700',
-    fontSize: 10,
-    fontWeight: '600',
-  },
+
+  // Card styles
   card: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#1e1e1e',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   cardTitle: {
-    color: '#ffffff',
+    color: '#4ade80',
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  engagementGrid: {
+
+  // Engagement Mode toggles
+  toggleRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  engagementItem: {
+  toggleButton: {
     flex: 1,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
+    backgroundColor: '#2d4a2d',
+    borderRadius: 8,
     padding: 16,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#3d6a3d',
   },
-  engagementItemActive: {
+  toggleButtonActive: {
+    backgroundColor: '#2d5a2d',
     borderColor: '#4ade80',
-    backgroundColor: '#1a3d1a',
   },
-  engagementIcon: {
-    fontSize: 28,
-    marginBottom: 8,
+  toggleLetter: {
+    color: '#4ade80',
+    fontSize: 32,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  toggleLetterActive: {
+    color: '#4ade80',
+  },
+  toggleLabel: {
     color: '#ffffff',
-    fontWeight: 'bold',
-  },
-  engagementLabel: {
-    color: '#cccccc',
     fontSize: 14,
     marginBottom: 4,
   },
-  engagementStatus: {
+  toggleStatus: {
     color: '#888888',
     fontSize: 12,
     fontWeight: '600',
   },
-  emulationHint: {
+  toggleStatusActive: {
+    color: '#ffffff',
+  },
+  hintText: {
     color: '#666666',
     fontSize: 12,
+    fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 12,
-    fontStyle: 'italic',
   },
-  actionsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+
+  // Quick Actions
   actionButton: {
     flex: 1,
     backgroundColor: '#2a2a2a',
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 20,
     alignItems: 'center',
   },
-  actionIcon: {
-    fontSize: 28,
+  actionLetter: {
+    color: '#6b8aff',
+    fontSize: 32,
+    fontWeight: '700',
     marginBottom: 8,
-    color: '#0066cc',
-    fontWeight: 'bold',
   },
   actionLabel: {
-    color: '#cccccc',
-    fontSize: 14,
-  },
-  eventInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-    padding: 12,
-  },
-  eventAction: {
     color: '#ffffff',
     fontSize: 14,
-    fontWeight: '500',
   },
-  eventTime: {
-    color: '#888888',
-    fontSize: 12,
-  },
-  disconnectButton: {
+
+  // Voice Input - MIC button
+  micButton: {
     backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#cc3300',
-  },
-  disconnectButtonText: {
-    color: '#cc3300',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  voiceButton: {
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 20,
     alignItems: 'center',
+    marginBottom: 12,
+  },
+  micButtonActive: {
+    backgroundColor: '#4a2a2a',
     borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  voiceButtonActive: {
     borderColor: '#ff6b6b',
-    backgroundColor: '#3d1a1a',
   },
-  voiceButtonIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+  micLabel: {
     color: '#ff6b6b',
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 4,
   },
-  voiceButtonText: {
+  micLabelActive: {
+    color: '#ff6b6b',
+  },
+  micStatus: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
   },
+
+  // Transcript
   transcriptBox: {
-    marginTop: 12,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#252525',
     borderRadius: 8,
     padding: 12,
+    marginBottom: 12,
   },
   transcriptLabel: {
-    color: '#888888',
+    color: '#666666',
     fontSize: 12,
     marginBottom: 4,
   },
   transcriptText: {
     color: '#ffffff',
     fontSize: 16,
+    lineHeight: 22,
   },
-  errorBox: {
-    marginTop: 12,
-    backgroundColor: '#3d1515',
+
+  // Send to AI button
+  sendButton: {
+    backgroundColor: '#0066cc',
     borderRadius: 8,
-    padding: 12,
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-  },
-  cameraButton: {
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    padding: 20,
+    padding: 16,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
   },
-  cameraButtonIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-    color: '#0066cc',
-    fontWeight: 'bold',
+  sendButtonDisabled: {
+    opacity: 0.6,
   },
-  cameraButtonText: {
+  sendButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  cameraStatusRow: {
+
+  // Camera - CAM button
+  cameraRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 8,
   },
-  cameraStatusText: {
+  camButton: {
+    flex: 1,
+    backgroundColor: '#2d4a2d',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#3d6a3d',
+  },
+  camButtonActive: {
+    backgroundColor: '#2d5a2d',
+    borderColor: '#4ade80',
+  },
+  camLabel: {
     color: '#4ade80',
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  camLabelActive: {
+    color: '#4ade80',
+  },
+  camStatus: {
+    color: '#ffffff',
     fontSize: 14,
   },
   releaseButton: {
-    backgroundColor: '#3d2a2a',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  releaseButtonText: {
-    color: '#cc6666',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  captureButton: {
-    backgroundColor: '#1a3d1a',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#4ade80',
-  },
-  captureButtonActive: {
-    opacity: 0.6,
-  },
-  captureButtonIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-    color: '#4ade80',
-    fontWeight: 'bold',
-  },
-  captureButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  imagePreviewContainer: {
-    marginTop: 16,
     backgroundColor: '#2a2a2a',
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 80,
   },
-  imagePreviewLabel: {
+  releaseButtonText: {
     color: '#888888',
-    fontSize: 12,
+    fontSize: 14,
+  },
+  cameraStatus: {
+    color: '#4ade80',
+    fontSize: 13,
+    textAlign: 'center',
     marginBottom: 8,
+  },
+
+  // Image Preview
+  imagePreviewContainer: {
+    marginTop: 8,
+  },
+  imageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageSize: {
+    color: '#888888',
+    fontSize: 13,
+  },
+  clearLink: {
+    color: '#4ade80',
+    fontSize: 14,
+    fontWeight: '500',
   },
   imagePreview: {
     width: '100%',
     height: 200,
     borderRadius: 8,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#000000',
+  },
+
+  noteText: {
+    color: '#666666',
+    fontSize: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+
+  // Error text
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 13,
+    marginTop: 8,
+  },
+
+  // Disconnect
+  disconnectButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#662222',
+    marginTop: 8,
+  },
+  disconnectButtonText: {
+    color: '#cc4444',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

@@ -12,6 +12,7 @@ import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,7 +53,15 @@ class GlassesActivity : ComponentActivity() {
     private var isListening = false
     private var continuousMode = false
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val PERMISSION_REQUEST_RECORD_AUDIO = 1001
+
+    // Track permission state for UI
+    private var isPermissionGranted by mutableStateOf(false)
+
+    // Required permissions for glasses functionality
+    private val requiredPermissions = listOf(Manifest.permission.RECORD_AUDIO)
+
+    // Projected Permissions launcher - uses XR SDK to request permissions across projected context
+    private var projectedPermissionLauncher: ActivityResultLauncher<*>? = null
 
     // UI State
     private val _uiState = MutableStateFlow(GlassesUiState())
@@ -62,6 +71,12 @@ class GlassesActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "GlassesActivity created on glasses display")
 
+        // Try to set up projected permissions launcher via reflection
+        setupProjectedPermissionsLauncher()
+
+        // Check initial permission state
+        isPermissionGranted = checkAudioPermission()
+
         setContent {
             GlassesScreen(
                 uiState = uiState.collectAsStateWithLifecycle().value,
@@ -69,16 +84,106 @@ class GlassesActivity : ComponentActivity() {
             )
         }
 
-        // Check microphone permission - don't request on glasses (dialog can't show)
-        // Permission should be granted from phone before launching this activity
-        if (checkAudioPermission()) {
+        if (isPermissionGranted) {
             Log.d(TAG, "RECORD_AUDIO permission granted, initializing speech")
             initSpeechRecognizer()
             handleIntent(intent)
         } else {
-            Log.w(TAG, "RECORD_AUDIO permission not granted - speech recognition disabled")
-            // Still show UI, just without speech recognition
+            Log.w(TAG, "RECORD_AUDIO permission not granted - requesting via projected API")
             updateUiState { copy(error = "Mic permission needed - grant on phone") }
+            // Try to request permission using projected API
+            requestProjectedPermissions()
+        }
+    }
+
+    /**
+     * Set up the ProjectedPermissionsResultContract launcher via reflection.
+     * This allows permissions to work properly across the projected context.
+     */
+    private fun setupProjectedPermissionsLauncher() {
+        try {
+            // Try to load the projected permissions classes
+            val contractClass = Class.forName("androidx.xr.projected.permissions.ProjectedPermissionsResultContract")
+            val paramsClass = Class.forName("androidx.xr.projected.permissions.ProjectedPermissionsRequestParams")
+
+            // Create the contract instance
+            val contract = contractClass.getDeclaredConstructor().newInstance()
+
+            // Register for activity result
+            projectedPermissionLauncher = registerForActivityResult(
+                contract as androidx.activity.result.contract.ActivityResultContract<Any, Any>
+            ) { results ->
+                Log.d(TAG, "Projected permission results: $results")
+                handleProjectedPermissionResults(results)
+            }
+
+            Log.d(TAG, "ProjectedPermissionsResultContract set up successfully")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set up projected permissions (may not be available): ${e.message}")
+            // Fall back to standard permission request
+        }
+    }
+
+    /**
+     * Request permissions using the Projected Permissions API.
+     */
+    private fun requestProjectedPermissions() {
+        try {
+            val launcher = projectedPermissionLauncher
+            if (launcher != null) {
+                // Create ProjectedPermissionsRequestParams
+                val paramsClass = Class.forName("androidx.xr.projected.permissions.ProjectedPermissionsRequestParams")
+                val constructor = paramsClass.constructors.find {
+                    it.parameterCount == 2 || it.parameterCount == 3
+                }
+
+                if (constructor != null) {
+                    constructor.isAccessible = true
+                    val params = if (constructor.parameterCount == 2) {
+                        constructor.newInstance(requiredPermissions, "Microphone access needed for voice commands")
+                    } else {
+                        constructor.newInstance(requiredPermissions, "Microphone access needed for voice commands", null)
+                    }
+
+                    // Launch with list of params
+                    @Suppress("UNCHECKED_CAST")
+                    (launcher as ActivityResultLauncher<List<Any>>).launch(listOf(params))
+                    Log.d(TAG, "Launched projected permission request")
+                    return
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not request projected permissions: ${e.message}")
+        }
+
+        // Fallback: just show message since standard permission dialogs don't work on glasses
+        Log.d(TAG, "Falling back to permission message - grant on phone")
+    }
+
+    /**
+     * Handle results from projected permission request.
+     */
+    private fun handleProjectedPermissionResults(results: Any?) {
+        try {
+            if (results is Map<*, *>) {
+                val granted = requiredPermissions.all { permission ->
+                    results[permission] == true
+                }
+
+                isPermissionGranted = granted
+
+                if (granted) {
+                    Log.d(TAG, "Projected permissions granted!")
+                    updateUiState { copy(error = null) }
+                    initSpeechRecognizer()
+                    handleIntent(intent)
+                } else {
+                    Log.w(TAG, "Projected permissions denied")
+                    updateUiState { copy(error = "Mic permission denied") }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling permission results: ${e.message}")
         }
     }
 
@@ -87,34 +192,6 @@ class GlassesActivity : ComponentActivity() {
             this,
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun requestAudioPermission() {
-        Log.d(TAG, "Requesting RECORD_AUDIO permission")
-        requestPermissions(
-            arrayOf(Manifest.permission.RECORD_AUDIO),
-            PERMISSION_REQUEST_RECORD_AUDIO
-        )
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == PERMISSION_REQUEST_RECORD_AUDIO) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "RECORD_AUDIO permission granted")
-                initSpeechRecognizer()
-                handleIntent(intent)
-            } else {
-                Log.e(TAG, "RECORD_AUDIO permission denied")
-                updateUiState { copy(error = "Mic permission denied - grant on phone") }
-                // Don't finish - keep UI visible without speech
-            }
-        }
     }
 
     private var useNetworkRecognizer = false

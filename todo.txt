@@ -1,0 +1,10 @@
+🔴 PRIORITY: Verify projection with new APK
+- Glasses button press not waking device after UI updates
+- Previously worked on Pixel Pro Fold
+- Now testing on different phone (Pixel 9 Pro XL?)
+- Check logcat: adb logcat | grep -E "XRGlasses|Projected|Glasses"
+- Determine: phone-specific issue vs code regression
+
+Next:
+- Backend integration (Send to AI)
+- Quick Actions implementation

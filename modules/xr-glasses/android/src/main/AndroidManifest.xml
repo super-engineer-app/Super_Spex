@@ -13,6 +13,9 @@
     <!-- Microphone permission for speech recognition -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Wake lock permission for waking glasses display -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <!-- Camera permission for glasses camera capture -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
