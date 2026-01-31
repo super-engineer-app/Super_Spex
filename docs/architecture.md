@@ -5,17 +5,7 @@
 > **All Android XR features MUST be implemented in native Kotlin modules.**
 >
 > The Jetpack XR SDK (`androidx.xr.projected`, `androidx.xr.runtime`, etc.) is Android-native
-> and cannot be accessed directly from React Native/JavaScript. The architecture is:
->
-> ```
-> React Native (TypeScript)
->        ↓ calls
-> Expo Native Module (Kotlin)
->        ↓ uses
-> Jetpack XR SDK (Android native)
->        ↓ communicates with
-> AI Glasses Hardware
-> ```
+> and cannot be accessed directly from React Native/JavaScript.
 >
 > **This means:**
 > - `SpeechRecognizer`, `ProjectedContext`, `ProjectedActivityCompat` → Kotlin only
@@ -24,116 +14,63 @@
 
 ---
 
-## System Architecture Diagram
+## Process Separation (CRITICAL!)
+
+**XR activities MUST run in a separate Android process to avoid corrupting React Native.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     MAIN PROCESS                             │
+│  React Native App                                            │
+│  ├── XRGlassesModule.kt (Expo bridge)                       │
+│  ├── XRGlassesService.kt (connection management)            │
+│  └── GlassesBroadcastReceiver.kt (receives IPC)             │
+└─────────────────────────────────────────────────────────────┘
+                              │ Intent (IPC)
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    :xr_process (SEPARATE)                    │
+│  ├── ProjectionLauncherActivity.kt (XR SDK setup)           │
+│  └── GlassesActivity.kt (glasses UI, speech recognition)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+See [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md) for why this is required.
+
+---
+
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         REACT NATIVE (Expo)                         │
-│                          TypeScript/JS                              │
 │                                                                     │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────────┐ │
-│  │   Screens   │  │ Components  │  │  State Management (Zustand) │ │
+│  │   Screens   │  │ Components  │  │  Hooks (useXRGlasses, etc)  │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────────────┘ │
 │                              │                                      │
 │                              ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │              useXRGlasses() Hook                             │   │
-│  │         (Platform-agnostic interface)                        │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │              XRGlassesService                                │   │
-│  │    if (Platform.OS === 'android') → AndroidXRModule          │   │
-│  │    if (Platform.OS === 'ios')     → IOSXRModule (C++ later)  │   │
+│  │              XRGlassesModule (Expo Native Module)           │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
             ┌─────────────────┴─────────────────┐
             ▼                                   ▼
 ┌─────────────────────────┐       ┌─────────────────────────┐
-│   ANDROID (Phase 1)     │       │   iOS (Phase 2+)        │
+│   ANDROID (Current)     │       │   iOS (Future)          │
 │                         │       │                         │
-│  Expo Module (Kotlin)   │       │  Expo Module (Swift)    │
-│         │               │       │         │               │
-│         ▼               │       │         ▼               │
-│  Jetpack XR Library     │       │  C++ Protocol Core      │
-│  (androidx.xr.projected)│       │  (reverse engineered)   │
-│         │               │       │         │               │
-│         ▼               │       │         ▼               │
-│  Android System Service │       │  CoreBluetooth +        │
-│  (AIDL → Glasses)       │       │  Network.framework      │
+│  Main Process:          │       │  Expo Module (Swift)    │
+│  - XRGlassesService     │       │         │               │
+│  - XRGlassesModule      │       │         ▼               │
+│                         │       │  C++ Protocol Core      │
+│  :xr_process:           │       │  (reverse engineered)   │
+│  - GlassesActivity      │       │         │               │
+│  - ProjectionLauncher   │       │         ▼               │
+│         │               │       │  CoreBluetooth          │
+│         ▼               │       │                         │
+│  Jetpack XR SDK         │       │                         │
 └─────────────────────────┘       └─────────────────────────┘
-```
-
----
-
-## Speech Recognition Architecture
-
-ASR runs ON THE GLASSES, not on the phone. This is critical for latency:
-- No Bluetooth audio streaming required
-- Audio captured and processed locally on glasses hardware
-- Only text results are sent to phone via the Expo native module bridge
-- Works offline (on-device models)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    AI GLASSES (on-device)                       │
-│                                                                 │
-│  ┌─────────────┐    ┌─────────────────┐    ┌────────────────┐  │
-│  │ Microphone  │───▶│ SpeechRecognizer│───▶│ GlassesActivity│  │
-│  │ (hardware)  │    │ (local ASR)     │    │ (sends events) │  │
-│  └─────────────┘    └─────────────────┘    └───────┬────────┘  │
-│                                                     │           │
-└─────────────────────────────────────────────────────│───────────┘
-                                                      │ text only
-                                                      │ (minimal latency)
-                                                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    PHONE (React Native App)                     │
-│                                                                 │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────┐ │
-│  │ XRGlassesModule │───▶│ useSpeechReco.. │───▶│ Backend API │ │
-│  │ (receives text) │    │ (React hook)    │    │ (AI response)│ │
-│  └─────────────────┘    └─────────────────┘    └─────────────┘ │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Why this architecture:**
-- **No Bluetooth audio latency** - Audio never leaves the glasses
-- **Works offline** - On-device ASR, no network for transcription
-- **Battery efficient** - No audio streaming over Bluetooth
-- **Lower bandwidth** - Only text sent to phone
-
----
-
-## GlassesActivity Architecture
-
-ASR must run in a **Glasses Activity** - an Android Activity that runs on the glasses
-hardware itself, declared with `android:requiredDisplayCategory="xr_projected"`.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GLASSES (GlassesActivity.kt)                 │
-│                                                                 │
-│  - SpeechRecognizer runs here                                   │
-│  - Captures audio from glasses mic                              │
-│  - Processes speech locally                                     │
-│  - Sends text results via broadcast/binding to phone service    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ IPC (broadcast or bound service)
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    PHONE (XRGlassesModule.kt)                   │
-│                                                                 │
-│  - Receives text events from glasses activity                   │
-│  - Emits events to React Native                                 │
-│  - Controls start/stop via IPC to glasses                       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -142,20 +79,37 @@ hardware itself, declared with `android:requiredDisplayCategory="xr_projected"`.
 
 ```
 modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
-├── XRGlassesModule.kt           # Expo module (phone-side)
-├── XRGlassesService.kt          # Phone-side service
-├── glasses/
-│   ├── GlassesActivity.kt       # Runs on glasses
-│   ├── SpeechRecognitionManager.kt  # ASR logic
-│   └── GlassesBridge.kt         # IPC to phone
+├── XRGlassesModule.kt              # Expo module bridge (main process)
+├── XRGlassesService.kt             # Connection & state management (main process)
+├── GlassesBroadcastReceiver.kt     # Receives IPC from :xr_process
+├── GlassesCameraManager.kt         # Camera capture logic
+├── ProjectionLauncherActivity.kt   # XR SDK setup (:xr_process)
+└── glasses/
+    ├── GlassesActivity.kt          # Runs on glasses display (:xr_process)
+    └── GlassesScreen.kt            # Compose UI for glasses
 ```
 
 ---
 
 ## Architecture Decisions
 
-### Capabilities UI Removed
-Cannot remotely query glasses system features from phone. Capabilities are used internally for **validation only**:
-- Checks for `com.google.android.feature.XR_PROJECTED` before connecting
-- Shows clear error if device is incompatible
-- No capabilities displayed in UI
+### Separate Process for XR
+The Android XR SDK corrupts React Native's rendering context when called from the same process. Solution: Run all XR SDK code in `:xr_process`.
+
+### On-Device Speech Recognition
+ASR runs on the glasses hardware, not the phone. This avoids Bluetooth audio latency and works offline. Only text results are sent to the phone.
+
+### Broadcast-Based IPC
+Communication between processes uses Android broadcasts with `setPackage(packageName)` for security.
+
+### Capabilities Validation Only
+Device capabilities are checked internally before connecting but not displayed in UI.
+
+---
+
+## Detailed Documentation
+
+For implementation details and troubleshooting:
+- [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md) - Process separation
+- [maintenance/speech-recognition.md](maintenance/speech-recognition.md) - Speech architecture
+- [maintenance/camera-capture.md](maintenance/camera-capture.md) - Camera system

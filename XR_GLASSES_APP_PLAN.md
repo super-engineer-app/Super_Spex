@@ -1,6 +1,6 @@
 # XR Glasses React Native App - Implementation Plan
 
-## Status Summary (2026-01-30)
+## Status Summary (2026-01-31)
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -18,6 +18,7 @@
 | 3.2 | Projected Permissions API | ✅ COMPLETE |
 | 3.3 | Auto-wake Display | ⚠️ SDK LIMITATION |
 | 3.4 | Phone UI Update | ✅ COMPLETE |
+| **3.5** | **Phone UI + Projection Coexistence** | ✅ COMPLETE |
 | 4 | Backend Integration | ⏳ PENDING |
 | 5 | End-to-End Testing | 🔄 IN PROGRESS |
 | 6 | iOS Implementation | ⏳ FUTURE |
@@ -26,11 +27,20 @@
 
 ---
 
-## Current Status Notes (2026-01-30)
+## Current Status Notes (2026-01-31)
 
-### Major Milestone: Phone UI Redesigned
+### Major Milestone: Phone UI + Glasses Projection Working Together!
 
-The phone app UI has been completely updated with a clean card-based design.
+**SOLVED**: The Android XR SDK was corrupting React Native's rendering. Fixed by running XR activities in a separate Android process.
+
+**The Fix (Critical!):**
+```xml
+<!-- In AndroidManifest.xml - XR activities MUST have separate process -->
+<activity android:name=".ProjectionLauncherActivity" android:process=":xr_process" ... />
+<activity android:name=".glasses.GlassesActivity" android:process=":xr_process" ... />
+```
+
+See `/docs/maintenance/xr-glasses-projection.md` for full details.
 
 **UI Components (app/glasses/index.tsx):**
 - **Engagement Mode Card** - Visuals (V) and Audio (A) toggles with ON/OFF state
@@ -40,39 +50,28 @@ The phone app UI has been completely updated with a clean card-based design.
 - **Disconnect Button** - Clean exit flow
 
 **What's working:**
+- Phone UI renders correctly (text visible in all buttons)
 - GlassesActivity.kt renders UI on glasses display (Display 7)
+- Both work simultaneously!
 - Projected permissions dialog shows on phone when glasses need mic access
 - Speech recognition works with permissions granted
 - Camera capture working with image preview
-- Phone app has polished card-based UI
 - Engagement mode toggles work in emulation mode
 
 **Known Issues:**
-- Auto-wake display doesn't work reliably - user needs to press glasses button once
-- This is a known SDK limitation: "Launching a projected activity does not automatically turn on the AI glasses' display (planned for future releases)"
+- Auto-wake display doesn't work reliably - user needs to press glasses button once (SDK limitation)
 
-**🔴 Current Investigation:**
-- After UI updates, glasses button press no longer wakes device
-- Previously worked on Pixel Pro Fold
-- Testing on different phone now - need to isolate if phone-specific or code regression
-- Action: Check logcat when pressing glasses button to see what's happening
-
-**Testing Setup:**
-- Phone emulator: Pixel 9 Flip (CANARY image) - emulator-5554
-- Glasses emulator: AI_Glasses - emulator-5556
-- To wake glasses display: Press the glasses button in emulator (icon above 3 dots menu)
+**Testing:** See [docs/maintenance/emulator-testing.md](docs/maintenance/emulator-testing.md) for emulator setup and troubleshooting.
 
 ---
 
 ## Next Steps
 
-1. **🔴 PRIORITY: Verify Projection** - Glasses button press not waking device with new APK after UI updates
-   - Worked before on Pixel Pro Fold
-   - Now testing on different phone - need to determine if phone-specific or update regression
-   - Check logcat output when pressing glasses button
+1. ~~**🔴 PRIORITY: Verify Projection** - SOLVED via separate process architecture~~
 2. **Backend Integration** - Implement actual API call in "Send to AI" button (currently simulated)
 3. **Quick Actions** - Implement Display and Input button functionality
 4. **Auto-wake Display** - Monitor SDK updates for improved display wake support
+5. **End-to-End Testing** - Full flow testing with real glasses when available
 
 ---
 
@@ -84,6 +83,18 @@ The phone app UI has been completely updated with a clean card-based design.
 | [docs/reference.md](docs/reference.md) | Key files, quick commands, research findings |
 | [docs/xr-glasses-resources.md](docs/xr-glasses-resources.md) | Official samples, API references |
 | [CLAUDE.md](CLAUDE.md) | Build instructions, emulator setup, testing |
+
+### Maintenance Guides (Troubleshooting)
+
+| Document | Description |
+|----------|-------------|
+| **[docs/maintenance/README.md](docs/maintenance/README.md)** | **Maintenance docs index, quick troubleshooting** |
+| [docs/maintenance/xr-glasses-projection.md](docs/maintenance/xr-glasses-projection.md) | **CRITICAL** - Projection + React Native coexistence |
+| [docs/maintenance/speech-recognition.md](docs/maintenance/speech-recognition.md) | Speech recognition architecture & issues |
+| [docs/maintenance/camera-capture.md](docs/maintenance/camera-capture.md) | Camera capture system & issues |
+| [docs/maintenance/emulator-testing.md](docs/maintenance/emulator-testing.md) | Emulator setup, pairing, known issues |
+| [docs/maintenance/build-deploy.md](docs/maintenance/build-deploy.md) | Build process, installation, dependencies |
+| [docs/PROJECTION_FIX_ATTEMPTS.md](docs/PROJECTION_FIX_ATTEMPTS.md) | Log of all projection fix attempts |
 
 ---
 

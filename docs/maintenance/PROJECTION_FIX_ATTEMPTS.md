@@ -46,10 +46,34 @@ This suggests:
 ### Attempt 4: Remove ProjectedActivityCompat.create() entirely
 **Date**: 2024-01-31
 **Change**: Completely removed the `ProjectedActivityCompat.create(context, continuation)` call from `connect()`. Simply verified XR SDK availability and launched GlassesActivity.
-**Result**: PARTIAL - Needs more testing based on new observation
+**Result**: FAILED
 **Observation**:
 - First connect: UI broken, projection works
 - After disconnect + restart + connect: UI works, projection doesn't work
+
+### Attempt 5: Separate Android Process (SUCCESS!)
+**Date**: 2024-01-31
+**Change**: Added `android:process=":xr_process"` to both `ProjectionLauncherActivity` and `GlassesActivity` in AndroidManifest.xml. This runs all XR SDK code in a completely separate OS process from React Native.
+
+**Manifest Changes**:
+```xml
+<activity
+    android:name=".ProjectionLauncherActivity"
+    android:process=":xr_process"
+    ... />
+
+<activity
+    android:name=".glasses.GlassesActivity"
+    android:process=":xr_process"
+    ... />
+```
+
+**Result**: SUCCESS!
+- Phone UI renders correctly (text in buttons visible)
+- Glasses projection works
+- Both work simultaneously
+
+**Why it works**: Android processes have completely separate memory spaces. The XR SDK's modifications to rendering context only affect the `:xr_process`, not React Native's main process.
 
 ---
 
@@ -109,7 +133,10 @@ Initialize XR SDK after React Native has fully rendered, possibly using a delay 
 
 ---
 
-## Next Steps
-1. Try Solution A (separate process) - most likely to work
-2. Research if Android XR SDK has any "reset" or "cleanup" APIs
-3. Investigate what exactly the XR SDK does that affects rendering
+## Solution Summary
+
+**The fix**: Run all XR-related activities in a separate Android process using `android:process=":xr_process"`.
+
+**Key insight**: The Android XR SDK modifies global process state that affects rendering. By isolating XR code in its own process, React Native's rendering remains unaffected.
+
+**Maintenance**: See `/docs/maintenance/xr-glasses-projection.md` for detailed architecture and troubleshooting guide.

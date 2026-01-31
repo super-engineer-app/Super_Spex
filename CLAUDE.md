@@ -26,14 +26,38 @@
 
 ### Documentation Standards
 - **NEVER** exceed 2000 lines in any single documentation file
-- Split documentation logically into multiple files in the `docs/` folder:
-  - `docs/architecture.md` - System design and architecture decisions
-  - `docs/api-reference.md` - API endpoints and data structures
-  - `docs/setup.md` - Installation and configuration
-  - `docs/troubleshooting.md` - Common issues and solutions
-  - Create topic-specific files as needed (e.g., `docs/speech-recognition.md`)
 - Keep `CLAUDE.md` focused on agent instructions only
 - Keep `XR_GLASSES_APP_PLAN.md` focused on project status and roadmap
+- Keep main docs concise, put details in `docs/maintenance/`
+
+### Documentation Structure (Where to Find Info)
+
+**Always check these first:**
+1. `docs/architecture.md` - High-level system design, process separation, file structure
+2. `docs/reference.md` - Key files list, quick commands
+
+**For deeper understanding or troubleshooting:**
+```
+docs/maintenance/
+├── README.md                    # Quick troubleshooting matrix, start here
+├── xr-glasses-projection.md     # CRITICAL: How projection works, why separate process
+├── speech-recognition.md        # Speech architecture, broadcast flow, errors
+├── camera-capture.md            # Camera system, CameraX setup
+├── emulator-testing.md          # Emulator setup, pairing, known issues
+└── build-deploy.md              # Build process, gradle, manifest config
+```
+
+**When to check maintenance docs:**
+- Something is broken → Start with `maintenance/README.md` troubleshooting matrix
+- Phone UI corrupted → `maintenance/xr-glasses-projection.md`
+- Speech not working → `maintenance/speech-recognition.md`
+- Camera issues → `maintenance/camera-capture.md`
+- Emulator problems → `maintenance/emulator-testing.md`
+- Build failures → `maintenance/build-deploy.md`
+
+**Other docs:**
+- `docs/xr-glasses-resources.md` - Official Android XR SDK links and samples
+- `docs/PROJECTION_FIX_ATTEMPTS.md` - History of projection fix attempts (reference only)
 
 ### Code Quality Standards
 Write code that is:
@@ -155,10 +179,16 @@ For quick UI testing without emulators:
 3. Tap "Connect"
 4. All features work with simulated data
 
-## Progress Tracking
+## Progress & Documentation
 
-See `XR_GLASSES_APP_PLAN.md` for:
-- Current status (status table at top)
-- Implementation specs and code examples
-- Research findings and architecture decisions
-- Key code files and quick commands
+**Project Status:** See `XR_GLASSES_APP_PLAN.md` for current status, next steps, and milestones.
+
+**Understanding the Codebase:**
+1. Start with `docs/architecture.md` for system overview
+2. Check `docs/reference.md` for key files and commands
+3. For troubleshooting, see `docs/maintenance/README.md`
+
+**Before Making Changes:**
+- Read relevant maintenance doc if modifying a specific module
+- Check `docs/maintenance/xr-glasses-projection.md` before touching ANY XR/projection code
+- The separate process architecture is CRITICAL - don't break it!
