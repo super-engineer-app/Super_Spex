@@ -5,6 +5,7 @@ import { useXRGlasses } from '../../src/hooks/useXRGlasses';
 import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
 import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useState, useCallback, useEffect } from 'react';
+import { sendText, sendImage } from '../../src/services/backendApi';
 
 /**
  * Simplified Glasses Dashboard
@@ -42,6 +43,8 @@ export default function GlassesDashboard() {
 
   const [isSendingAudio, setIsSendingAudio] = useState(false);
   const [isSendingImage, setIsSendingImage] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Cleanup camera on unmount
   useEffect(() => {
@@ -74,13 +77,24 @@ export default function GlassesDashboard() {
   const handleSendAudio = useCallback(async () => {
     if (!transcript) return;
     setIsSendingAudio(true);
+    setAiResponse('');
+    setAiError(null);
     try {
-      // TODO: Replace with actual backend call
-      console.log('Sending audio to AI:', transcript);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      alert('Audio sent to AI!');
+      console.log('Sending transcript to AI:', transcript);
+      await sendText(transcript, {
+        onChunk: (chunk) => {
+          setAiResponse(prev => prev + chunk);
+        },
+        onComplete: (fullResponse) => {
+          console.log('AI response complete:', fullResponse.length, 'chars');
+        },
+        onError: (error) => {
+          setAiError(error.message);
+        },
+      });
     } catch (error) {
       console.error('Error:', error);
+      setAiError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsSendingAudio(false);
     }
@@ -90,13 +104,24 @@ export default function GlassesDashboard() {
   const handleSendImage = useCallback(async () => {
     if (!lastImage) return;
     setIsSendingImage(true);
+    setAiResponse('');
+    setAiError(null);
     try {
-      // TODO: Replace with actual backend call
       console.log('Sending image to AI:', lastImageSize);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      alert('Image sent to AI!');
+      await sendImage(lastImage, {
+        onChunk: (chunk) => {
+          setAiResponse(prev => prev + chunk);
+        },
+        onComplete: (fullResponse) => {
+          console.log('AI response complete:', fullResponse.length, 'chars');
+        },
+        onError: (error) => {
+          setAiError(error.message);
+        },
+      });
     } catch (error) {
       console.error('Error:', error);
+      setAiError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsSendingImage(false);
     }
@@ -214,6 +239,30 @@ export default function GlassesDashboard() {
 
           {cameraError ? <Text style={styles.error}>{cameraError}</Text> : null}
         </View>
+
+        {/* AI Response Section */}
+        {(aiResponse || aiError || isSendingAudio || isSendingImage) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>AI Response</Text>
+            {aiError ? (
+              <Text style={styles.error}>{aiError}</Text>
+            ) : aiResponse ? (
+              <View style={styles.resultBox}>
+                <Text style={styles.resultText}>{aiResponse}</Text>
+              </View>
+            ) : (
+              <Text style={styles.loadingText}>Waiting for response...</Text>
+            )}
+            {aiResponse ? (
+              <Pressable
+                style={styles.clearButton}
+                onPress={() => { setAiResponse(''); setAiError(null); }}
+              >
+                <Text style={styles.clearButtonText}>Clear Response</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Disconnect */}
         <Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
@@ -349,6 +398,22 @@ const styles = StyleSheet.create({
     color: '#f66',
     fontSize: 13,
     marginTop: 8,
+  },
+  loadingText: {
+    color: '#888',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  clearButton: {
+    backgroundColor: '#333',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  clearButtonText: {
+    color: '#aaa',
+    fontSize: 14,
   },
   disconnectButton: {
     backgroundColor: 'transparent',

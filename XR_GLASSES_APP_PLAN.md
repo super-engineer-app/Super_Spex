@@ -19,7 +19,7 @@
 | 3.3 | Auto-wake Display | ⚠️ SDK LIMITATION |
 | 3.4 | Phone UI Update | ✅ COMPLETE |
 | **3.5** | **Phone UI + Projection Coexistence** | ✅ COMPLETE |
-| 4 | Backend Integration | ⏳ PENDING |
+| **4** | **Backend Integration** | ✅ COMPLETE |
 | 5 | End-to-End Testing | 🔄 IN PROGRESS |
 | 6 | iOS Implementation | ⏳ FUTURE |
 
@@ -61,6 +61,22 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 **Known Issues:**
 - Auto-wake display doesn't work reliably - user needs to press glasses button once (SDK limitation)
 
+### Backend Integration (2026-01-31) ✅
+
+**Endpoint:** `POST https://superspexwins.fly.dev/generate_temp`
+
+**Implementation:** `src/services/backendApi.ts`
+- Sends captured images and speech transcripts to AI backend
+- Uses multipart form data with session UUID (`user_id`)
+- Supports conversation continuity via `conversation_id`
+- Images saved to temp file via `expo-file-system/legacy` before upload
+
+**Form Fields:**
+- `user_id` (string) - Auto-generated UUID per session
+- `conversation_id` (string, optional) - For multi-turn conversations
+- `text` (string, optional) - Speech transcript
+- `image` (file, optional) - Captured image as JPEG
+
 **Testing:** See [docs/maintenance/emulator-testing.md](docs/maintenance/emulator-testing.md) for emulator setup and troubleshooting.
 
 ---
@@ -68,7 +84,7 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 ## Next Steps
 
 1. ~~**🔴 PRIORITY: Verify Projection** - SOLVED via separate process architecture~~
-2. **Backend Integration** - Implement actual API call in "Send to AI" button (currently simulated)
+2. ~~**Backend Integration** - COMPLETE (2026-01-31)~~
 3. **Quick Actions** - Implement Display and Input button functionality
 4. **Auto-wake Display** - Monitor SDK updates for improved display wake support
 5. **End-to-End Testing** - Full flow testing with real glasses when available
@@ -102,7 +118,7 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 
 Build a React Native (Expo) app that communicates with Android XR glasses using Jetpack XR APIs, with architecture designed for future iOS cross-platform support via C++ protocol implementation.
 
-**Current Goal:** Use on-device speech recognition from glasses microphone → Send transcribed text to backend → Return AI response to user.
+**Current Goal:** ✅ ACHIEVED - Speech recognition and camera capture send data to AI backend and display response.
 
 ---
 
