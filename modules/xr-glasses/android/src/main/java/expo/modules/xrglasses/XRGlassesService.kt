@@ -79,6 +79,10 @@ class XRGlassesService(
     private var projectedContextInstance: Any? = null
     private var glassesContext: android.content.Context? = null  // Context for the connected glasses
 
+    // Launch method flag: true = use intermediate activity, false = use direct launch
+    // The intermediate activity approach isolates React Native from projected context creation
+    private var useIntermediateActivityLaunch = true
+
     // Emulation mode for testing
     private var emulationMode = false
     private var emulatedEngagementMode = EngagementMode(visualsOn = false, audioOn = false)
@@ -260,77 +264,29 @@ class XRGlassesService(
         }
 
         // Real connection via Jetpack XR Projected
+        // NOTE: We intentionally do NOT call ProjectedActivityCompat.create(context) here!
+        // Calling any XR SDK methods with the React Native context corrupts RN's rendering.
+        // Instead, we verify XR is available and let GlassesActivity handle all XR SDK setup.
         if (xrSdkAvailable) {
             try {
-                if (projectedContextInstance == null) {
-                    Log.d(TAG, "Attempting to create ProjectedActivityCompat...")
+                Log.d(TAG, "XR SDK available, skipping ProjectedActivityCompat.create to preserve RN context")
+                Log.d(TAG, "GlassesActivity will handle XR SDK initialization")
 
-                    // Use Kotlin reflection to call the suspend function
-                    val activityCompatClass = Class.forName("androidx.xr.projected.ProjectedActivityCompat")
-                    val companionField = activityCompatClass.getDeclaredField("Companion")
-                    val companion = companionField.get(null)
+                // Mark as connected - actual XR session is managed by GlassesActivity
+                isConnected = true
+                connectionState = ConnectionState.CONNECTED
+                _connectionStateFlow.value = true
+                module.emitEvent("onConnectionStateChanged", mapOf("connected" to true))
+                module.emitEvent("onEngagementModeChanged", mapOf(
+                    "visualsOn" to true,
+                    "audioOn" to true
+                ))
+                Log.d(TAG, "Connection state set, launching GlassesActivity...")
 
-                    // Try to call create(Context) - it's a suspend function
-                    val createMethod = companion.javaClass.methods.find { it.name == "create" }
-                    if (createMethod != null) {
-                        Log.d(TAG, "Found create method, invoking...")
+                // Launch the GlassesActivity to project UI onto glasses
+                // The intermediate activity and GlassesActivity will handle all XR SDK setup
+                launchGlassesActivity()
 
-                        // For suspend functions via reflection, we need to use coroutines
-                        // The method takes (Context, Continuation) - we'll use suspendCoroutine
-                        val result = kotlinx.coroutines.suspendCancellableCoroutine<Any?> { continuation ->
-                            try {
-                                val invoked = createMethod.invoke(companion, context, continuation)
-                                // If it returns COROUTINE_SUSPENDED, the continuation will be resumed later
-                                if (invoked != kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED) {
-                                    continuation.resume(invoked) {}
-                                }
-                            } catch (e: Exception) {
-                                continuation.cancel(e)
-                            }
-                        }
-
-                        projectedContextInstance = result
-                        Log.d(TAG, "ProjectedActivityCompat.create returned: $result")
-
-                        if (result != null) {
-                            Log.d(TAG, "Available methods on result: ${result.javaClass.methods.map { it.name }}")
-
-                            // Try to get the glasses device context for capability queries
-                            try {
-                                val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
-                                val createDeviceContextMethod = projectedContextClass.methods.find {
-                                    it.name == "createProjectedDeviceContext"
-                                }
-                                if (createDeviceContextMethod != null) {
-                                    val deviceContext = createDeviceContextMethod.invoke(null, context)
-                                    if (deviceContext is android.content.Context) {
-                                        glassesContext = deviceContext
-                                        Log.d(TAG, "Got glasses device context for capability queries")
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.d(TAG, "Could not get glasses context: ${e.message}")
-                            }
-
-                            isConnected = true
-                            connectionState = ConnectionState.CONNECTED
-                            _connectionStateFlow.value = true
-                            module.emitEvent("onConnectionStateChanged", mapOf("connected" to true))
-                            module.emitEvent("onEngagementModeChanged", mapOf(
-                                "visualsOn" to true,
-                                "audioOn" to true
-                            ))
-                            Log.d(TAG, "Real XR connection established!")
-
-                            // Launch the GlassesActivity to project UI onto glasses
-                            launchGlassesActivity()
-                        } else {
-                            throw Exception("create() returned null")
-                        }
-                    } else {
-                        throw Exception("create method not found on Companion")
-                    }
-                }
             } catch (e: Exception) {
                 Log.e(TAG, "Connection failed: ${e.message}", e)
                 connectionState = ConnectionState.ERROR
@@ -367,89 +323,122 @@ class XRGlassesService(
 
     /**
      * Launch the GlassesActivity to display UI on the glasses.
-     * Uses ProjectedContext.createProjectedDeviceContext() and createProjectedActivityOptions()
-     * as per the official Android XR sample pattern.
+     *
+     * Two launch strategies are supported:
+     *
+     * 1. **Intermediate Activity** (useIntermediateActivityLaunch = true):
+     *    Launches ProjectionLauncherActivity which creates the projected context from
+     *    ITSELF (not React Native's MainActivity), then launches GlassesActivity.
+     *    This isolates React Native from any context corruption.
+     *
+     * 2. **Direct Launch** (useIntermediateActivityLaunch = false):
+     *    Uses createProjectedActivityOptions(context) directly. The official Android XR
+     *    docs show this can take a regular context for launching activities.
+     *
+     * The intermediate activity approach is the default as it's more robust and
+     * completely isolates React Native from the projection setup.
      */
     private fun launchGlassesActivity() {
-        try {
-            Log.d(TAG, "Launching GlassesActivity on glasses display...")
-
-            val activity = currentActivity
-            if (activity == null) {
-                Log.w(TAG, "No activity available, falling back to context-based launch")
-                launchGlassesActivityFallback()
-                return
-            }
-
-            // Get ProjectedContext class
-            val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
-
-            // Step 1: Create projected device context from activity (official pattern)
-            val createDeviceContextMethod = projectedContextClass.methods.find {
-                it.name == "createProjectedDeviceContext"
-            }
-
-            // Step 2: Create activity options from device context
-            val createOptionsMethod = projectedContextClass.methods.find {
-                it.name == "createProjectedActivityOptions"
-            }
-
-            if (createDeviceContextMethod != null && createOptionsMethod != null) {
-                // Create projected device context first
-                val projectedDeviceContext = createDeviceContextMethod.invoke(null, activity)
-                Log.d(TAG, "Created projected device context: $projectedDeviceContext")
-
-                // Create options from the projected device context
-                val options = createOptionsMethod.invoke(null, projectedDeviceContext)
-                Log.d(TAG, "Created projected activity options: $options")
-
-                // Create intent for GlassesActivity
-                val intent = Intent(activity, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-
-                // Get the toBundle() method from options and start activity
-                if (options != null) {
-                    val toBundleMethod = options.javaClass.getMethod("toBundle")
-                    val bundle = toBundleMethod.invoke(options) as? android.os.Bundle
-
-                    if (bundle != null) {
-                        activity.startActivity(intent, bundle)
-                        Log.d(TAG, "GlassesActivity launched with projected device context options!")
-                    } else {
-                        activity.startActivity(intent)
-                        Log.d(TAG, "GlassesActivity launched without projected bundle")
-                    }
-                } else {
-                    activity.startActivity(intent)
-                    Log.d(TAG, "GlassesActivity launched (no options)")
-                }
-            } else {
-                Log.w(TAG, "ProjectedContext methods not found, using fallback")
-                launchGlassesActivityFallback()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to launch GlassesActivity: ${e.message}", e)
-            // Try fallback method
-            launchGlassesActivityFallback()
+        if (useIntermediateActivityLaunch) {
+            launchViaIntermediateActivity()
+        } else {
+            launchDirectly()
         }
     }
 
     /**
-     * Fallback launch method when activity is not available or ProjectedContext fails.
+     * Launch using the intermediate ProjectionLauncherActivity.
+     * This approach isolates React Native from the projected context creation.
      */
-    private fun launchGlassesActivityFallback() {
+    private fun launchViaIntermediateActivity() {
+        try {
+            Log.d(TAG, "Launching GlassesActivity via intermediate ProjectionLauncherActivity...")
+
+            val intent = Intent(context, ProjectionLauncherActivity::class.java).apply {
+                action = ProjectionLauncherActivity.ACTION_LAUNCH_GLASSES
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            Log.d(TAG, "ProjectionLauncherActivity started - it will launch GlassesActivity")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch via intermediate activity: ${e.message}", e)
+            Log.d(TAG, "Falling back to direct launch...")
+            launchDirectly()
+        }
+    }
+
+    /**
+     * Launch GlassesActivity directly with projected activity options.
+     * Uses createProjectedActivityOptions(context) without creating a projected device context.
+     */
+    private fun launchDirectly() {
+        try {
+            Log.d(TAG, "Launching GlassesActivity directly...")
+
+            // Try to use createProjectedActivityOptions directly with context
+            val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
+            val createOptionsMethod = projectedContextClass.methods.find {
+                it.name == "createProjectedActivityOptions"
+            }
+
+            if (createOptionsMethod != null) {
+                Log.d(TAG, "Found createProjectedActivityOptions, invoking with context...")
+
+                // Use application context to avoid any issues with React Native activity
+                val options = createOptionsMethod.invoke(null, context)
+
+                if (options != null) {
+                    val intent = Intent(context, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
+                        action = "expo.modules.xrglasses.LAUNCH_GLASSES"
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+
+                    val toBundleMethod = options.javaClass.getMethod("toBundle")
+                    val bundle = toBundleMethod.invoke(options) as Bundle
+
+                    context.startActivity(intent, bundle)
+                    Log.d(TAG, "GlassesActivity launched with projected activity options!")
+                    return
+                }
+            }
+
+            // Fallback: simple launch without options (may not project correctly)
+            Log.w(TAG, "createProjectedActivityOptions not available, using simple launch")
+            launchSimple()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch GlassesActivity directly: ${e.message}", e)
+            launchSimple()
+        }
+    }
+
+    /**
+     * Simple launch without projection options.
+     * Relies on manifest's requiredDisplayCategory="xr_projected" for routing.
+     */
+    private fun launchSimple() {
         try {
             val intent = Intent(context, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
                 action = "expo.modules.xrglasses.LAUNCH_GLASSES"
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            Log.d(TAG, "GlassesActivity launched via fallback method")
+            Log.d(TAG, "GlassesActivity launched via simple launch")
         } catch (e: Exception) {
-            Log.e(TAG, "Fallback launch also failed: ${e.message}", e)
+            Log.e(TAG, "Simple launch failed: ${e.message}", e)
         }
     }
+
+    /**
+     * Set the launch method for GlassesActivity.
+     * @param useIntermediate true = use ProjectionLauncherActivity, false = direct launch
+     */
+    fun setLaunchMethod(useIntermediate: Boolean) {
+        useIntermediateActivityLaunch = useIntermediate
+        Log.d(TAG, "Launch method set to: ${if (useIntermediate) "intermediate activity" else "direct"}")
+    }
+
 
     /**
      * Start polling for connection state changes.
@@ -584,16 +573,10 @@ class XRGlassesService(
             )
         }
 
-        // Use glasses context if connected, otherwise use phone context
-        val targetContext = if (isConnected && glassesContext != null) {
-            Log.d(TAG, "Querying capabilities from connected glasses")
-            glassesContext!!
-        } else {
-            Log.d(TAG, "Querying capabilities from phone (not connected to glasses)")
-            context
-        }
-
-        val pm = targetContext.packageManager
+        // Query phone capabilities (we don't query glasses context to avoid corrupting RN)
+        // Note: Glasses hardware capabilities would be queried from within GlassesActivity
+        Log.d(TAG, "Querying capabilities from phone")
+        val pm = context.packageManager
         val isXrPeripheral = pm.hasSystemFeature(FEATURE_XR_PERIPHERAL)
         val hasXrProjection = pm.hasSystemFeature(FEATURE_XR_PROJECTED)
         val hasTouchInput = pm.hasSystemFeature(FEATURE_TOUCHSCREEN)
@@ -613,7 +596,7 @@ class XRGlassesService(
             "hasAudioOutput" to hasAudioOutput,
             "isEmulated" to false,
             "xrSdkAvailable" to xrSdkAvailable,
-            "deviceType" to if (isConnected && glassesContext != null) "glasses" else "phone"
+            "deviceType" to "phone"
         )
     }
 

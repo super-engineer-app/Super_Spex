@@ -1,125 +1,91 @@
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
-import { Link } from 'expo-router';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../src/hooks/useXRGlasses';
 
 /**
- * Home screen component.
+ * Home Screen - Simplified
  *
- * Displays the current XR glasses status and provides navigation
- * to connection and glasses dashboard screens.
+ * Two options:
+ * - Connect to real XR Glasses
+ * - Connect in Emulation Mode
  */
 export default function HomeScreen() {
+  const router = useRouter();
   const {
-    initialized,
     connected,
-    isProjectedDevice,
-    engagementMode,
-    emulationMode,
     loading,
-    error,
+    emulationMode,
+    connect,
     setEmulationMode,
   } = useXRGlasses();
 
-  // Handle enabling emulation mode
-  const handleEnableEmulation = async () => {
-    await setEmulationMode(true);
+  // Connect to real glasses
+  const handleConnectGlasses = async () => {
+    try {
+      await setEmulationMode(false);
+      await connect();
+      router.push('/glasses');
+    } catch (error) {
+      console.error('Connection failed:', error);
+    }
   };
 
-  if (loading && !initialized) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#0066cc" />
-          <Text style={styles.loadingText}>Initializing XR Glasses...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Connect in emulation mode
+  const handleConnectEmulation = async () => {
+    try {
+      await setEmulationMode(true);
+      await connect();
+      router.push('/glasses');
+    } catch (error) {
+      console.error('Emulation connection failed:', error);
+    }
+  };
 
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContent}>
-          <Text style={styles.errorTitle}>Initialization Error</Text>
-          <Text style={styles.errorText}>{error.message}</Text>
-          <Pressable style={styles.retryButton} onPress={handleEnableEmulation}>
-            <Text style={styles.buttonText}>Enable Emulation Mode</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Already connected - go to dashboard
+  const handleGoToDashboard = () => {
+    router.push('/glasses');
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Status Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Status</Text>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Initialized</Text>
-            <View style={[styles.statusIndicator, initialized && styles.statusActive]} />
-          </View>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Connected</Text>
-            <View style={[styles.statusIndicator, connected && styles.statusActive]} />
-          </View>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Projected Device</Text>
-            <View style={[styles.statusIndicator, isProjectedDevice && styles.statusActive]} />
-          </View>
-          {emulationMode && (
-            <View style={styles.emulationBadge}>
-              <Text style={styles.emulationText}>EMULATION MODE</Text>
-            </View>
-          )}
-        </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>XR Glasses</Text>
+        <Text style={styles.subtitle}>Connect to get started</Text>
 
-        {/* Engagement Mode Card */}
-        {connected && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Engagement Mode</Text>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Visuals</Text>
-              <View style={[styles.statusIndicator, engagementMode.visualsOn && styles.statusActive]} />
+        {connected ? (
+          <>
+            <View style={styles.connectedBadge}>
+              <Text style={styles.connectedText}>
+                Connected {emulationMode ? '(Emulated)' : '(Real)'}
+              </Text>
             </View>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Audio</Text>
-              <View style={[styles.statusIndicator, engagementMode.audioOn && styles.statusActive]} />
-            </View>
-          </View>
-        )}
-
-
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          <Link href="/connect" asChild>
-            <Pressable style={styles.button}>
+            <Pressable style={styles.primaryButton} onPress={handleGoToDashboard}>
+              <Text style={styles.buttonText}>Open Dashboard</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Pressable
+              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+              onPress={handleConnectGlasses}
+              disabled={loading}
+            >
               <Text style={styles.buttonText}>
-                {connected ? 'Manage Connection' : 'Connect to Glasses'}
+                {loading ? 'Connecting...' : 'Connect Glasses'}
               </Text>
             </Pressable>
-          </Link>
 
-          {connected && (
-            <Link href="/glasses" asChild>
-              <Pressable style={[styles.button, styles.primaryButton]}>
-                <Text style={styles.buttonText}>Open Glasses Dashboard</Text>
-              </Pressable>
-            </Link>
-          )}
-
-          {!emulationMode && !connected && (
             <Pressable
-              style={[styles.button, styles.secondaryButton]}
-              onPress={handleEnableEmulation}
+              style={[styles.secondaryButton, loading && styles.buttonDisabled]}
+              onPress={handleConnectEmulation}
+              disabled={loading}
             >
-              <Text style={styles.buttonText}>Enable Emulation Mode</Text>
+              <Text style={styles.buttonText}>Connect Emulation</Text>
             </Pressable>
-          )}
-        </View>
-      </ScrollView>
+          </>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -127,110 +93,57 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#111',
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  centerContent: {
+  content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  loadingText: {
-    color: '#888888',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorTitle: {
-    color: '#ff6b6b',
-    fontSize: 20,
-    fontWeight: '600',
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
     marginBottom: 8,
   },
-  errorText: {
-    color: '#888888',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
+  subtitle: {
+    fontSize: 16,
+    color: '#888',
+    marginBottom: 40,
   },
-  retryButton: {
-    backgroundColor: '#333333',
+  connectedBadge: {
+    backgroundColor: '#1a3a1a',
     borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    padding: 12,
+    marginBottom: 20,
   },
-  card: {
-    backgroundColor: '#1a1a1a',
+  connectedText: {
+    color: '#4a4',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    backgroundColor: '#07f',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 16,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
-  },
-  statusLabel: {
-    fontSize: 14,
-    color: '#cccccc',
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#333333',
-  },
-  statusActive: {
-    backgroundColor: '#4ade80',
-  },
-  emulationBadge: {
-    marginTop: 12,
-    backgroundColor: '#3b3b00',
-    borderRadius: 4,
-    padding: 8,
-    alignItems: 'center',
-  },
-  emulationText: {
-    color: '#ffd700',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  buttonContainer: {
-    marginTop: 8,
-  },
-  button: {
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    padding: 16,
+    padding: 18,
+    width: '100%',
     alignItems: 'center',
     marginBottom: 12,
   },
-  primaryButton: {
-    backgroundColor: '#0066cc',
-  },
   secondaryButton: {
-    backgroundColor: '#2a2a2a',
-    borderWidth: 1,
-    borderColor: '#444444',
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 18,
+    width: '100%',
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 18,
     fontWeight: '600',
   },
 });

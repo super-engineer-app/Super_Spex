@@ -47,8 +47,10 @@
         <!-- Note: Removed requiredDisplayCategory for emulator testing -->
         <!-- On real glasses, this would have android:requiredDisplayCategory="xr_projected" -->
         <!-- Glasses Activity - runs on the glasses hardware via projection -->
+        <!-- Also in :xr_process to keep all XR code isolated from React Native -->
         <activity
             android:name=".glasses.GlassesActivity"
+            android:process=":xr_process"
             android:exported="true"
             android:requiredDisplayCategory="xr_projected"
             android:theme="@android:style/Theme.NoTitleBar">
@@ -63,6 +65,21 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="androidx.xr.projected.CATEGORY_PROJECTED" />
+            </intent-filter>
+        </activity>
+
+        <!-- Projection Launcher Activity - runs in SEPARATE PROCESS to isolate XR SDK from React Native -->
+        <!-- The :xr_process ensures XR SDK calls don't affect RN's rendering context -->
+        <activity
+            android:name=".ProjectionLauncherActivity"
+            android:process=":xr_process"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="expo.modules.xrglasses.LAUNCH_VIA_PROJECTION" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
