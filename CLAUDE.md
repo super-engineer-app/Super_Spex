@@ -118,10 +118,20 @@ React Native (TypeScript)  →  Expo Native Module (Kotlin)  →  Jetpack XR SDK
    android/app/build/outputs/apk/release/app-release.apk
    ```
 
+5. Install the APK to the phone:
+   ```bash
+   # List devices to find the phone (not glasses emulator)
+   ~/Android/Sdk/platform-tools/adb devices -l
+
+   # Install to phone (use the phone device, not glasses)
+   ~/Android/Sdk/platform-tools/adb -s <phone-device> install -r android/app/build/outputs/apk/release/app-release.apk
+   ```
+
 **Important:**
 - NEVER build debug APK - it requires Metro bundler running
 - ALWAYS clean before building to ensure JS changes are included
-- User installs APK manually on phone - do NOT use `adb install`
+- ALWAYS install the APK after building using `adb install -r`
+- Install to the **phone** device, not the glasses emulator (glasses shows as `sdk_glasses_x86_64`)
 
 ## Testing with Android Studio Emulators
 
