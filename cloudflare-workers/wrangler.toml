@@ -1,0 +1,10 @@
+# Agora Token Server - Cloudflare Worker Configuration
+name = "agora-token"
+main = "index.js"
+compatibility_date = "2025-09-15"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# These should be set as secrets in production:
+# wrangler secret put AGORA_APP_ID
+# wrangler secret put AGORA_APP_CERTIFICATE
