@@ -53,6 +53,7 @@ class GlassesCameraManager(
     private var glassesContext: Context? = null
     private var isCameraReady = false
     private var isEmulationMode = false
+    private var cameraSource: String = "unknown"  // Track which camera source is being used
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -76,13 +77,20 @@ class GlassesCameraManager(
                 // Get the appropriate context for camera access
                 val cameraContext = if (emulationMode) {
                     // In emulation mode, use phone's camera
-                    Log.d(TAG, "Using phone camera context (emulation mode)")
+                    cameraSource = "PHONE (emulation mode)"
+                    Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
                     context
                 } else {
                     // Use ProjectedContext to access glasses camera
                     Log.d(TAG, "Attempting to get glasses camera context via ProjectedContext")
-                    getGlassesContext() ?: run {
-                        Log.w(TAG, "Could not get glasses context, falling back to phone camera")
+                    val glassesCtx = getGlassesContext()
+                    if (glassesCtx != null) {
+                        cameraSource = "GLASSES (via ProjectedContext)"
+                        Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
+                        glassesCtx
+                    } else {
+                        cameraSource = "PHONE (glasses context unavailable)"
+                        Log.w(TAG, ">>> CAMERA SOURCE: $cameraSource - falling back to phone camera")
                         context
                     }
                 }
@@ -214,13 +222,15 @@ class GlassesCameraManager(
             return
         }
 
-        Log.d(TAG, "Capturing image...")
+        Log.d(TAG, "========================================")
+        Log.d(TAG, ">>> CAPTURING IMAGE FROM: $cameraSource")
+        Log.d(TAG, "========================================")
 
         capture.takePicture(
             ContextCompat.getMainExecutor(context),
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
-                    Log.d(TAG, "Image captured: ${image.width}x${image.height}")
+                    Log.d(TAG, ">>> IMAGE CAPTURED SUCCESSFULLY from $cameraSource: ${image.width}x${image.height}")
 
                     scope.launch(Dispatchers.Default) {
                         try {

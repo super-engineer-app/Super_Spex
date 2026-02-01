@@ -11,6 +11,10 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.lifecycle.LifecycleOwner
+import expo.modules.xrglasses.stream.AgoraStreamManager
+import expo.modules.xrglasses.stream.StreamQuality
+import expo.modules.xrglasses.stream.StreamSession
+import expo.modules.xrglasses.stream.ViewerInfo
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -109,12 +113,30 @@ class XRGlassesService(
     private var useNetworkRecognizer = false  // Falls back to true if on-device fails
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Camera capture
+    // Camera capture (for single image capture)
     private var cameraManager: GlassesCameraManager? = null
     private var isCameraInitialized = false
 
-    // Remote View streaming
+    // Remote View streaming (runs in main process, not :xr_process)
+    // This is necessary because ProjectedContext.createProjectedDeviceContext()
+    // only works from the main process, not from :xr_process
     private var isStreamingActive = false
+    private var streamingCameraManager: StreamingCameraManager? = null
+    private var agoraStreamManager: AgoraStreamManager? = null
+    private var streamingLifecycleOwner: LifecycleOwner? = null
+    private var currentStreamQuality: StreamQuality = StreamQuality.BALANCED
+
+    // Agora App ID - loaded from BuildConfig (set via .env file)
+    private val AGORA_APP_ID: String by lazy {
+        try {
+            val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+            val field = buildConfigClass.getField("AGORA_APP_ID")
+            field.get(null) as? String ?: ""
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get AGORA_APP_ID from BuildConfig", e)
+            ""
+        }
+    }
 
     init {
         Log.d(TAG, "XRGlassesService initialized")
@@ -1024,17 +1046,27 @@ class XRGlassesService(
     }
 
     // ============================================================
-    // Remote View Streaming (sends commands to GlassesActivity in :xr_process)
+    // Remote View Streaming (runs in MAIN PROCESS, not :xr_process)
+    // This is necessary because ProjectedContext.createProjectedDeviceContext()
+    // only works from the main process.
     // ============================================================
 
     /**
+     * Set the lifecycle owner for streaming camera.
+     * Must be called before startRemoteView().
+     */
+    fun setStreamingLifecycleOwner(owner: LifecycleOwner) {
+        streamingLifecycleOwner = owner
+    }
+
+    /**
      * Start remote view streaming at the specified quality.
-     * Sends broadcast to GlassesActivity which handles Agora integration.
+     * Runs in main process using ProjectedContext for camera access.
      *
      * @param quality Quality preset: "low_latency", "balanced", or "high_quality"
      */
     fun startRemoteView(quality: String) {
-        Log.d(TAG, "Starting remote view with quality: $quality")
+        Log.d(TAG, "Starting remote view with quality: $quality (main process)")
 
         if (!isConnected) {
             Log.w(TAG, "Cannot start remote view - not connected to glasses")
@@ -1045,15 +1077,93 @@ class XRGlassesService(
             return
         }
 
-        // Send broadcast to GlassesActivity in :xr_process
-        val intent = Intent("expo.modules.xrglasses.START_STREAM").apply {
-            putExtra("quality", quality)
-            setPackage(context.packageName)
+        val lifecycleOwner = streamingLifecycleOwner
+        if (lifecycleOwner == null) {
+            Log.e(TAG, "Streaming lifecycle owner not set")
+            module.emitEvent("onStreamError", mapOf(
+                "message" to "Streaming not properly initialized",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
         }
-        context.sendBroadcast(intent)
 
+        // Parse quality preset
+        currentStreamQuality = when (quality) {
+            "low_latency" -> StreamQuality.LOW_LATENCY
+            "high_quality" -> StreamQuality.HIGH_QUALITY
+            else -> StreamQuality.BALANCED
+        }
+
+        // Initialize Agora if needed
+        if (agoraStreamManager == null) {
+            agoraStreamManager = AgoraStreamManager(
+                context = context,
+                appId = AGORA_APP_ID,
+                onStreamStarted = { session ->
+                    Log.d(TAG, "Stream started: ${session.viewerUrl}")
+                    module.emitEvent("onStreamStarted", mapOf(
+                        "channelId" to session.channelId,
+                        "viewerUrl" to session.viewerUrl,
+                        "quality" to session.quality.displayName,
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                },
+                onStreamStopped = {
+                    Log.d(TAG, "Stream stopped")
+                    module.emitEvent("onStreamStopped", mapOf(
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                },
+                onStreamError = { error ->
+                    Log.e(TAG, "Stream error: $error")
+                    module.emitEvent("onStreamError", mapOf(
+                        "message" to error,
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                },
+                onViewerUpdate = { count, viewer ->
+                    Log.d(TAG, "Viewer update: count=$count")
+                    module.emitEvent("onViewerUpdate", mapOf(
+                        "viewerCount" to count,
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                }
+            )
+        }
+
+        // Initialize streaming camera manager
+        if (streamingCameraManager == null) {
+            streamingCameraManager = StreamingCameraManager(
+                context = context,
+                onFrame = { buffer, width, height, rotation, timestampMs ->
+                    // Push frame to Agora
+                    agoraStreamManager?.pushVideoFrameBuffer(buffer, width, height, rotation, timestampMs)
+                },
+                onError = { error ->
+                    Log.e(TAG, "Streaming camera error: $error")
+                    module.emitEvent("onStreamError", mapOf(
+                        "message" to "Camera error: $error",
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                },
+                onCameraReady = { ready ->
+                    Log.d(TAG, "Streaming camera ready: $ready")
+                    if (ready) {
+                        // Camera is ready, start Agora stream
+                        val session = agoraStreamManager?.startStream(currentStreamQuality)
+                        if (session == null) {
+                            Log.e(TAG, "Failed to start Agora stream")
+                            streamingCameraManager?.stopCapture()
+                        }
+                    }
+                }
+            )
+        }
+
+        // Start camera capture (Agora will be started when camera is ready)
+        streamingCameraManager?.startCapture(lifecycleOwner, currentStreamQuality)
         isStreamingActive = true
-        Log.d(TAG, "Start stream broadcast sent")
+        Log.d(TAG, "Remote view starting...")
     }
 
     /**
@@ -1062,13 +1172,14 @@ class XRGlassesService(
     fun stopRemoteView() {
         Log.d(TAG, "Stopping remote view")
 
-        val intent = Intent("expo.modules.xrglasses.STOP_STREAM").apply {
-            setPackage(context.packageName)
-        }
-        context.sendBroadcast(intent)
+        // Stop camera capture
+        streamingCameraManager?.stopCapture()
+
+        // Stop Agora stream
+        agoraStreamManager?.stopStream()
 
         isStreamingActive = false
-        Log.d(TAG, "Stop stream broadcast sent")
+        Log.d(TAG, "Remote view stopped")
     }
 
     /**
@@ -1079,11 +1190,23 @@ class XRGlassesService(
     fun setRemoteViewQuality(quality: String) {
         Log.d(TAG, "Setting remote view quality: $quality")
 
-        val intent = Intent("expo.modules.xrglasses.SET_STREAM_QUALITY").apply {
-            putExtra("quality", quality)
-            setPackage(context.packageName)
+        val newQuality = when (quality) {
+            "low_latency" -> StreamQuality.LOW_LATENCY
+            "high_quality" -> StreamQuality.HIGH_QUALITY
+            else -> StreamQuality.BALANCED
         }
-        context.sendBroadcast(intent)
+
+        if (newQuality == currentStreamQuality) return
+
+        currentStreamQuality = newQuality
+
+        // Update Agora quality
+        agoraStreamManager?.setQuality(newQuality)
+
+        // Update camera quality
+        streamingLifecycleOwner?.let { owner ->
+            streamingCameraManager?.updateQuality(owner, newQuality)
+        }
     }
 
     /**
@@ -1106,8 +1229,15 @@ class XRGlassesService(
         speechRecognizer = null
         isListening = false
 
-        // Cleanup camera
+        // Cleanup camera (image capture)
         releaseCamera()
+
+        // Cleanup streaming
+        stopRemoteView()
+        streamingCameraManager = null
+        agoraStreamManager?.destroy()
+        agoraStreamManager = null
+        streamingLifecycleOwner = null
 
         if (projectedContextInstance != null) {
             try {

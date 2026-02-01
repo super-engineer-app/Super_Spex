@@ -50,7 +50,7 @@
 **Key Fix (2026-02-01):**
 - Agora error 101 was caused by Kotlin nested `apply` blocks corrupting `mAppId`
 - Solution: Use explicit property assignments for `RtcEngineConfig`
-- See `docs/AGORA_ERROR_101_INVESTIGATION.md` for details
+- See `AgoraStreamManager.kt` lines 82-88 for the fix
 
 ---
 
