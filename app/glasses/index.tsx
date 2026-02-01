@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../../src/hooks/useXRGlasses';
 import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
 import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
+import { useRemoteView } from '../../src/hooks/useRemoteView';
+import { QualitySelector } from '../../src/components/QualitySelector';
 import { useState, useCallback, useEffect } from 'react';
 import { sendText, sendImage } from '../../src/services/backendApi';
 
@@ -40,6 +42,19 @@ export default function GlassesDashboard() {
     captureImage,
     releaseCamera,
   } = useGlassesCamera();
+
+  const {
+    isStreaming,
+    viewerUrl,
+    viewerCount,
+    selectedQuality,
+    error: streamError,
+    loading: streamLoading,
+    startStream,
+    stopStream,
+    setQuality,
+    shareLink,
+  } = useRemoteView();
 
   const [isSendingAudio, setIsSendingAudio] = useState(false);
   const [isSendingImage, setIsSendingImage] = useState(false);
@@ -129,6 +144,9 @@ export default function GlassesDashboard() {
 
   // Disconnect and go home
   const handleDisconnect = async () => {
+    if (isStreaming) {
+      await stopStream();
+    }
     if (cameraReady) {
       await releaseCamera();
     }
@@ -240,6 +258,62 @@ export default function GlassesDashboard() {
           {cameraError ? <Text style={styles.error}>{cameraError}</Text> : null}
         </View>
 
+        {/* Remote View Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Remote View</Text>
+
+          {!isStreaming ? (
+            <>
+              <QualitySelector
+                value={selectedQuality}
+                onChange={setQuality}
+                disabled={streamLoading}
+              />
+              <Pressable
+                style={[styles.captureButton, styles.captureButtonPurple, streamLoading && styles.captureButtonActive]}
+                onPress={startStream}
+                disabled={streamLoading}
+              >
+                <Text style={styles.captureButtonText}>
+                  {streamLoading ? 'STARTING...' : 'START STREAM'}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <View style={styles.streamInfo}>
+                <Text style={styles.streamLabel}>Viewers</Text>
+                <Text style={styles.viewerCount}>{viewerCount}</Text>
+              </View>
+
+              {viewerUrl && (
+                <View style={styles.resultBox}>
+                  <Text style={styles.resultLabel}>Viewer Link:</Text>
+                  <Text style={styles.linkText} numberOfLines={1}>{viewerUrl}</Text>
+                </View>
+              )}
+
+              <View style={styles.streamButtons}>
+                <Pressable style={styles.shareButton} onPress={shareLink}>
+                  <Text style={styles.shareButtonText}>Share Link</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.stopButton, streamLoading && styles.sendButtonDisabled]}
+                  onPress={stopStream}
+                  disabled={streamLoading}
+                >
+                  <Text style={styles.stopButtonText}>
+                    {streamLoading ? 'STOPPING...' : 'STOP'}
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+
+          {streamError ? <Text style={styles.error}>{streamError}</Text> : null}
+        </View>
+
         {/* AI Response Section */}
         {(aiResponse || aiError || isSendingAudio || isSendingImage) ? (
           <View style={styles.section}>
@@ -327,6 +401,9 @@ const styles = StyleSheet.create({
   },
   captureButtonGreen: {
     backgroundColor: '#2a5a2a',
+  },
+  captureButtonPurple: {
+    backgroundColor: '#5a2a8a',
   },
   captureButtonActive: {
     backgroundColor: '#a33',
@@ -437,5 +514,58 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
+  },
+  // Remote View styles
+  streamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#333',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  streamLabel: {
+    color: '#888',
+    fontSize: 14,
+  },
+  viewerCount: {
+    color: '#4af',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  linkText: {
+    color: '#4af',
+    fontSize: 14,
+    fontFamily: 'monospace',
+  },
+  streamButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  shareButton: {
+    flex: 1,
+    backgroundColor: '#2a7a2a',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  stopButton: {
+    flex: 1,
+    backgroundColor: '#a33',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  stopButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

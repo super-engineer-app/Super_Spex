@@ -27,6 +27,14 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
+    <!-- Network permissions for Agora Remote View streaming -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Additional Agora SDK required permissions -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
     <!-- WiFi permissions for direct connection -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
@@ -92,6 +100,11 @@
                 <action android:name="expo.modules.xrglasses.SPEECH_PARTIAL" />
                 <action android:name="expo.modules.xrglasses.SPEECH_ERROR" />
                 <action android:name="expo.modules.xrglasses.SPEECH_STATE" />
+                <!-- Remote View streaming events -->
+                <action android:name="expo.modules.xrglasses.STREAM_STARTED" />
+                <action android:name="expo.modules.xrglasses.STREAM_STOPPED" />
+                <action android:name="expo.modules.xrglasses.STREAM_ERROR" />
+                <action android:name="expo.modules.xrglasses.VIEWER_UPDATE" />
             </intent-filter>
         </receiver>
     </application>
