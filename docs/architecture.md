@@ -20,20 +20,27 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     MAIN PROCESS                             │
+│                     MAIN PROCESS (on phone)                  │
 │  React Native App                                            │
 │  ├── XRGlassesModule.kt (Expo bridge)                       │
 │  ├── XRGlassesService.kt (connection management)            │
+│  ├── GlassesCameraManager.kt (image capture)                │
 │  └── GlassesBroadcastReceiver.kt (receives IPC)             │
 └─────────────────────────────────────────────────────────────┘
                               │ Intent (IPC)
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    :xr_process (SEPARATE)                    │
+│              :xr_process (on phone, DISPLAYS to glasses)     │
 │  ├── ProjectionLauncherActivity.kt (XR SDK setup)           │
-│  └── GlassesActivity.kt (glasses UI, speech recognition)    │
+│  ├── GlassesActivity.kt (glasses UI, speech, streaming)     │
+│  ├── AgoraStreamManager.kt (Agora RTC)                      │
+│  └── TextureCameraProvider.kt (camera frames for streaming) │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**IMPORTANT:** `:xr_process` runs on the **phone** but its UI displays on the **glasses**.
+This means code in `:xr_process` doesn't have direct access to phone OR glasses hardware.
+To access glasses hardware (camera, mic), you MUST use `ProjectedContext.createProjectedDeviceContext()`.
 
 See [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md) for why this is required.
 
@@ -114,21 +121,29 @@ Device capabilities are checked internally before connecting but not displayed i
 Real-time video streaming from glasses camera to web viewers via Agora RTC.
 
 **Why Agora runs in :xr_process:**
-- Camera frames should not cross process boundaries (latency, memory)
-- Direct access to CameraX → AgoraStreamManager → Agora cloud
+- Keeps streaming logic separate from React Native main process
+- AgoraStreamManager handles RTC engine lifecycle
+
+**Camera Access from :xr_process:**
+Since `:xr_process` runs on the phone but doesn't have direct hardware access,
+`TextureCameraProvider` must use `ProjectedContext.createProjectedDeviceContext()`
+to access the glasses camera. This is the same approach used by `GlassesCameraManager`
+in the main process for image capture.
 
 **Architecture:**
 ```
-:xr_process                           Cloud                    Browser
-┌─────────────────────┐      ┌─────────────────┐      ┌──────────────────┐
-│ GlassesActivity     │      │ Cloudflare      │      │ Web Viewer       │
-│   ↓                 │      │ Workers         │      │                  │
-│ CameraX frames      │      │ - Token server  │      │ Agora Web SDK    │
-│   ↓                 │      │ - Static viewer │      │ - Subscribe      │
-│ AgoraStreamManager  │─────►│                 │◄─────│ - Display video  │
-│ - pushVideoFrame()  │      └─────────────────┘      └──────────────────┘
-│ - Token auth        │
-└─────────────────────┘
+:xr_process (on phone)                Cloud                    Browser
+┌─────────────────────────┐   ┌─────────────────┐      ┌──────────────────┐
+│ GlassesActivity         │   │ Cloudflare      │      │ Web Viewer       │
+│   ↓                     │   │ Workers         │      │                  │
+│ TextureCameraProvider   │   │ - Token server  │      │ Agora Web SDK    │
+│   ↓ (via ProjectedCtx)  │   │ - Static viewer │      │ - Subscribe      │
+│ CameraX → NV21 frames   │   │                 │      │ - Display video  │
+│   ↓                     │   │                 │      │                  │
+│ AgoraStreamManager      │──►│                 │◄─────│                  │
+│ - pushVideoFrame()      │   └─────────────────┘      └──────────────────┘
+│ - Token auth            │
+└─────────────────────────┘
 ```
 
 **Key Fix (2026-02-01):** Agora error 101 caused by nested Kotlin `apply` blocks corrupting App ID. Use explicit property assignments for `RtcEngineConfig`. See `docs/AGORA_ERROR_101_INVESTIGATION.md`.

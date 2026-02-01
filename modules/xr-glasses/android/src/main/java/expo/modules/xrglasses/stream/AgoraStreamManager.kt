@@ -38,8 +38,27 @@ class AgoraStreamManager(
     companion object {
         private const val TAG = "AgoraStreamManager"
         private const val HOST_UID = 0  // 0 = auto-assign UID
-        private const val VIEWER_URL_BASE = "https://REDACTED_VIEWER_URL/view/"
-        private const val TOKEN_SERVER_URL = "https://REDACTED_TOKEN_SERVER/"
+
+        // URLs loaded from BuildConfig (set via .env file)
+        private val VIEWER_URL_BASE: String by lazy {
+            try {
+                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+                val field = buildConfigClass.getField("SPEX_VIEWER_URL_BASE")
+                field.get(null) as? String ?: "https://REDACTED_VIEWER_URL/view/"
+            } catch (e: Exception) {
+                "https://REDACTED_VIEWER_URL/view/"
+            }
+        }
+
+        private val TOKEN_SERVER_URL: String by lazy {
+            try {
+                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+                val field = buildConfigClass.getField("AGORA_TOKEN_SERVER_URL")
+                field.get(null) as? String ?: "https://REDACTED_TOKEN_SERVER/"
+            } catch (e: Exception) {
+                "https://REDACTED_TOKEN_SERVER/"
+            }
+        }
     }
 
     private var rtcEngine: RtcEngine? = null

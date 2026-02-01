@@ -283,6 +283,14 @@ class XRGlassesModule : Module() {
         AsyncFunction("startRemoteView") { quality: String, promise: Promise ->
             scope.launch {
                 try {
+                    // Get activity as lifecycle owner for camera
+                    val activity = appContext.currentActivity
+                    if (activity is LifecycleOwner) {
+                        glassesService?.setStreamingLifecycleOwner(activity)
+                    } else {
+                        promise.reject(CodedException("NO_LIFECYCLE_OWNER", "Activity is not a LifecycleOwner", null))
+                        return@launch
+                    }
                     glassesService?.startRemoteView(quality)
                     promise.resolve(true)
                 } catch (e: Exception) {

@@ -1,4 +1,4 @@
-package expo.modules.xrglasses.stream
+package expo.modules.xrglasses
 
 import android.content.Context
 import android.util.Log
@@ -9,33 +9,32 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.nio.ByteBuffer
+import expo.modules.xrglasses.stream.StreamQuality
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * TextureCameraProvider - Provides camera frames to Agora for streaming.
+ * StreamingCameraManager - Captures continuous frames from glasses camera for Agora streaming.
  *
- * Uses CameraX ImageAnalysis to capture frames and convert them to NV21 format
- * for pushing to Agora. Configured to match the selected quality preset.
- *
- * IMPORTANT: This class runs in :xr_process (GlassesActivity). To access the
- * glasses camera, we must use ProjectedContext.createProjectedDeviceContext()
- * since :xr_process doesn't have direct camera access.
+ * This class runs in the MAIN PROCESS and uses ProjectedContext.createProjectedDeviceContext()
+ * to access the glasses camera. This is necessary because:
+ * 1. :xr_process cannot access cameras via ProjectedContext (verified by testing)
+ * 2. The main process CAN access glasses camera via ProjectedContext (GlassesCameraManager works)
  *
  * Frame flow:
  * 1. Get glasses camera context via ProjectedContext.createProjectedDeviceContext()
- * 2. CameraX captures YUV_420_888 frame from glasses camera
+ * 2. CameraX ImageAnalysis captures YUV_420_888 frames continuously
  * 3. Convert to NV21 format (fast, ~1ms)
  * 4. Push to Agora via callback
  */
-class TextureCameraProvider(
+class StreamingCameraManager(
     private val context: Context,
     private val onFrame: (buffer: ByteArray, width: Int, height: Int, rotation: Int, timestampMs: Long) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    private val onCameraReady: (Boolean) -> Unit
 ) {
     companion object {
-        private const val TAG = "TextureCameraProvider"
+        private const val TAG = "StreamingCameraManager"
     }
 
     private var cameraProvider: ProcessCameraProvider? = null
@@ -44,19 +43,15 @@ class TextureCameraProvider(
     private var isCapturing = false
     private var currentQuality: StreamQuality = StreamQuality.BALANCED
 
+    // Camera context obtained via ProjectedContext
+    private var glassesContext: Context? = null
+    private var cameraSource: String = "unknown"
+
     // Reusable buffer to avoid allocations
     private var nv21Buffer: ByteArray? = null
 
-    // Camera context obtained via ProjectedContext
-    private var cameraContext: Context? = null
-    private var cameraSource: String = "unknown"
-
     /**
      * Start capturing camera frames at the specified quality.
-     *
-     * Uses ProjectedContext.createProjectedDeviceContext() to access the glasses
-     * camera from the :xr_process. This is necessary because :xr_process doesn't
-     * have direct camera access.
      */
     fun startCapture(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
         if (isCapturing) {
@@ -65,13 +60,13 @@ class TextureCameraProvider(
         }
 
         currentQuality = quality
-        Log.d(TAG, "Starting camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps")
+        Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps")
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Get the appropriate context for camera access
-        // Must use ProjectedContext to access glasses camera from :xr_process
-        val effectiveCameraContext = getGlassesCameraContext() ?: run {
+        // Get glasses camera context via ProjectedContext (MUST use this from main process)
+        val effectiveCameraContext = getGlassesCameraContext()
+        if (effectiveCameraContext == null) {
             Log.e(TAG, "Failed to get glasses camera context")
             onError("Failed to get glasses camera context")
             return
@@ -91,9 +86,7 @@ class TextureCameraProvider(
 
     /**
      * Get the glasses camera context via ProjectedContext.createProjectedDeviceContext().
-     * This allows accessing the glasses camera from the :xr_process.
-     *
-     * Uses reflection since the SDK may not be available on all devices.
+     * This allows accessing the glasses camera from the main process.
      */
     private fun getGlassesCameraContext(): Context? {
         return try {
@@ -105,39 +98,37 @@ class TextureCameraProvider(
             if (createMethod != null) {
                 val result = createMethod.invoke(null, context)
                 if (result is Context) {
-                    cameraContext = result
+                    glassesContext = result
                     cameraSource = "GLASSES (via ProjectedContext)"
-                    Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
+                    Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
                     result
                 } else {
                     Log.w(TAG, "createProjectedDeviceContext returned non-Context: $result")
-                    // Fallback to direct context
-                    cameraSource = "DIRECT (fallback)"
-                    Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
+                    cameraSource = "PHONE (fallback)"
+                    Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
                     context
                 }
             } else {
-                Log.w(TAG, "createProjectedDeviceContext method not found, using direct context")
-                cameraSource = "DIRECT (no ProjectedContext)"
-                Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
+                Log.w(TAG, "createProjectedDeviceContext method not found, using phone camera")
+                cameraSource = "PHONE (no ProjectedContext)"
+                Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
                 context
             }
         } catch (e: IllegalStateException) {
-            // Projected device not found - this is expected when glasses aren't connected
-            Log.w(TAG, "Projected device not found: ${e.message}, using direct context")
-            cameraSource = "DIRECT (no projected device)"
-            Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
+            Log.w(TAG, "Projected device not found: ${e.message}, using phone camera")
+            cameraSource = "PHONE (no projected device)"
+            Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
             context
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get glasses camera context: ${e.message}", e)
-            cameraSource = "DIRECT (error fallback)"
-            Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
+            cameraSource = "PHONE (error fallback)"
+            Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
             context
         }
     }
 
     /**
-     * Setup ImageAnalysis use case for frame capture.
+     * Setup ImageAnalysis use case for continuous frame capture.
      */
     private fun setupImageAnalysis(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
         val provider = cameraProvider ?: run {
@@ -152,7 +143,7 @@ class TextureCameraProvider(
                 CameraSelector.DEFAULT_BACK_CAMERA
             }
             provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) -> {
-                Log.w(TAG, "Back camera not available, using front camera for testing")
+                Log.w(TAG, "Back camera not available, using front camera")
                 CameraSelector.DEFAULT_FRONT_CAMERA
             }
             else -> {
@@ -165,7 +156,7 @@ class TextureCameraProvider(
         // Build ImageAnalysis with quality-appropriate resolution
         imageAnalysis = ImageAnalysis.Builder()
             .setTargetResolution(Size(quality.width, quality.height))
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)  // Drop stale frames
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
             .build()
             .also { analysis ->
@@ -186,6 +177,7 @@ class TextureCameraProvider(
             Log.d(TAG, "========================================")
             Log.d(TAG, ">>> STREAMING CAMERA STARTED: $cameraSource")
             Log.d(TAG, "========================================")
+            onCameraReady(true)
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to bind camera", e)
@@ -194,7 +186,7 @@ class TextureCameraProvider(
     }
 
     /**
-     * Process a single frame from CameraX.
+     * Process a single frame from CameraX and send to Agora.
      */
     private fun processFrame(imageProxy: ImageProxy) {
         if (!isCapturing) {
@@ -223,11 +215,7 @@ class TextureCameraProvider(
     }
 
     /**
-     * Convert YUV_420_888 to NV21 format.
-     * NV21 is the format expected by Agora for video frames.
-     *
-     * YUV_420_888: Y plane, U plane, V plane (may have padding)
-     * NV21: Y plane, interleaved VU plane
+     * Convert YUV_420_888 to NV21 format (expected by Agora).
      */
     private fun yuv420ToNv21(imageProxy: ImageProxy): ByteArray? {
         val width = imageProxy.width
@@ -253,11 +241,9 @@ class TextureCameraProvider(
 
         // Copy Y plane
         if (yRowStride == width) {
-            // No padding, fast copy
             yBuffer.position(0)
             yBuffer.get(nv21, 0, ySize)
         } else {
-            // Has padding, copy row by row
             var pos = 0
             for (row in 0 until height) {
                 yBuffer.position(row * yRowStride)
@@ -272,14 +258,11 @@ class TextureCameraProvider(
         val uvWidth = width / 2
 
         if (uvPixelStride == 2 && uvRowStride == width) {
-            // Common case: semi-planar format, U and V are already interleaved
-            // Just need to swap U and V for NV21 (VU order)
             vBuffer.position(0)
             val vuData = ByteArray(uvSize)
             vBuffer.get(vuData, 0, uvSize)
             System.arraycopy(vuData, 0, nv21, ySize, uvSize)
         } else {
-            // General case: copy pixel by pixel
             for (row in 0 until uvHeight) {
                 for (col in 0 until uvWidth) {
                     val bufferIndex = row * uvRowStride + col * uvPixelStride
@@ -300,10 +283,9 @@ class TextureCameraProvider(
     fun updateQuality(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
         if (quality == currentQuality) return
 
-        Log.d(TAG, "Updating quality to ${quality.displayName}")
+        Log.d(TAG, "Updating streaming quality to ${quality.displayName}")
         currentQuality = quality
 
-        // Rebind with new resolution
         if (isCapturing) {
             cameraProvider?.unbindAll()
             setupImageAnalysis(lifecycleOwner, quality)
@@ -314,7 +296,7 @@ class TextureCameraProvider(
      * Stop capturing camera frames.
      */
     fun stopCapture() {
-        Log.d(TAG, "Stopping camera capture (was using: $cameraSource)")
+        Log.d(TAG, "Stopping streaming camera capture (was using: $cameraSource)")
         isCapturing = false
 
         try {
@@ -328,8 +310,9 @@ class TextureCameraProvider(
         cameraProvider = null
         imageAnalysis = null
         nv21Buffer = null
-        cameraContext = null
+        glassesContext = null
         cameraSource = "unknown"
+        onCameraReady(false)
     }
 
     /**

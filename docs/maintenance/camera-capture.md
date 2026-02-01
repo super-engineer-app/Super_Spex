@@ -2,9 +2,16 @@
 
 ## Overview
 
-Camera capture uses Android CameraX to capture images from the glasses camera. The camera runs on the phone side but accesses glasses hardware via the projected context.
+Camera capture uses Android CameraX to capture images from the glasses camera.
+**CRITICAL:** To access the glasses camera, you MUST use `ProjectedContext.createProjectedDeviceContext()`.
+Neither the main process nor `:xr_process` have direct access to glasses hardware.
 
 ## Architecture
+
+There are TWO camera use cases in the app:
+
+### 1. Image Capture (Send Image to AI)
+Runs in **main process** via `GlassesCameraManager`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -14,23 +21,57 @@ Camera capture uses Android CameraX to capture images from the glasses camera. T
 │  │ XRGlassesModule     │◄──── React Native calls                │
 │  │ initializeCamera()  │                                        │
 │  │ captureImage()      │                                        │
-│  │ releaseCamera()     │                                        │
 │  └─────────┬───────────┘                                        │
 │            │                                                     │
 │            ▼                                                     │
 │  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
 │  │ XRGlassesService    │───▶│ GlassesCameraManager            │ │
-│  │ (delegates camera)  │    │ (CameraX implementation)        │ │
+│  │                     │    │ uses ProjectedContext.          │ │
+│  │                     │    │ createProjectedDeviceContext()  │ │
 │  └─────────────────────┘    └─────────────────────────────────┘ │
 │                                       │                          │
 └───────────────────────────────────────│──────────────────────────┘
-                                        │ Uses projected context
-                                        │ to access glasses camera
+                                        │ ProjectedContext
                                         ▼
                               ┌─────────────────────┐
                               │ Glasses Camera      │
-                              │ (hardware)          │
                               └─────────────────────┘
+```
+
+### 2. Video Streaming (Remote View)
+Runs in **:xr_process** via `TextureCameraProvider`.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    PHONE (:xr_process)                           │
+│                                                                  │
+│  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
+│  │ GlassesActivity     │───▶│ TextureCameraProvider           │ │
+│  │ (displays on        │    │ uses ProjectedContext.          │ │
+│  │  glasses screen)    │    │ createProjectedDeviceContext()  │ │
+│  └─────────────────────┘    └─────────────────────────────────┘ │
+│                                       │                          │
+└───────────────────────────────────────│──────────────────────────┘
+                                        │ ProjectedContext
+                                        ▼
+                              ┌─────────────────────┐
+                              │ Glasses Camera      │
+                              └─────────────────────┘
+```
+
+## Key Insight: Process vs Hardware Access
+
+**:xr_process runs on the PHONE, not on the glasses.**
+
+The `:xr_process` is a separate Android process that:
+- Runs on the phone hardware
+- Has its UI displayed on the glasses screen (via XR projection)
+- Does NOT have direct access to phone or glasses hardware
+
+To access glasses hardware from ANY process, you must use:
+```kotlin
+val glassesContext = ProjectedContext.createProjectedDeviceContext(context)
+val cameraProvider = ProcessCameraProvider.getInstance(glassesContext)
 ```
 
 ## Key Files

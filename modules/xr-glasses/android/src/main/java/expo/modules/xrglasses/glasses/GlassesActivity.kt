@@ -71,8 +71,17 @@ class GlassesActivity : ComponentActivity() {
         const val EXTRA_VIEWER_NAME = "viewer_name"
         const val EXTRA_VIEWER_SPEAKING = "viewer_speaking"
 
-        // Agora App ID
-        private const val AGORA_APP_ID = "REDACTED_AGORA_APP_ID"
+        // Agora App ID - loaded from BuildConfig (set via .env file)
+        private val AGORA_APP_ID: String by lazy {
+            try {
+                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+                val field = buildConfigClass.getField("AGORA_APP_ID")
+                field.get(null) as? String ?: ""
+            } catch (e: Exception) {
+                android.util.Log.e("GlassesActivity", "Failed to get AGORA_APP_ID from BuildConfig", e)
+                ""
+            }
+        }
     }
 
     private var speechRecognizer: SpeechRecognizer? = null
