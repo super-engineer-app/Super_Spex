@@ -84,6 +84,58 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
                 ))
             }
 
+            // Remote View streaming events
+            GlassesActivity.ACTION_STREAM_STARTED -> {
+                val channelId = intent.getStringExtra(GlassesActivity.EXTRA_CHANNEL_ID) ?: ""
+                val viewerUrl = intent.getStringExtra(GlassesActivity.EXTRA_VIEWER_URL) ?: ""
+                val quality = intent.getStringExtra(GlassesActivity.EXTRA_QUALITY) ?: "balanced"
+
+                Log.d(TAG, "Stream started: $viewerUrl")
+
+                callback("onStreamStarted", mapOf(
+                    "channelId" to channelId,
+                    "viewerUrl" to viewerUrl,
+                    "quality" to quality,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+
+            GlassesActivity.ACTION_STREAM_STOPPED -> {
+                Log.d(TAG, "Stream stopped")
+
+                callback("onStreamStopped", mapOf(
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+
+            GlassesActivity.ACTION_STREAM_ERROR -> {
+                val message = intent.getStringExtra(GlassesActivity.EXTRA_ERROR_MESSAGE) ?: "Unknown error"
+
+                Log.e(TAG, "Stream error: $message")
+
+                callback("onStreamError", mapOf(
+                    "message" to message,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+
+            GlassesActivity.ACTION_VIEWER_UPDATE -> {
+                val viewerCount = intent.getIntExtra(GlassesActivity.EXTRA_VIEWER_COUNT, 0)
+                val viewerUid = intent.getIntExtra(GlassesActivity.EXTRA_VIEWER_UID, -1)
+                val viewerName = intent.getStringExtra(GlassesActivity.EXTRA_VIEWER_NAME)
+                val viewerSpeaking = intent.getBooleanExtra(GlassesActivity.EXTRA_VIEWER_SPEAKING, false)
+
+                Log.d(TAG, "Viewer update: count=$viewerCount")
+
+                callback("onViewerUpdate", mapOf(
+                    "viewerCount" to viewerCount,
+                    "viewerUid" to if (viewerUid >= 0) viewerUid else null,
+                    "viewerName" to viewerName,
+                    "viewerSpeaking" to viewerSpeaking,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+
             else -> {
                 Log.w(TAG, "Unknown action: ${intent.action}")
             }

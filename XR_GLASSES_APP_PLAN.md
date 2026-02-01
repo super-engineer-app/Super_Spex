@@ -1,6 +1,6 @@
 # XR Glasses React Native App - Implementation Plan
 
-## Status Summary (2026-01-31)
+## Status Summary (2026-02-01)
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -16,18 +16,43 @@
 | **3** | **Glasses Display Rendering** | ✅ COMPLETE |
 | 3.1 | Projected Activity Configuration | ✅ COMPLETE |
 | 3.2 | Projected Permissions API | ✅ COMPLETE |
-| 3.3 | Auto-wake Display | ⚠️ SDK LIMITATION |
 | 3.4 | Phone UI Update | ✅ COMPLETE |
 | **3.5** | **Phone UI + Projection Coexistence** | ✅ COMPLETE |
 | **4** | **Backend Integration** | ✅ COMPLETE |
-| 5 | End-to-End Testing | 🔄 IN PROGRESS |
-| 6 | iOS Implementation | ⏳ FUTURE |
+| **5** | **Remote View (Agora Streaming)** | 🔄 IN PROGRESS |
+| 5.1 | Agora SDK Integration | ✅ COMPLETE |
+| 5.2 | Token Server (Cloudflare Worker) | ✅ COMPLETE |
+| 5.3 | Web Viewer (Cloudflare Worker) | ✅ COMPLETE |
+| 5.4 | Stream Initialization | ✅ COMPLETE |
+| 5.5 | Camera Frame Push to Agora | 🔄 IN PROGRESS |
+| 6 | End-to-End Testing | ⏳ PENDING |
+| 7 | iOS Implementation | ⏳ FUTURE |
 
 **Approach:** On-device SpeechRecognizer running ON THE GLASSES (not phone) for minimal latency
 
 ---
 
-## Current Status Notes (2026-01-31)
+## Current Status Notes (2026-02-01)
+
+### Remote View Feature - Agora Integration
+
+**Status:** Stream URL generates successfully, but camera frame pushing not yet working.
+
+**What's Working:**
+- Agora RTC SDK initializes correctly (error 101 FIXED)
+- Token server generates valid tokens (`https://REDACTED_TOKEN_SERVER/`)
+- Web viewer deployed (`https://REDACTED_VIEWER_URL/view/{channelId}`)
+- Channel joins successfully, viewer URL displayed in app
+
+**Current Issue:**
+- "Camera error: Camera not available" - CameraX not providing frames to Agora
+
+**Key Fix (2026-02-01):**
+- Agora error 101 was caused by Kotlin nested `apply` blocks corrupting `mAppId`
+- Solution: Use explicit property assignments for `RtcEngineConfig`
+- See `docs/AGORA_ERROR_101_INVESTIGATION.md` for details
+
+---
 
 ### Major Milestone: Phone UI + Glasses Projection Working Together!
 
@@ -44,7 +69,6 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 
 **UI Components (app/glasses/index.tsx):**
 - **Engagement Mode Card** - Visuals (V) and Audio (A) toggles with ON/OFF state
-- **Quick Actions Card** - Display (D) and Input (I) buttons (placeholder)
 - **Voice Input Card** - MIC button with transcript display and "Send to AI" action
 - **Camera Capture Card** - CAM button with image preview and release control
 - **Disconnect Button** - Clean exit flow
@@ -59,7 +83,6 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 - Engagement mode toggles work in emulation mode
 
 **Known Issues:**
-- Auto-wake display doesn't work reliably - user needs to press glasses button once (SDK limitation)
 
 ### Backend Integration (2026-01-31) ✅
 
@@ -85,9 +108,7 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 
 1. ~~**🔴 PRIORITY: Verify Projection** - SOLVED via separate process architecture~~
 2. ~~**Backend Integration** - COMPLETE (2026-01-31)~~
-3. **Quick Actions** - Implement Display and Input button functionality
-4. **Auto-wake Display** - Monitor SDK updates for improved display wake support
-5. **End-to-End Testing** - Full flow testing with real glasses when available
+3. **End-to-End Testing** - Full flow testing with real glasses when available
 
 ---
 

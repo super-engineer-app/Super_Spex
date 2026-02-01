@@ -36,7 +36,12 @@ class XRGlassesModule : Module() {
             // Camera capture events
             "onImageCaptured",       // Image captured successfully
             "onCameraError",         // Camera error
-            "onCameraStateChanged"   // Camera ready state changes
+            "onCameraStateChanged",  // Camera ready state changes
+            // Remote View streaming events (from GlassesActivity via broadcast)
+            "onStreamStarted",       // Stream started with channel/URL info
+            "onStreamStopped",       // Stream stopped
+            "onStreamError",         // Streaming error
+            "onViewerUpdate"         // Viewer count/info changed
         )
 
         // Initialize the XR Glasses service
@@ -267,6 +272,53 @@ class XRGlassesModule : Module() {
         AsyncFunction("isCameraReady") { promise: Promise ->
             val ready = glassesService?.isCameraReady() ?: false
             promise.resolve(ready)
+        }
+
+        // ============================================================
+        // Remote View Functions
+        // Streams glasses camera view to remote viewers via Agora
+        // ============================================================
+
+        // Start remote view streaming
+        AsyncFunction("startRemoteView") { quality: String, promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.startRemoteView(quality)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("STREAM_START_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Stop remote view streaming
+        AsyncFunction("stopRemoteView") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.stopRemoteView()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("STREAM_STOP_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Set stream quality while streaming
+        AsyncFunction("setRemoteViewQuality") { quality: String, promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.setRemoteViewQuality(quality)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("SET_QUALITY_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Check if currently streaming
+        AsyncFunction("isRemoteViewActive") { promise: Promise ->
+            val active = glassesService?.isRemoteViewActive() ?: false
+            promise.resolve(active)
         }
 
         // Cleanup on module destroy

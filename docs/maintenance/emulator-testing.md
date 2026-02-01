@@ -147,13 +147,3 @@ For quick UI testing without emulators:
 - IPC/broadcast testing
 - Integration testing
 
-## Waking Glasses Display
-
-The glasses display doesn't auto-wake when a projected activity launches (SDK limitation).
-
-**To wake display**:
-1. In glasses emulator, find the glasses button icon (above the 3 dots menu)
-2. Click it to simulate user pressing glasses button
-3. Display should wake and show GlassesActivity
-
-**Note**: "Launching a projected activity does not automatically turn on the AI glasses' display (planned for future releases)" - Official SDK docs

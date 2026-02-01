@@ -113,6 +113,9 @@ class XRGlassesService(
     private var cameraManager: GlassesCameraManager? = null
     private var isCameraInitialized = false
 
+    // Remote View streaming
+    private var isStreamingActive = false
+
     init {
         Log.d(TAG, "XRGlassesService initialized")
         checkXrSdkAvailability()
@@ -1018,6 +1021,76 @@ class XRGlassesService(
      */
     fun isCameraReady(): Boolean {
         return isCameraInitialized && cameraManager?.isCameraReady() == true
+    }
+
+    // ============================================================
+    // Remote View Streaming (sends commands to GlassesActivity in :xr_process)
+    // ============================================================
+
+    /**
+     * Start remote view streaming at the specified quality.
+     * Sends broadcast to GlassesActivity which handles Agora integration.
+     *
+     * @param quality Quality preset: "low_latency", "balanced", or "high_quality"
+     */
+    fun startRemoteView(quality: String) {
+        Log.d(TAG, "Starting remote view with quality: $quality")
+
+        if (!isConnected) {
+            Log.w(TAG, "Cannot start remote view - not connected to glasses")
+            module.emitEvent("onStreamError", mapOf(
+                "message" to "Not connected to glasses",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
+        // Send broadcast to GlassesActivity in :xr_process
+        val intent = Intent("expo.modules.xrglasses.START_STREAM").apply {
+            putExtra("quality", quality)
+            setPackage(context.packageName)
+        }
+        context.sendBroadcast(intent)
+
+        isStreamingActive = true
+        Log.d(TAG, "Start stream broadcast sent")
+    }
+
+    /**
+     * Stop remote view streaming.
+     */
+    fun stopRemoteView() {
+        Log.d(TAG, "Stopping remote view")
+
+        val intent = Intent("expo.modules.xrglasses.STOP_STREAM").apply {
+            setPackage(context.packageName)
+        }
+        context.sendBroadcast(intent)
+
+        isStreamingActive = false
+        Log.d(TAG, "Stop stream broadcast sent")
+    }
+
+    /**
+     * Update stream quality while streaming.
+     *
+     * @param quality Quality preset: "low_latency", "balanced", or "high_quality"
+     */
+    fun setRemoteViewQuality(quality: String) {
+        Log.d(TAG, "Setting remote view quality: $quality")
+
+        val intent = Intent("expo.modules.xrglasses.SET_STREAM_QUALITY").apply {
+            putExtra("quality", quality)
+            setPackage(context.packageName)
+        }
+        context.sendBroadcast(intent)
+    }
+
+    /**
+     * Check if remote view is currently active.
+     */
+    fun isRemoteViewActive(): Boolean {
+        return isStreamingActive
     }
 
     /**

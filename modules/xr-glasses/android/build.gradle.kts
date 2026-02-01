@@ -57,4 +57,7 @@ dependencies {
     implementation("androidx.camera:camera-core:1.3.4")
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
+
+    // Agora RTC SDK for Remote View streaming
+    implementation("io.agora.rtc:full-sdk:4.5.0")
 }

@@ -84,6 +84,11 @@ modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
 ├── GlassesBroadcastReceiver.kt     # Receives IPC from :xr_process
 ├── GlassesCameraManager.kt         # Camera capture logic
 ├── ProjectionLauncherActivity.kt   # XR SDK setup (:xr_process)
+├── stream/                         # Remote View (Agora streaming)
+│   ├── AgoraStreamManager.kt       # Agora RTC engine wrapper (:xr_process)
+│   ├── StreamQuality.kt            # Quality presets enum
+│   ├── StreamSession.kt            # Session data class
+│   └── ViewerInfo.kt               # Viewer tracking data
 └── glasses/
     ├── GlassesActivity.kt          # Runs on glasses display (:xr_process)
     └── GlassesScreen.kt            # Compose UI for glasses
@@ -104,6 +109,43 @@ Communication between processes uses Android broadcasts with `setPackage(package
 
 ### Capabilities Validation Only
 Device capabilities are checked internally before connecting but not displayed in UI.
+
+### Remote View (Agora Streaming)
+Real-time video streaming from glasses camera to web viewers via Agora RTC.
+
+**Why Agora runs in :xr_process:**
+- Camera frames should not cross process boundaries (latency, memory)
+- Direct access to CameraX → AgoraStreamManager → Agora cloud
+
+**Architecture:**
+```
+:xr_process                           Cloud                    Browser
+┌─────────────────────┐      ┌─────────────────┐      ┌──────────────────┐
+│ GlassesActivity     │      │ Cloudflare      │      │ Web Viewer       │
+│   ↓                 │      │ Workers         │      │                  │
+│ CameraX frames      │      │ - Token server  │      │ Agora Web SDK    │
+│   ↓                 │      │ - Static viewer │      │ - Subscribe      │
+│ AgoraStreamManager  │─────►│                 │◄─────│ - Display video  │
+│ - pushVideoFrame()  │      └─────────────────┘      └──────────────────┘
+│ - Token auth        │
+└─────────────────────┘
+```
+
+**Key Fix (2026-02-01):** Agora error 101 caused by nested Kotlin `apply` blocks corrupting App ID. Use explicit property assignments for `RtcEngineConfig`. See `docs/AGORA_ERROR_101_INVESTIGATION.md`.
+
+---
+
+## Related Repositories
+
+| Repository | Location | Description |
+|------------|----------|-------------|
+| **spex** (this repo) | `~/coding/spex` | Main React Native app + native modules |
+| **spex-web-viewer** | `~/coding/spex-web-viewer` | Cloudflare Workers for Remote View (web viewer + token server) |
+| **superspex-backend** | `~/coding/superspex-backend` | AI backend (Fly.dev) |
+
+**Web Viewer Deployment:**
+- Viewer: `https://REDACTED_VIEWER_URL/view/{channelId}`
+- Token server: `https://REDACTED_TOKEN_SERVER/`
 
 ---
 

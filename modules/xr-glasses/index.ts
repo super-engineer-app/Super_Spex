@@ -74,6 +74,29 @@ interface XRGlassesNativeModule extends NativeModule {
 
   /** Check if camera is initialized and ready */
   isCameraReady(): Promise<boolean>;
+
+  // ============================================================
+  // Remote View Streaming (via Agora)
+  // ============================================================
+
+  /**
+   * Start remote view streaming.
+   * Streams the glasses camera view to remote viewers via Agora.
+   * @param quality - Quality preset: "low_latency", "balanced", or "high_quality"
+   */
+  startRemoteView(quality: string): Promise<boolean>;
+
+  /** Stop remote view streaming */
+  stopRemoteView(): Promise<boolean>;
+
+  /**
+   * Set stream quality while streaming.
+   * @param quality - Quality preset: "low_latency", "balanced", or "high_quality"
+   */
+  setRemoteViewQuality(quality: string): Promise<boolean>;
+
+  /** Check if remote view is currently active */
+  isRemoteViewActive(): Promise<boolean>;
 }
 
 // Export the native module
@@ -129,6 +152,34 @@ export type CameraStateEvent = {
   isEmulated: boolean;
   timestamp: number;
 };
+
+// Remote View streaming event types
+export type StreamStartedEvent = {
+  channelId: string;
+  viewerUrl: string;
+  quality: string;
+  timestamp: number;
+};
+
+export type StreamStoppedEvent = {
+  timestamp: number;
+};
+
+export type StreamErrorEvent = {
+  message: string;
+  timestamp: number;
+};
+
+export type ViewerUpdateEvent = {
+  viewerCount: number;
+  viewerUid: number | null;
+  viewerName: string | null;
+  viewerSpeaking: boolean;
+  timestamp: number;
+};
+
+// Quality preset type
+export type StreamQuality = 'low_latency' | 'balanced' | 'high_quality';
 
 // Re-export the service module
 export { createXRGlassesService, getXRGlassesService } from './src/XRGlassesModule';
