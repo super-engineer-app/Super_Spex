@@ -10,6 +10,12 @@
 import { Platform } from 'react-native';
 import { XRGlassesNative, NativeErrorEvent } from '../../modules/xr-glasses';
 
+// Type declaration for React Native's ErrorUtils global
+declare const ErrorUtils: {
+  getGlobalHandler: () => ((error: Error, isFatal?: boolean) => void) | null;
+  setGlobalHandler: (handler: (error: Error, isFatal?: boolean) => void) => void;
+} | undefined;
+
 // Discord webhook URL - set via environment or configure here
 // To get a webhook URL: Discord Server Settings > Integrations > Webhooks > New Webhook
 const DISCORD_WEBHOOK_URL = process.env.EXPO_PUBLIC_DISCORD_WEBHOOK_URL || '';
@@ -160,10 +166,10 @@ export function initializeErrorReporting(): void {
   console.log('[ErrorReporting] Initializing error handlers...');
 
   // 1. Handle uncaught JS errors
-  if (global.ErrorUtils) {
-    originalErrorHandler = global.ErrorUtils.getGlobalHandler();
+  if (ErrorUtils) {
+    originalErrorHandler = ErrorUtils.getGlobalHandler();
 
-    global.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+    ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
       console.log('[ErrorReporting] Caught JS error:', error.message, 'Fatal:', isFatal);
 
       sendErrorToDiscord(error, {
@@ -243,10 +249,3 @@ export function handleNativeError(
   });
 }
 
-// Type declaration for React Native's ErrorUtils
-declare global {
-  var ErrorUtils: {
-    getGlobalHandler: () => (error: Error, isFatal?: boolean) => void;
-    setGlobalHandler: (handler: (error: Error, isFatal?: boolean) => void) => void;
-  };
-}

@@ -1,10 +1,17 @@
 import { NativeModule, requireNativeModule } from 'expo-modules-core';
 
+/** Event subscription returned by addListener */
+interface EventSubscription {
+  remove: () => void;
+}
+
 /**
  * Native module interface for XR Glasses communication.
  * This provides the bridge between JavaScript and the native platform implementations.
  */
 interface XRGlassesNativeModule extends NativeModule {
+  /** Subscribe to native events */
+  addListener<T>(eventName: string, listener: (event: T) => void): EventSubscription;
   /** Initialize the XR Glasses service */
   initialize(): void;
 

@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import { EventEmitter, type EventSubscription } from 'expo-modules-core';
 import {
   XRGlassesNative,
   ConnectionStateEvent,
@@ -143,15 +142,6 @@ export interface IXRGlassesService {
   onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription;
 }
 
-// Lazy-initialized Expo event emitter for native events (Android/iOS)
-let _emitter: EventEmitter | null = null;
-
-function getEmitter(): EventEmitter {
-  if (!_emitter) {
-    _emitter = new EventEmitter(XRGlassesNative);
-  }
-  return _emitter;
-}
 
 /**
  * Android implementation using Jetpack XR.
@@ -213,22 +203,22 @@ class AndroidXRGlassesService implements IXRGlassesService {
   }
 
   onConnectionStateChanged(callback: (event: ConnectionStateEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onConnectionStateChanged', callback);
+    const subscription = XRGlassesNative.addListener('onConnectionStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
 
   onInputEvent(callback: (event: InputEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onInputEvent', callback);
+    const subscription = XRGlassesNative.addListener('onInputEvent', callback);
     return { remove: () => subscription.remove() };
   }
 
   onEngagementModeChanged(callback: (event: EngagementModeEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onEngagementModeChanged', callback);
+    const subscription = XRGlassesNative.addListener('onEngagementModeChanged', callback);
     return { remove: () => subscription.remove() };
   }
 
   onDeviceStateChanged(callback: (event: DeviceStateEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onDeviceStateChanged', callback);
+    const subscription = XRGlassesNative.addListener('onDeviceStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
 
@@ -247,22 +237,22 @@ class AndroidXRGlassesService implements IXRGlassesService {
 
   // Speech recognition event subscriptions
   onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onSpeechResult', callback);
+    const subscription = XRGlassesNative.addListener('onSpeechResult', callback);
     return { remove: () => subscription.remove() };
   }
 
   onPartialResult(callback: (event: PartialResultEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onPartialResult', callback);
+    const subscription = XRGlassesNative.addListener('onPartialResult', callback);
     return { remove: () => subscription.remove() };
   }
 
   onSpeechError(callback: (event: SpeechErrorEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onSpeechError', callback);
+    const subscription = XRGlassesNative.addListener('onSpeechError', callback);
     return { remove: () => subscription.remove() };
   }
 
   onSpeechStateChanged(callback: (event: SpeechStateEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onSpeechStateChanged', callback);
+    const subscription = XRGlassesNative.addListener('onSpeechStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
 
@@ -289,17 +279,17 @@ class AndroidXRGlassesService implements IXRGlassesService {
 
   // Camera event subscriptions
   onImageCaptured(callback: (event: ImageCapturedEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onImageCaptured', callback);
+    const subscription = XRGlassesNative.addListener('onImageCaptured', callback);
     return { remove: () => subscription.remove() };
   }
 
   onCameraError(callback: (event: CameraErrorEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onCameraError', callback);
+    const subscription = XRGlassesNative.addListener('onCameraError', callback);
     return { remove: () => subscription.remove() };
   }
 
   onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription {
-    const subscription = getEmitter().addListener('onCameraStateChanged', callback);
+    const subscription = XRGlassesNative.addListener('onCameraStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
 }
