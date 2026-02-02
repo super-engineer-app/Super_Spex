@@ -6,6 +6,8 @@ import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -54,6 +56,9 @@ class StreamingCameraManager(
     // Reusable buffer to avoid allocations
     private var nv21Buffer: ByteArray? = null
 
+    // Debug: frame counter to analyze first frames
+    private var frameCount = 0
+
     /**
      * Start capturing camera frames at the specified quality.
      *
@@ -69,6 +74,7 @@ class StreamingCameraManager(
         }
 
         currentQuality = quality
+        frameCount = 0  // Reset frame counter for debug logging
         Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps (emulation: $emulationMode)")
 
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -166,6 +172,7 @@ class StreamingCameraManager(
 
     /**
      * Setup ImageAnalysis use case for continuous frame capture.
+     * Uses the same ResolutionSelector pattern as GlassesCameraManager for consistency.
      */
     private fun setupImageAnalysis(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
         val provider = cameraProvider ?: run {
@@ -173,26 +180,29 @@ class StreamingCameraManager(
             return
         }
 
-        // Try back camera first (glasses POV), fallback to front camera for testing
-        val cameraSelector = when {
-            provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) -> {
-                Log.d(TAG, "Using back camera")
-                CameraSelector.DEFAULT_BACK_CAMERA
-            }
-            provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) -> {
-                Log.w(TAG, "Back camera not available, using front camera")
-                CameraSelector.DEFAULT_FRONT_CAMERA
-            }
-            else -> {
-                Log.e(TAG, "No camera available on this device")
-                onError("No camera available")
-                return
-            }
+        // Select the back camera (maps to glasses camera when using projected context)
+        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+        // Check if camera is available (same pattern as GlassesCameraManager)
+        if (!provider.hasCamera(cameraSelector)) {
+            Log.w(TAG, "Back camera not available")
+            onError("Camera not available on this device")
+            return
         }
+
+        // Configure resolution using ResolutionSelector (same as GlassesCameraManager)
+        val targetSize = Size(quality.width, quality.height)
+        val resolutionStrategy = ResolutionStrategy(
+            targetSize,
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER
+        )
+        val resolutionSelector = ResolutionSelector.Builder()
+            .setResolutionStrategy(resolutionStrategy)
+            .build()
 
         // Build ImageAnalysis with quality-appropriate resolution
         imageAnalysis = ImageAnalysis.Builder()
-            .setTargetResolution(Size(quality.width, quality.height))
+            .setResolutionSelector(resolutionSelector)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
             .build()
@@ -203,7 +213,10 @@ class StreamingCameraManager(
             }
 
         try {
+            // Unbind any existing use cases (same as GlassesCameraManager)
             provider.unbindAll()
+
+            // Bind to lifecycle
             provider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
@@ -213,11 +226,12 @@ class StreamingCameraManager(
             isCapturing = true
             Log.d(TAG, "========================================")
             Log.d(TAG, ">>> STREAMING CAMERA STARTED: $cameraSource")
+            Log.d(TAG, ">>> Resolution: ${quality.width}x${quality.height} @ ${quality.fps}fps")
             Log.d(TAG, "========================================")
             onCameraReady(true)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind camera", e)
+            Log.e(TAG, "Failed to bind camera use cases", e)
             onError("Failed to start camera: ${e.message}")
         }
     }
@@ -237,11 +251,48 @@ class StreamingCameraManager(
             val rotation = imageProxy.imageInfo.rotationDegrees
             val timestamp = imageProxy.imageInfo.timestamp / 1_000_000  // Convert to milliseconds
 
-            // Convert YUV_420_888 to NV21
-            val nv21 = yuv420ToNv21(imageProxy)
+            frameCount++
+
+            // Debug: Analyze first 20 frames to see if they have content
+            if (frameCount <= 20) {
+                val yPlane = imageProxy.planes[0]
+                val yBuffer = yPlane.buffer.duplicate()  // Use duplicate to avoid modifying original
+                val ySize = yBuffer.remaining()
+
+                // Sample some pixels from Y plane to check if there's actual content
+                val sampleSize = minOf(1000, ySize)
+                var sum = 0L
+                var min = 255
+                var max = 0
+                yBuffer.rewind()
+                for (i in 0 until sampleSize) {
+                    val pixel = yBuffer.get().toInt() and 0xFF
+                    sum += pixel
+                    if (pixel < min) min = pixel
+                    if (pixel > max) max = pixel
+                }
+                val avg = sum / sampleSize
+
+                Log.d(TAG, ">>> FRAME #$frameCount: ${width}x${height}, rotation=$rotation, Y plane size=$ySize, stats: avg=$avg, min=$min, max=$max, range=${max - min}")
+
+                // If range is very small, frame is likely grey/black
+                if (max - min < 10) {
+                    Log.w(TAG, ">>> FRAME #$frameCount appears GREY/EMPTY (low variance) - Camera may not be providing real content!")
+                } else {
+                    Log.d(TAG, ">>> FRAME #$frameCount has CONTENT (good variance)")
+                }
+
+                // Log image format info
+                Log.d(TAG, ">>> ImageProxy format: ${imageProxy.format}, planes: ${imageProxy.planes.size}")
+            }
+
+            // Convert YUV_420_888 to NV21 format (standard Android camera format)
+            val nv21 = yuv420ToNV21(imageProxy)
 
             if (nv21 != null) {
                 onFrame(nv21, width, height, rotation, timestamp)
+            } else {
+                Log.e(TAG, "Failed to convert frame to NV21")
             }
 
         } catch (e: Exception) {
@@ -252,18 +303,24 @@ class StreamingCameraManager(
     }
 
     /**
-     * Convert YUV_420_888 to NV21 format (expected by Agora).
+     * Convert YUV_420_888 to NV21 format (Y plane + interleaved VU).
+     * NV21 is the standard Android camera format and works well with Agora.
+     *
+     * NV21 layout: YYYYYYYY...VUVUVUVU...
+     * - Full Y plane (width * height bytes)
+     * - Interleaved VU plane (width * height / 2 bytes)
      */
-    private fun yuv420ToNv21(imageProxy: ImageProxy): ByteArray? {
+    private fun yuv420ToNV21(imageProxy: ImageProxy): ByteArray? {
         val width = imageProxy.width
         val height = imageProxy.height
         val ySize = width * height
-        val uvSize = width * height / 2
+        val uvSize = width * height / 2  // Interleaved VU
         val totalSize = ySize + uvSize
 
         // Reuse or allocate buffer
         if (nv21Buffer == null || nv21Buffer!!.size != totalSize) {
             nv21Buffer = ByteArray(totalSize)
+            Log.d(TAG, "Allocated NV21 buffer: ${totalSize} bytes for ${width}x${height}")
         }
         val nv21 = nv21Buffer!!
 
@@ -276,42 +333,132 @@ class StreamingCameraManager(
         val uvRowStride = planes[1].rowStride
         val uvPixelStride = planes[1].pixelStride
 
+        // Debug: Log plane info for first few frames
+        if (frameCount <= 5) {
+            Log.d(TAG, ">>> YUV Planes: Y stride=$yRowStride, UV stride=$uvRowStride, UV pixelStride=$uvPixelStride")
+            Log.d(TAG, ">>> Y buffer: remaining=${yBuffer.remaining()}, capacity=${yBuffer.capacity()}")
+            Log.d(TAG, ">>> U buffer: remaining=${uBuffer.remaining()}, capacity=${uBuffer.capacity()}")
+            Log.d(TAG, ">>> V buffer: remaining=${vBuffer.remaining()}, capacity=${vBuffer.capacity()}")
+        }
+
         // Copy Y plane
+        yBuffer.rewind()
         if (yRowStride == width) {
-            yBuffer.position(0)
+            // No padding, direct copy
             yBuffer.get(nv21, 0, ySize)
         } else {
-            var pos = 0
+            // Has padding, copy row by row
             for (row in 0 until height) {
                 yBuffer.position(row * yRowStride)
-                yBuffer.get(nv21, pos, width)
-                pos += width
+                yBuffer.get(nv21, row * width, width)
             }
         }
 
-        // Interleave U and V into VU (NV21 format)
-        var uvIndex = ySize
+        // Copy UV planes to interleaved VU (NV21 format)
         val uvHeight = height / 2
         val uvWidth = width / 2
+        var uvIndex = ySize
 
+        // Check if UV planes are already interleaved (pixelStride == 2)
         if (uvPixelStride == 2 && uvRowStride == width) {
-            vBuffer.position(0)
-            val vuData = ByteArray(uvSize)
-            vBuffer.get(vuData, 0, uvSize)
-            System.arraycopy(vuData, 0, nv21, ySize, uvSize)
+            // Planes are interleaved, we can do a faster copy
+            // But we need to swap U and V for NV21 (VU order, not UV)
+            vBuffer.rewind()
+            for (i in 0 until uvSize) {
+                vBuffer.position(i)
+                nv21[uvIndex++] = vBuffer.get()
+            }
         } else {
+            // Planes are not interleaved, copy pixel by pixel
             for (row in 0 until uvHeight) {
                 for (col in 0 until uvWidth) {
-                    val bufferIndex = row * uvRowStride + col * uvPixelStride
-                    vBuffer.position(bufferIndex)
-                    uBuffer.position(bufferIndex)
-                    nv21[uvIndex++] = vBuffer.get()  // V first (NV21)
-                    nv21[uvIndex++] = uBuffer.get()  // Then U
+                    val uvBufferIndex = row * uvRowStride + col * uvPixelStride
+
+                    // NV21 is VU order (V first, then U)
+                    vBuffer.position(uvBufferIndex)
+                    uBuffer.position(uvBufferIndex)
+
+                    nv21[uvIndex++] = vBuffer.get()  // V
+                    nv21[uvIndex++] = uBuffer.get()  // U
                 }
             }
         }
 
+        // Debug: Check if buffer has actual content
+        if (frameCount <= 5) {
+            var ySum = 0L
+            var minY = 255
+            var maxY = 0
+            for (i in 0 until minOf(1000, ySize)) {
+                val pixel = nv21[i].toInt() and 0xFF
+                ySum += pixel
+                if (pixel < minY) minY = pixel
+                if (pixel > maxY) maxY = pixel
+            }
+            val avgY = ySum / minOf(1000, ySize)
+            Log.d(TAG, ">>> NV21 Y plane stats: avg=$avgY, min=$minY, max=$maxY, range=${maxY - minY}")
+            if (maxY - minY < 10) {
+                Log.w(TAG, ">>> NV21 buffer appears GREY/EMPTY (low variance in Y plane)")
+            }
+        }
+
         return nv21
+    }
+
+    /**
+     * Convert YUV_420_888 to I420 format (Y plane + U plane + V plane).
+     * Alternative format for debugging.
+     */
+    private fun yuv420ToI420(imageProxy: ImageProxy): ByteArray? {
+        val width = imageProxy.width
+        val height = imageProxy.height
+        val ySize = width * height
+        val uvSize = width * height / 4  // Each U and V plane is 1/4 of Y
+        val totalSize = ySize + uvSize * 2  // Y + U + V
+
+        // Reuse or allocate buffer
+        if (nv21Buffer == null || nv21Buffer!!.size != totalSize) {
+            nv21Buffer = ByteArray(totalSize)
+        }
+        val i420 = nv21Buffer!!
+
+        val planes = imageProxy.planes
+        val yBuffer = planes[0].buffer
+        val uBuffer = planes[1].buffer
+        val vBuffer = planes[2].buffer
+
+        val yRowStride = planes[0].rowStride
+        val uvRowStride = planes[1].rowStride
+        val uvPixelStride = planes[1].pixelStride
+
+        // Copy Y plane
+        yBuffer.rewind()
+        if (yRowStride == width) {
+            yBuffer.get(i420, 0, ySize)
+        } else {
+            for (row in 0 until height) {
+                yBuffer.position(row * yRowStride)
+                yBuffer.get(i420, row * width, width)
+            }
+        }
+
+        // Copy U and V planes separately (I420 format: Y, then U, then V)
+        val uvHeight = height / 2
+        val uvWidth = width / 2
+        var uIndex = ySize
+        var vIndex = ySize + uvSize
+
+        for (row in 0 until uvHeight) {
+            for (col in 0 until uvWidth) {
+                val bufferIndex = row * uvRowStride + col * uvPixelStride
+                uBuffer.position(bufferIndex)
+                vBuffer.position(bufferIndex)
+                i420[uIndex++] = uBuffer.get()
+                i420[vIndex++] = vBuffer.get()
+            }
+        }
+
+        return i420
     }
 
     /**

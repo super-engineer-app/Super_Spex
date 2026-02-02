@@ -1,1 +1,0 @@
-agora connection is not working, maybe its the new accout, maybe its the token generation with the cloudfare worker, next priority.

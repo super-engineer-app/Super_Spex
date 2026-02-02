@@ -16,26 +16,26 @@ enum class StreamQuality(
 ) {
     LOW_LATENCY(
         displayName = "Low Latency",
-        width = 854,
+        width = 640,
         height = 480,
-        fps = 15,
-        bitrate = 400,
+        fps = 10,
+        bitrate = 300,
         description = "Fastest response, lower quality"
     ),
     BALANCED(
         displayName = "Balanced",
-        width = 1280,
-        height = 720,
+        width = 640,
+        height = 480,
         fps = 15,
-        bitrate = 800,
+        bitrate = 500,
         description = "Good quality, recommended"
     ),
     HIGH_QUALITY(
         displayName = "High Quality",
-        width = 1280,
-        height = 720,
+        width = 640,
+        height = 480,
         fps = 30,
-        bitrate = 1500,
+        bitrate = 800,
         description = "Best quality, needs strong network"
     );
 

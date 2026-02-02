@@ -5,13 +5,20 @@
 
 import { RtcTokenBuilder, RtcRole } from 'agora-token';
 
-const APP_ID = 'REDACTED_AGORA_APP_ID';
-const APP_CERTIFICATE = 'REDACTED_AGORA_CERTIFICATE';
+// IMPORTANT: Credentials must be set as Cloudflare Worker secrets:
+//   wrangler secret put AGORA_APP_ID
+//   wrangler secret put AGORA_APP_CERTIFICATE
 
 export default {
   async fetch(request, env) {
-    const appId = env?.AGORA_APP_ID || APP_ID;
-    const appCertificate = env?.AGORA_APP_CERTIFICATE || APP_CERTIFICATE;
+    const appId = env?.AGORA_APP_ID;
+    const appCertificate = env?.AGORA_APP_CERTIFICATE;
+
+    if (!appId || !appCertificate) {
+      return jsonResponse({
+        error: 'Server misconfigured: Missing AGORA_APP_ID or AGORA_APP_CERTIFICATE secrets'
+      }, 500);
+    }
 
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
