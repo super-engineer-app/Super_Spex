@@ -8,22 +8,22 @@ import { useXRGlasses } from '../src/hooks/useXRGlasses';
  *
  * Two options:
  * - Connect to real XR Glasses
- * - Connect in Emulation Mode
+ * - Demo Mode (for testing without real glasses)
  */
 export default function HomeScreen() {
   const router = useRouter();
   const {
     connected,
     loading,
-    emulationMode,
+    emulationMode: demoMode,  // Renamed for clarity (vs Android Emulator)
     connect,
-    setEmulationMode,
+    setEmulationMode: setDemoMode,
   } = useXRGlasses();
 
   // Connect to real glasses
   const handleConnectGlasses = async () => {
     try {
-      await setEmulationMode(false);
+      await setDemoMode(false);
       await connect();
       router.push('/glasses');
     } catch (error) {
@@ -31,14 +31,14 @@ export default function HomeScreen() {
     }
   };
 
-  // Connect in emulation mode
-  const handleConnectEmulation = async () => {
+  // Connect in demo mode (no real glasses)
+  const handleConnectDemoMode = async () => {
     try {
-      await setEmulationMode(true);
+      await setDemoMode(true);
       await connect();
       router.push('/glasses');
     } catch (error) {
-      console.error('Emulation connection failed:', error);
+      console.error('Demo mode connection failed:', error);
     }
   };
 
@@ -57,7 +57,7 @@ export default function HomeScreen() {
           <>
             <View style={styles.connectedBadge}>
               <Text style={styles.connectedText}>
-                Connected {emulationMode ? '(Emulated)' : '(Real)'}
+                Connected {demoMode ? '(Demo Mode)' : '(Real Glasses)'}
               </Text>
             </View>
             <Pressable style={styles.primaryButton} onPress={handleGoToDashboard}>
@@ -78,10 +78,10 @@ export default function HomeScreen() {
 
             <Pressable
               style={[styles.secondaryButton, loading && styles.buttonDisabled]}
-              onPress={handleConnectEmulation}
+              onPress={handleConnectDemoMode}
               disabled={loading}
             >
-              <Text style={styles.buttonText}>Connect Emulation</Text>
+              <Text style={styles.buttonText}>Demo Mode</Text>
             </Pressable>
           </>
         )}
