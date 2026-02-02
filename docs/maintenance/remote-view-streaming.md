@@ -74,12 +74,73 @@ Demo mode allows testing Remote View streaming without real XR glasses by using 
 
 4. **Audio**: Phone microphone is used via `engine.enableAudio()`
 
+5. **Keep-Awake**: Screen stays on during streaming via `FLAG_KEEP_SCREEN_ON` (automatic)
+
 ### Demo Mode vs Android Emulator
 
 - **Demo Mode**: App feature for testing WITHOUT real glasses (uses phone hardware)
 - **Android Emulator**: The Android Studio emulator running the app
 
 These are independent - you can run demo mode on a real phone OR on the Android emulator.
+
+## Real-time Viewer Tracking
+
+Viewer count is tracked in real-time using WebSockets and Cloudflare Durable Objects.
+
+### Architecture
+
+```
+┌─────────────────┐     WebSocket      ┌──────────────────────────┐
+│   Phone App     │◄──────────────────►│  Cloudflare Worker       │
+│  (host role)    │                    │  + Durable Objects       │
+└─────────────────┘                    │  (ChannelRoom per channel)│
+                                       └──────────────────────────┘
+┌─────────────────┐    HTTP + KV TTL              ▲
+│   Web Viewer    │───────────────────────────────┘
+│  (heartbeat)    │   /heartbeat every 45s
+└─────────────────┘   TTL: 60s in KV
+```
+
+### How It Works
+
+**Phone App (Publisher):**
+- Opens WebSocket to `wss://agora-token.spex-remote.workers.dev/ws/{channelId}?role=host`
+- Receives real-time `viewer_count` updates when viewers join/leave
+- Auto-reconnects on disconnect
+
+**Web Viewer (Subscriber):**
+- Registers via token fetch with `viewerId` parameter
+- Sends heartbeat every 45s to `/heartbeat?channel=X&viewerId=Y`
+- KV entry expires after 60s if no heartbeat (viewer left)
+- Calls `/leave` on page unload for immediate removal
+
+**Durable Object (ChannelRoom):**
+- One instance per channel
+- Tracks WebSocket connections (phone app)
+- Tracks KV-based viewers (web browsers)
+- Broadcasts `viewer_count` updates to all WebSocket clients
+
+### Token Server Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /?channel=X&role=subscriber&viewerId=Y` | Get token + register viewer |
+| `GET /heartbeat?channel=X&viewerId=Y` | Keep viewer alive (call every 45s) |
+| `GET /leave?channel=X&viewerId=Y` | Remove viewer immediately |
+| `GET /viewers?channel=X` | Get current viewer count |
+| `WS /ws/{channelId}?role=host` | Real-time WebSocket for publisher |
+
+### Future: Chat Support
+
+The WebSocket infrastructure supports chat messages. Send:
+```json
+{"type": "chat", "text": "Hello!"}
+```
+
+All connected clients receive:
+```json
+{"type": "chat", "from": "Name", "role": "viewer", "text": "Hello!", "timestamp": 123456}
+```
 
 ## Key Files
 
@@ -104,7 +165,8 @@ These are independent - you can run demo mode on a real phone OR on the Android 
 
 | File | Purpose |
 |------|---------|
-| `cloudflare-workers/index.js` | Generates Agora RTC tokens |
+| `cloudflare-workers/index.js` | Token generation, viewer tracking, WebSocket handling |
+| `cloudflare-workers/wrangler.toml` | Worker config with Durable Objects and KV bindings |
 
 ## Video Format Pipeline
 

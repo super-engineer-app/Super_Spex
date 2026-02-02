@@ -1,8 +1,24 @@
-# Agora Token Server - Cloudflare Worker Configuration
+# Agora Token Server + Channel Management - Cloudflare Worker Configuration
 name = "agora-token"
 main = "index.js"
 compatibility_date = "2025-09-15"
 compatibility_flags = ["nodejs_compat"]
+
+# Durable Objects for real-time WebSocket connections
+[durable_objects]
+bindings = [
+  { name = "CHANNEL_ROOM", class_name = "ChannelRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChannelRoom"]
+
+# KV namespace for viewer presence tracking (backup/fallback)
+# Create with: wrangler kv:namespace create VIEWERS
+[[kv_namespaces]]
+binding = "VIEWERS"
+id = "62f3f2b5b5ad4de580deaed4e0bc7356"
 
 [vars]
 # These should be set as secrets in production:

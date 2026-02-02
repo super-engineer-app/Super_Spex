@@ -1234,6 +1234,10 @@ class XRGlassesService(
         // In emulation mode (demo mode), use phone camera for testing
         streamingCameraManager?.startCapture(lifecycleOwner, currentStreamQuality, emulationMode)
         isStreamingActive = true
+
+        // Keep screen on during streaming
+        setScreenOn(true)
+
         Log.d(TAG, "Remote view started - streaming from ${if (emulationMode) "phone camera (demo mode)" else "glasses camera"}")
     }
 
@@ -1249,8 +1253,39 @@ class XRGlassesService(
         // Stop Agora stream
         agoraStreamManager?.stopStream()
 
+        // Allow screen to turn off
+        setScreenOn(false)
+
         isStreamingActive = false
         Log.d(TAG, "Remote view stopped")
+    }
+
+    /**
+     * Set screen always-on flag during streaming.
+     * Uses the Activity's window FLAG_KEEP_SCREEN_ON.
+     */
+    private fun setScreenOn(enabled: Boolean) {
+        try {
+            // Get current activity from context
+            val activity = context as? android.app.Activity
+                ?: (context as? android.content.ContextWrapper)?.baseContext as? android.app.Activity
+
+            if (activity != null) {
+                activity.runOnUiThread {
+                    if (enabled) {
+                        activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        Log.d(TAG, "Screen keep-awake ENABLED")
+                    } else {
+                        activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        Log.d(TAG, "Screen keep-awake DISABLED")
+                    }
+                }
+            } else {
+                Log.w(TAG, "Could not get Activity for screen keep-awake")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to set screen on: ${e.message}")
+        }
     }
 
     /**

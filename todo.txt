@@ -1,3 +1,8 @@
+### COMPLETED (2026-02-02):
+- Real-time viewer count via WebSocket + Durable Objects
+- Copy button for stream URL
+- Keep-awake during streaming (automatic)
+- Token server upgraded with viewer tracking
 
 ### PENDING:
 1. Multi-person streaming support check
@@ -10,6 +15,7 @@
 8. Scan for legacy code to modernize
 9. Video streaming optimization
 
-FUTURE FEATURES:
+### FUTURE FEATURES:
 1. Stream recording (web viewer side)
 2. Pre-record video with glasses + transcription + share
+3. Text chat between host and viewers (WebSocket infrastructure ready)

@@ -7,6 +7,7 @@ import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useRemoteView } from '../../src/hooks/useRemoteView';
 import { QualitySelector } from '../../src/components/QualitySelector';
 import { useState, useCallback, useEffect } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import { sendText, sendImage } from '../../src/services';
 
 /**
@@ -62,6 +63,19 @@ export default function GlassesDashboard() {
   const [isSendingImage, setIsSendingImage] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
   const [aiError, setAiError] = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  // Copy URL to clipboard
+  const handleCopyUrl = useCallback(async () => {
+    if (!viewerUrl) return;
+    try {
+      await Clipboard.setStringAsync(viewerUrl);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy URL:', error);
+    }
+  }, [viewerUrl]);
 
   // Cleanup camera on unmount
   useEffect(() => {
@@ -301,7 +315,12 @@ export default function GlassesDashboard() {
               {viewerUrl && (
                 <View style={styles.resultBox}>
                   <Text style={styles.resultLabel}>Viewer Link:</Text>
-                  <Text style={styles.linkText} numberOfLines={1}>{viewerUrl}</Text>
+                  <View style={styles.urlRow}>
+                    <Text style={styles.linkText} numberOfLines={1}>{viewerUrl}</Text>
+                    <Pressable style={styles.copyButton} onPress={handleCopyUrl}>
+                      <Text style={styles.copyButtonText}>{copiedUrl ? '✓' : 'Copy'}</Text>
+                    </Pressable>
+                  </View>
                 </View>
               )}
 
@@ -550,6 +569,23 @@ const styles = StyleSheet.create({
     color: '#4af',
     fontSize: 14,
     fontFamily: 'monospace',
+    flex: 1,
+  },
+  urlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  copyButton: {
+    backgroundColor: '#444',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  copyButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   streamButtons: {
     flexDirection: 'row',
