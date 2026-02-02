@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Share, Platform } from 'react-native';
 import {
   XRGlassesNative,
@@ -9,6 +9,9 @@ import {
   StreamCameraSourceChangedEvent,
   StreamQuality,
 } from '../../modules/xr-glasses';
+
+// WebSocket URL for real-time channel updates
+const WS_BASE_URL = 'wss://REDACTED_TOKEN_SERVER/ws';
 
 /**
  * State interface for Remote View streaming.
@@ -227,6 +230,78 @@ export function useRemoteView(): UseRemoteViewReturn {
       cameraSourceSub.remove();
     };
   }, []);
+
+  // WebSocket connection for real-time viewer count updates
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Close any existing connection
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    // Open WebSocket if streaming with a channel ID
+    if (state.isStreaming && state.channelId) {
+      const connectWebSocket = () => {
+        const wsUrl = `${WS_BASE_URL}/${state.channelId}?role=host&name=Broadcaster`;
+        console.log('[RemoteView] Opening WebSocket:', wsUrl);
+
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('[RemoteView] WebSocket connected');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('[RemoteView] WebSocket message:', data.type);
+
+            if (data.type === 'connected' || data.type === 'viewer_count') {
+              setState(prev => ({
+                ...prev,
+                viewerCount: data.viewerCount ?? data.count ?? prev.viewerCount,
+              }));
+            }
+          } catch (error) {
+            console.warn('[RemoteView] Failed to parse WebSocket message:', error);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.warn('[RemoteView] WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          console.log('[RemoteView] WebSocket closed');
+          // Reconnect after 3 seconds if still streaming
+          if (state.isStreaming && state.channelId) {
+            reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
+          }
+        };
+      };
+
+      connectWebSocket();
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [state.isStreaming, state.channelId]);
 
   // Start streaming
   const startStream = useCallback(async () => {
