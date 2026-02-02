@@ -1,11 +1,4 @@
-### COMPLETED (2026-02-02):
-- Real-time viewer count via WebSocket + Durable Objects
-- Copy button for stream URL
-- Keep-awake during streaming (automatic)
-- Token server upgraded with viewer tracking
-
 ### PENDING:
-1. Multi-person streaming support check
 2. User features (mute, camera toggle, accept/reject viewers, chat)
 3. APK size investigation (381MB)
 4. Legacy imports cleanup
