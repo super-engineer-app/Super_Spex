@@ -1,5 +1,6 @@
 package expo.modules.xrglasses
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import expo.modules.xrglasses.stream.AgoraStreamManager
 import expo.modules.xrglasses.stream.StreamQuality
@@ -116,6 +118,9 @@ class XRGlassesService(
     // Camera capture (for single image capture)
     private var cameraManager: GlassesCameraManager? = null
     private var isCameraInitialized = false
+
+    // Track if streaming is active to prevent camera conflicts
+    private var streamingWasActive = false  // Track if streaming was active before lifecycle pause
 
     // Remote View streaming (runs in main process, not :xr_process)
     // This is necessary because ProjectedContext.createProjectedDeviceContext()
@@ -965,6 +970,17 @@ class XRGlassesService(
     fun initializeCamera(lifecycleOwner: LifecycleOwner, lowPowerMode: Boolean = false) {
         Log.d(TAG, "Initializing camera (emulation: $emulationMode, lowPower: $lowPowerMode)")
 
+        // IMPORTANT: Don't initialize image capture camera while streaming is active
+        // Both use CameraX and unbindAll() would kill the streaming camera
+        if (isStreamingActive) {
+            Log.w(TAG, "Cannot initialize image capture camera while streaming - would kill streaming camera")
+            module.emitEvent("onCameraError", mapOf(
+                "message" to "Cannot use camera capture while streaming. Stop streaming first.",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
         if (cameraManager != null) {
             Log.d(TAG, "Camera already initialized, releasing first")
             releaseCamera()
@@ -1061,13 +1077,35 @@ class XRGlassesService(
     }
 
     /**
+     * Check if required permissions for streaming are granted.
+     * Returns a list of missing permissions (empty if all granted).
+     */
+    private fun checkStreamingPermissions(): List<String> {
+        val missing = mutableListOf<String>()
+
+        // Camera permission is required for video
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add("Camera")
+        }
+
+        // Record audio permission is required for audio streaming
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add("Microphone")
+        }
+
+        return missing
+    }
+
+    /**
      * Start remote view streaming at the specified quality.
      * Runs in main process using ProjectedContext for camera access.
      *
      * @param quality Quality preset: "low_latency", "balanced", or "high_quality"
      */
     fun startRemoteView(quality: String) {
-        Log.d(TAG, "Starting remote view with quality: $quality (main process)")
+        Log.d(TAG, "Starting remote view with quality: $quality (main process, emulation: $emulationMode)")
 
         if (!isConnected) {
             Log.w(TAG, "Cannot start remote view - not connected to glasses")
@@ -1087,6 +1125,19 @@ class XRGlassesService(
             ))
             return
         }
+
+        // Check permissions before starting
+        val missingPermissions = checkStreamingPermissions()
+        if (missingPermissions.isNotEmpty()) {
+            val permissionMsg = "Missing permissions: ${missingPermissions.joinToString(", ")}"
+            Log.e(TAG, "Cannot start streaming - $permissionMsg")
+            module.emitEvent("onStreamError", mapOf(
+                "message" to "Please grant $permissionMsg permissions in app settings",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+        Log.d(TAG, "All streaming permissions granted")
 
         // Parse quality preset
         currentStreamQuality = when (quality) {
@@ -1148,33 +1199,42 @@ class XRGlassesService(
                     ))
                 },
                 onCameraReady = { ready ->
-                    Log.d(TAG, "Streaming camera ready: $ready")
-                    if (ready) {
-                        // Camera is ready, start Agora stream
-                        val session = agoraStreamManager?.startStream(currentStreamQuality)
-                        if (session == null) {
-                            Log.e(TAG, "Failed to start Agora stream")
-                            streamingCameraManager?.stopCapture()
-                        }
-                    }
+                    Log.d(TAG, "Streaming camera ready: $ready (session ready: ${agoraStreamManager?.isSessionReady()})")
+                    // Note: We no longer start Agora here - it's started before camera
+                    // This callback just logs camera readiness
                 },
                 onCameraSourceChanged = { source ->
                     Log.d(TAG, "Streaming camera source changed: $source")
                     currentStreamingCameraSource = source
                     module.emitEvent("onStreamCameraSourceChanged", mapOf(
                         "cameraSource" to source,
-                        "isEmulationMode" to emulationMode,
+                        "isEmulationMode" to emulationMode,  // Keep for backwards compat
+                        "isDemoMode" to emulationMode,  // New alias - clearer naming
                         "timestamp" to System.currentTimeMillis()
                     ))
                 }
             )
         }
 
-        // Start camera capture (Agora will be started when camera is ready)
-        // In emulation mode, use phone camera for testing (glasses camera in emulator returns black frames)
+        // IMPORTANT: Start Agora stream FIRST, before camera
+        // This fixes the race condition where frames were dropped because session wasn't ready
+        Log.d(TAG, "Starting Agora stream first (before camera)...")
+        val session = agoraStreamManager?.startStream(currentStreamQuality)
+        if (session == null) {
+            Log.e(TAG, "Failed to start Agora stream")
+            module.emitEvent("onStreamError", mapOf(
+                "message" to "Failed to start stream - check network connection",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+        Log.d(TAG, "Agora stream started successfully, now starting camera...")
+
+        // Start camera capture AFTER Agora session is ready
+        // In emulation mode (demo mode), use phone camera for testing
         streamingCameraManager?.startCapture(lifecycleOwner, currentStreamQuality, emulationMode)
         isStreamingActive = true
-        Log.d(TAG, "Remote view starting...")
+        Log.d(TAG, "Remote view started - streaming from ${if (emulationMode) "phone camera (demo mode)" else "glasses camera"}")
     }
 
     /**

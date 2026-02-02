@@ -129,8 +129,14 @@ class AgoraStreamManager(
         // Enable video
         engine.enableVideo()
 
-        // Enable audio (for glasses mic)
+        // Enable audio (for glasses mic via Bluetooth)
+        // When glasses are connected as Bluetooth audio device, audio routes automatically
         engine.enableAudio()
+
+        // Disable speakerphone to prefer Bluetooth/headset over phone speaker
+        // This makes Agora use Bluetooth headset (glasses) if connected
+        engine.setEnableSpeakerphone(false)
+        Log.d(TAG, "Audio enabled - speakerphone disabled to prefer Bluetooth headset (glasses)")
 
         // Configure external video source (buffer mode for NV21 frames from CameraX)
         // useTexture = false because we're pushing raw NV21 byte buffers, not GPU textures
@@ -247,6 +253,15 @@ class AgoraStreamManager(
             viewerCount = 0
             viewers.clear()
 
+            // Log audio device info
+            Log.d(TAG, "========================================")
+            Log.d(TAG, ">>> STREAM STARTED - Audio Info:")
+            Log.d(TAG, ">>> Audio is ENABLED and will be transmitted")
+            Log.d(TAG, ">>> If glasses are connected via Bluetooth,")
+            Log.d(TAG, ">>> audio will use glasses mic/speaker")
+            Log.d(TAG, ">>> Check onAudioRouteChanged for actual route")
+            Log.d(TAG, "========================================")
+
             Log.d(TAG, "Stream started successfully")
             onStreamStarted(session)
 
@@ -349,7 +364,9 @@ class AgoraStreamManager(
 
     // Frame counter for periodic logging
     private var pushFrameCount = 0
+    private var pushFailCount = 0
     private var lastPushLogTime = 0L
+    private var droppedBeforeSessionCount = 0
 
     /**
      * Push a video frame to Agora (buffer mode).
@@ -367,8 +384,19 @@ class AgoraStreamManager(
         rotation: Int,
         timestampMs: Long
     ): Boolean {
-        val engine = rtcEngine ?: return false
-        if (currentSession == null) return false
+        val engine = rtcEngine
+        if (engine == null) {
+            Log.w(TAG, "Cannot push frame - RTC engine is null")
+            return false
+        }
+        if (currentSession == null) {
+            droppedBeforeSessionCount++
+            // Only log occasionally to avoid spam
+            if (droppedBeforeSessionCount == 1 || droppedBeforeSessionCount % 30 == 0) {
+                Log.w(TAG, "Frame dropped - session not ready yet (dropped: $droppedBeforeSessionCount)")
+            }
+            return false
+        }
 
         val frame = AgoraVideoFrame().apply {
             format = AgoraVideoFrame.FORMAT_NV21  // NV21 is standard Android camera format
@@ -381,16 +409,26 @@ class AgoraStreamManager(
 
         val success = engine.pushExternalVideoFrame(frame)
 
+        if (success) {
+            pushFrameCount++
+        } else {
+            pushFailCount++
+        }
+
         // Log periodically (every 5 seconds) for monitoring
-        pushFrameCount++
         val now = System.currentTimeMillis()
         if (now - lastPushLogTime > 5000) {
-            Log.d(TAG, "Streaming: pushed $pushFrameCount frames, latest ${width}x${height}")
+            Log.d(TAG, "Streaming: pushed $pushFrameCount frames (failed: $pushFailCount, dropped before session: $droppedBeforeSessionCount), latest ${width}x${height}")
             lastPushLogTime = now
         }
 
         return success
     }
+
+    /**
+     * Check if the session is ready for receiving frames.
+     */
+    fun isSessionReady(): Boolean = currentSession != null
 
     /**
      * Check if currently streaming.
@@ -425,6 +463,30 @@ class AgoraStreamManager(
 
         override fun onJoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) {
             Log.d(TAG, "Joined channel successfully: $channel, uid: $uid")
+        }
+
+        override fun onAudioRouteChanged(routing: Int) {
+            // Audio route constants (using raw values for compatibility)
+            val routeName = when (routing) {
+                -1 -> "DEFAULT"
+                0 -> "HEADSET (wired)"
+                1 -> "EARPIECE"
+                2 -> "HEADSET_NO_MIC"
+                3 -> "SPEAKERPHONE"
+                4 -> "LOUDSPEAKER"
+                5 -> "BLUETOOTH HEADSET"  // This is what glasses should use!
+                6 -> "USB"
+                7 -> "HDMI"
+                8 -> "DISPLAYPORT"
+                9 -> "AIRPLAY"
+                else -> "UNKNOWN ($routing)"
+            }
+            Log.d(TAG, "========================================")
+            Log.d(TAG, ">>> AUDIO ROUTE CHANGED: $routeName")
+            if (routing == 5) {
+                Log.d(TAG, ">>> BLUETOOTH AUDIO ACTIVE - Using glasses mic/speaker!")
+            }
+            Log.d(TAG, "========================================")
         }
 
         override fun onLeaveChannel(stats: RtcStats?) {

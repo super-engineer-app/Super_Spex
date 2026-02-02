@@ -218,3 +218,38 @@ For quick UI testing without emulators:
 - Read relevant maintenance doc if modifying a specific module
 - Check `docs/maintenance/xr-glasses-projection.md` before touching ANY XR/projection code
 - The separate process architecture is CRITICAL - don't break it!
+
+## Debugging Resources
+
+### Key Log Commands
+```bash
+# Streaming debug (Agora + Camera)
+adb logcat | grep -iE "AgoraStreamManager|StreamingCameraManager|XRGlassesService"
+
+# Frame push monitoring
+adb logcat | grep "pushed"
+
+# Audio route monitoring
+adb logcat | grep "AUDIO ROUTE"
+
+# Permission issues
+adb logcat | grep -iE "permission|denied"
+
+# Error reporting
+adb logcat | grep -iE "ErrorReporting|NativeErrorHandler"
+```
+
+### Useful URLs
+- Token Server: `https://REDACTED_TOKEN_SERVER/`
+- Web Viewer: `https://REDACTED_VIEWER_URL/view/{channelId}`
+- Web Viewer Source: `~/coding/spex-web-viewer/`
+
+### Official Documentation
+- Android XR SDK: https://developer.android.com/develop/xr/jetpack-xr-sdk
+- ProjectedContext for hardware: https://developer.android.com/develop/xr/jetpack-xr-sdk/access-hardware-projected-context
+- Agora RTC Android: https://docs.agora.io/en/video-calling/get-started/get-started-sdk
+- Agora Audio Routing: https://docs.agora.io/en/video-calling/advanced-features/set-audio-route
+
+### Current Known Issues (2026-02-02)
+1. **Emulator audio limitation**: Audio routes to SPEAKERPHONE, not Bluetooth glasses
+2. **Emulation mode streaming broken**: No video/audio on real phone - needs debugging

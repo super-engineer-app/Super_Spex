@@ -180,7 +180,8 @@ export type ViewerUpdateEvent = {
 
 export type StreamCameraSourceChangedEvent = {
   cameraSource: string;
-  isEmulationMode: boolean;
+  isEmulationMode: boolean;  // Note: Internally called "demo mode" in UI to avoid confusion with Android Emulator
+  isDemoMode: boolean;  // Alias for isEmulationMode
   timestamp: number;
 };
 

@@ -25,9 +25,10 @@ Remote View uses Agora RTC to stream video from the glasses camera to a web-base
 │         ▲                                                        │
 │         │ CameraX ImageAnalysis                                  │
 │         │                                                        │
-│  ┌──────────────────┐                                            │
-│  │ ProjectedContext │ (Glasses camera access)                    │
-│  └──────────────────┘                                            │
+│  ┌──────────────────┐  OR  ┌──────────────────┐                  │
+│  │ ProjectedContext │      │ Phone Camera     │                  │
+│  │ (Glasses camera) │      │ (Demo Mode)      │                  │
+│  └──────────────────┘      └──────────────────┘                  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -48,6 +49,37 @@ Remote View uses Agora RTC to stream video from the glasses camera to a web-base
 │  - Displays video stream                                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+## Demo Mode
+
+Demo mode allows testing Remote View streaming without real XR glasses by using the phone's camera and microphone instead.
+
+### How Demo Mode Works
+
+1. **Activation**: User taps "Demo Mode" on home screen, setting `emulationMode = true` in `XRGlassesService`
+
+2. **Camera Selection** (`StreamingCameraManager.kt:139-149`):
+   ```kotlin
+   if (isEmulationMode) {
+       cameraSource = "PHONE CAMERA (Demo Mode)"
+       return context  // Use phone camera
+   }
+   // Otherwise use ProjectedContext.createProjectedDeviceContext() for glasses camera
+   ```
+
+3. **Stream Initialization Order** (`XRGlassesService.kt:1219-1236`):
+   - Agora stream starts FIRST (before camera)
+   - This prevents race condition where frames were dropped before session was ready
+   - Camera starts AFTER Agora session is established
+
+4. **Audio**: Phone microphone is used via `engine.enableAudio()`
+
+### Demo Mode vs Android Emulator
+
+- **Demo Mode**: App feature for testing WITHOUT real glasses (uses phone hardware)
+- **Android Emulator**: The Android Studio emulator running the app
+
+These are independent - you can run demo mode on a real phone OR on the Android emulator.
 
 ## Key Files
 
@@ -195,6 +227,38 @@ wrangler secret put AGORA_APP_CERTIFICATE
 | Web Viewer | https://REDACTED_VIEWER_URL/view/{channelId} |
 | Token Server | https://REDACTED_TOKEN_SERVER/ |
 
+## Audio Streaming
+
+Audio is enabled via `engine.enableAudio()` in AgoraStreamManager. The web viewer supports audio playback via `remoteAudioTrack.play()`.
+
+### Audio Routing Behavior
+
+| Mode | Camera Source | Audio Source | Notes |
+|------|---------------|--------------|-------|
+| Real glasses (Bluetooth) | Glasses camera (ProjectedContext) | Glasses mic (Bluetooth HFP) | Should route automatically when glasses are paired as Bluetooth audio device |
+| Demo mode (real phone) | Phone camera | Phone mic | ✅ WORKING - phone camera + mic streams to viewers |
+| Android XR Emulator | Glasses camera (ProjectedContext) | Speakerphone | Emulator limitation - no real Bluetooth |
+
+### Emulator Audio Limitation
+
+**Issue**: In the Android XR emulator, audio routes to SPEAKERPHONE instead of Bluetooth, even though glasses are "paired".
+
+**Cause**: The emulator's phone-glasses connection uses a special XR communication channel for camera/display, not standard Bluetooth HFP/A2DP audio profiles that Agora expects.
+
+**Symptoms**:
+- `onAudioRouteChanged` logs show `SPEAKERPHONE` instead of `BLUETOOTH HEADSET`
+- System logs show `bluetooth-a2dp` activity but Agora doesn't detect it
+
+**Workaround**: Test audio in emulation mode on a real phone (uses phone mic), or wait for real AI glasses hardware for full Bluetooth audio testing.
+
+**Future TODO**: When AI glasses hardware is available, verify that:
+1. Glasses pair as Bluetooth audio device (HFP profile)
+2. `onAudioRouteChanged` shows `BLUETOOTH HEADSET` (route 5)
+3. Audio from glasses mic transmits to web viewers
+4. Audio from web viewers plays through glasses speakers
+
+If Bluetooth routing doesn't work on real hardware, implement external audio source/sink using ProjectedContext (similar to how camera uses `createProjectedDeviceContext()`).
+
 ## Logs to Monitor
 
 ```bash
@@ -203,6 +267,9 @@ adb logcat | grep -iE "StreamingCameraManager|AgoraStreamManager|XRGlassesServic
 
 # Watch frame push rate
 adb logcat | grep "Streaming:"
+
+# Monitor audio route
+adb logcat | grep "AUDIO ROUTE"
 ```
 
 ## Common Fixes

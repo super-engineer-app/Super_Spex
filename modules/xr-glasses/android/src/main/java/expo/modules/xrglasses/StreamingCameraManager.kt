@@ -10,6 +10,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import expo.modules.xrglasses.stream.StreamQuality
 import java.util.concurrent.ExecutorService
@@ -29,7 +30,7 @@ import java.util.concurrent.Executors
  * 3. Convert to NV21 format (fast, ~1ms)
  * 4. Push to Agora via callback
  *
- * In EMULATION MODE: Uses phone's camera instead of glasses camera (for testing).
+ * In DEMO MODE: Uses phone's camera instead of glasses camera (for testing without real glasses).
  */
 class StreamingCameraManager(
     private val context: Context,
@@ -60,12 +61,36 @@ class StreamingCameraManager(
     private var frameCount = 0
     private var lastLogTime = 0L
 
+    // Lifecycle handling for app background/foreground
+    private var currentLifecycleOwner: LifecycleOwner? = null
+    private var wasCapturingBeforePause = false
+
+    // Lifecycle observer to handle app going to background/foreground
+    private val lifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onResume(owner: LifecycleOwner) {
+            Log.d(TAG, ">>> Lifecycle RESUMED - wasCapturing: $wasCapturingBeforePause, isCapturing: $isCapturing")
+            // Camera should auto-resume via CameraX lifecycle binding
+            // But log it so we can debug if there are issues
+        }
+
+        override fun onPause(owner: LifecycleOwner) {
+            Log.d(TAG, ">>> Lifecycle PAUSED - isCapturing: $isCapturing")
+            // Note: CameraX will automatically pause when lifecycle pauses
+            // Frames will stop being captured until the app resumes
+            wasCapturingBeforePause = isCapturing
+        }
+
+        override fun onStop(owner: LifecycleOwner) {
+            Log.d(TAG, ">>> Lifecycle STOPPED - this may interrupt streaming")
+        }
+    }
+
     /**
      * Start capturing camera frames at the specified quality.
      *
      * @param lifecycleOwner Lifecycle owner for camera binding
      * @param quality Stream quality preset
-     * @param emulationMode If true, uses phone camera instead of glasses camera (for testing)
+     * @param emulationMode If true, uses phone camera instead of glasses camera (demo mode for testing)
      */
     fun startCapture(lifecycleOwner: LifecycleOwner, quality: StreamQuality, emulationMode: Boolean = false) {
         this.isEmulationMode = emulationMode
@@ -76,7 +101,12 @@ class StreamingCameraManager(
 
         currentQuality = quality
         frameCount = 0  // Reset frame counter for debug logging
-        Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps (emulation: $emulationMode)")
+        Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps (demoMode: $emulationMode)")
+
+        // Register lifecycle observer to track app background/foreground
+        currentLifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
+        currentLifecycleOwner = lifecycleOwner
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
@@ -104,15 +134,15 @@ class StreamingCameraManager(
      * Get the glasses camera context via ProjectedContext.createProjectedDeviceContext().
      * This allows accessing the glasses camera from the main process.
      *
-     * In EMULATION MODE: Always returns phone context (for testing purposes).
+     * In DEMO MODE: Always returns phone context (for testing purposes).
      */
     private fun getGlassesCameraContext(): Context? {
-        // In emulation mode, always use phone camera for testing
+        // In demo mode, always use phone camera for testing
         if (isEmulationMode) {
-            cameraSource = "PHONE CAMERA (Emulation Mode)"
+            cameraSource = "PHONE CAMERA (Demo Mode)"
             Log.d(TAG, "========================================")
-            Log.d(TAG, ">>> EMULATION MODE: Using PHONE CAMERA")
-            Log.d(TAG, ">>> (Not glasses camera)")
+            Log.d(TAG, ">>> DEMO MODE: Using PHONE CAMERA")
+            Log.d(TAG, ">>> (Not glasses camera - for testing)")
             Log.d(TAG, "========================================")
             onCameraSourceChanged?.invoke(cameraSource)
             return context
@@ -289,12 +319,13 @@ class StreamingCameraManager(
         val width = imageProxy.width
         val height = imageProxy.height
         val ySize = width * height
-        val uvSize = width * height / 2  // Interleaved VU
+        val uvSize = width * height / 2  // Interleaved VU for NV21
         val totalSize = ySize + uvSize
 
         // Reuse or allocate buffer
         if (nv21Buffer == null || nv21Buffer!!.size != totalSize) {
             nv21Buffer = ByteArray(totalSize)
+            Log.d(TAG, "Allocated NV21 buffer: $totalSize bytes for ${width}x${height}")
         }
         val nv21 = nv21Buffer!!
 
@@ -307,16 +338,26 @@ class StreamingCameraManager(
         val uvRowStride = planes[1].rowStride
         val uvPixelStride = planes[1].pixelStride
 
+        // Log buffer info on first frame (for debugging different devices)
+        if (frameCount == 0) {
+            Log.d(TAG, "YUV Buffer info: yRowStride=$yRowStride, uvRowStride=$uvRowStride, uvPixelStride=$uvPixelStride")
+            Log.d(TAG, "Buffer capacities: Y=${yBuffer.remaining()}, U=${uBuffer.remaining()}, V=${vBuffer.remaining()}")
+        }
+
         // Copy Y plane
         yBuffer.rewind()
         if (yRowStride == width) {
             // No padding, direct copy
-            yBuffer.get(nv21, 0, ySize)
+            val yBytesToCopy = minOf(yBuffer.remaining(), ySize)
+            yBuffer.get(nv21, 0, yBytesToCopy)
         } else {
             // Has padding, copy row by row
             for (row in 0 until height) {
-                yBuffer.position(row * yRowStride)
-                yBuffer.get(nv21, row * width, width)
+                val srcPos = row * yRowStride
+                if (srcPos + width <= yBuffer.capacity()) {
+                    yBuffer.position(srcPos)
+                    yBuffer.get(nv21, row * width, width)
+                }
             }
         }
 
@@ -325,27 +366,43 @@ class StreamingCameraManager(
         val uvWidth = width / 2
         var uvIndex = ySize
 
-        // Check if UV planes are already interleaved (pixelStride == 2)
-        if (uvPixelStride == 2 && uvRowStride == width) {
-            // Planes are interleaved, we can do a faster copy
-            // But we need to swap U and V for NV21 (VU order, not UV)
+        // Handle UV planes based on pixel stride
+        if (uvPixelStride == 2) {
+            // UV planes are interleaved in memory (common on many devices)
+            // vBuffer and uBuffer point to V and U values respectively, but they share memory
+            // We need to interleave V and U into NV21's VU format
             vBuffer.rewind()
-            for (i in 0 until uvSize) {
-                vBuffer.position(i)
-                nv21[uvIndex++] = vBuffer.get()
-            }
-        } else {
-            // Planes are not interleaved, copy pixel by pixel
+            uBuffer.rewind()
+
             for (row in 0 until uvHeight) {
                 for (col in 0 until uvWidth) {
-                    val uvBufferIndex = row * uvRowStride + col * uvPixelStride
+                    val bufferIndex = row * uvRowStride + col * uvPixelStride
 
-                    // NV21 is VU order (V first, then U)
-                    vBuffer.position(uvBufferIndex)
-                    uBuffer.position(uvBufferIndex)
+                    // Bounds check to prevent BufferUnderflowException
+                    if (bufferIndex < vBuffer.capacity() && bufferIndex < uBuffer.capacity() && uvIndex + 1 < totalSize) {
+                        vBuffer.position(bufferIndex)
+                        uBuffer.position(bufferIndex)
+                        nv21[uvIndex++] = vBuffer.get()  // V
+                        nv21[uvIndex++] = uBuffer.get()  // U
+                    }
+                }
+            }
+        } else {
+            // Planes are NOT interleaved (pixelStride == 1), copy pixel by pixel
+            vBuffer.rewind()
+            uBuffer.rewind()
 
-                    nv21[uvIndex++] = vBuffer.get()  // V
-                    nv21[uvIndex++] = uBuffer.get()  // U
+            for (row in 0 until uvHeight) {
+                for (col in 0 until uvWidth) {
+                    val bufferIndex = row * uvRowStride + col * uvPixelStride
+
+                    // Bounds check
+                    if (bufferIndex < vBuffer.capacity() && bufferIndex < uBuffer.capacity() && uvIndex + 1 < totalSize) {
+                        vBuffer.position(bufferIndex)
+                        uBuffer.position(bufferIndex)
+                        nv21[uvIndex++] = vBuffer.get()  // V
+                        nv21[uvIndex++] = uBuffer.get()  // U
+                    }
                 }
             }
         }
@@ -430,6 +487,11 @@ class StreamingCameraManager(
     fun stopCapture() {
         Log.d(TAG, "Stopping streaming camera capture (was using: $cameraSource)")
         isCapturing = false
+        wasCapturingBeforePause = false
+
+        // Remove lifecycle observer
+        currentLifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
+        currentLifecycleOwner = null
 
         try {
             cameraProvider?.unbindAll()
