@@ -52,7 +52,7 @@ export default function GlassesDashboard() {
     error: streamError,
     loading: streamLoading,
     cameraSource,
-    isEmulationMode: streamEmulationMode,
+    isDemoMode: streamDemoMode,
     startStream,
     stopStream,
     setQuality,
@@ -304,9 +304,9 @@ export default function GlassesDashboard() {
 
               {/* Camera Source Label */}
               {cameraSource && (
-                <View style={[styles.cameraSourceBox, streamEmulationMode && styles.cameraSourceBoxEmulation]}>
+                <View style={[styles.cameraSourceBox, streamDemoMode && styles.cameraSourceBoxEmulation]}>
                   <Text style={styles.cameraSourceLabel}>Camera Source:</Text>
-                  <Text style={[styles.cameraSourceText, streamEmulationMode && styles.cameraSourceTextEmulation]}>
+                  <Text style={[styles.cameraSourceText, streamDemoMode && styles.cameraSourceTextEmulation]}>
                     {cameraSource}
                   </Text>
                 </View>

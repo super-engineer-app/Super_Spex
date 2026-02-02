@@ -5,7 +5,7 @@
  * and handles streaming responses.
  */
 
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 
 const BACKEND_URL = 'https://REDACTED_BACKEND_URL';
 const GENERATE_ENDPOINT = `${BACKEND_URL}/generate_temp`;
