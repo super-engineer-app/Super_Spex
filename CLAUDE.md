@@ -57,7 +57,6 @@ docs/maintenance/
 
 **Other docs:**
 - `docs/xr-glasses-resources.md` - Official Android XR SDK links and samples
-- `docs/maintenance/PROJECTION_FIX_ATTEMPTS.md` - History of projection fix attempts (reference only)
 
 ### Code Quality Standards
 Write code that is:

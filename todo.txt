@@ -1,4 +1,6 @@
 1. i have acidentally commited the agora app certificate and app id to the commit, how do i get new ones, do i have to create a new project in agora and change the cloudfare endpoint to reach to? or can i use the same project and regenerate the certificate (it only uses the primary one + token)
+after this, help me to set up a discord web hook for a server channel where all the runtime errors/issues should go to, together with the severance level (so if user use something and it fails we should send the log there with context and some debugging info.). si this a good idea, how do we
+even approach this, surely we dont jsut wrap everything into try except statements? so how we capture crashes/runtime errors ?
 2. we should implement audio sending to the streaming, currently it only streams the glasses camera, but should also send the glasses audio + send the audio from the participant of the channel to the speakers on the glasses to play the sound.
 3. does the current streaming implementation support multiple people joining the link?
 4. we should add some more user features to the streaming, to make it more like google meet or zoom , e.g:
@@ -13,4 +15,4 @@
 9. does the glasses camera support different dimensions? (search for official docs and debug to see if it lists available dimensions/quality) and then with my verification implement the selection to the app.
 10. scan the entire codebase and identify any legacy things we use (can we replace them for modern features and keep the code working? we need to test every new thing so nothing breaks.)
 11. is there any way we can optimise the video streaming (optimise encoding/pass the gpu buffer directly/ anything else? again, test after every new addition to ensure no errors.)
- 
+12. the streaming doesnt work in "emulation mode" when im running it on my phone, in that case it should access the real phone camera and stream that. make sure this doesnt break the existing real connection streaming cause that one does work.
