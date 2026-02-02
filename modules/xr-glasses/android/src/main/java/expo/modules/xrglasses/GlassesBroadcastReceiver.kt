@@ -87,6 +87,27 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
                 ))
             }
 
+            NativeErrorHandler.ACTION_NATIVE_ERROR -> {
+                val message = intent.getStringExtra(NativeErrorHandler.EXTRA_ERROR_MESSAGE) ?: "Unknown native error"
+                val stackTrace = intent.getStringExtra(NativeErrorHandler.EXTRA_ERROR_STACK) ?: ""
+                val isFatal = intent.getBooleanExtra(NativeErrorHandler.EXTRA_IS_FATAL, false)
+                val threadName = intent.getStringExtra(NativeErrorHandler.EXTRA_THREAD_NAME) ?: "unknown"
+                val deviceModel = intent.getStringExtra("device_model") ?: ""
+                val androidVersion = intent.getIntExtra("android_version", 0)
+
+                Log.e(TAG, "Native error: $message (fatal: $isFatal, thread: $threadName)")
+
+                callback("onNativeError", mapOf(
+                    "message" to message,
+                    "stackTrace" to stackTrace,
+                    "isFatal" to isFatal,
+                    "threadName" to threadName,
+                    "deviceModel" to deviceModel,
+                    "androidVersion" to androidVersion,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }
+
             else -> {
                 Log.w(TAG, "Unknown action: ${intent.action}")
             }

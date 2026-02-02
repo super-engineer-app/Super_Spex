@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useColorScheme, View, StyleSheet, Platform, PermissionsAndroid, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initializeErrorReporting } from '../src/services';
 
 /**
  * Request all necessary permissions for the XR Glasses app.
@@ -55,8 +56,9 @@ async function requestAllPermissions() {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
-  // Request all permissions on app launch
+  // Initialize error reporting and request permissions on app launch
   useEffect(() => {
+    initializeErrorReporting();
     requestAllPermissions();
   }, []);
 

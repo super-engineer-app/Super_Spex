@@ -187,6 +187,17 @@ export type StreamCameraSourceChangedEvent = {
 // Quality preset type
 export type StreamQuality = 'low_latency' | 'balanced' | 'high_quality';
 
+// Native error event type (from Kotlin error handler)
+export type NativeErrorEvent = {
+  message: string;
+  stackTrace: string;
+  isFatal: boolean;
+  threadName: string;
+  deviceModel: string;
+  androidVersion: number;
+  timestamp: number;
+};
+
 // Re-export the service module
 export { createXRGlassesService, getXRGlassesService } from './src/XRGlassesModule';
 export type { IXRGlassesService, DeviceCapabilities, EngagementMode } from './src/XRGlassesModule';
