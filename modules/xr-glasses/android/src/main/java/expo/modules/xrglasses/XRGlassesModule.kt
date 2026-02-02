@@ -1,6 +1,8 @@
 package expo.modules.xrglasses
 
 import android.app.Activity
+import android.content.IntentFilter
+import android.os.Build
 import androidx.lifecycle.LifecycleOwner
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -16,8 +18,9 @@ import kotlinx.coroutines.*
  * mode for development and testing.
  */
 class XRGlassesModule : Module() {
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob() + NativeErrorHandler.coroutineExceptionHandler)
     private var glassesService: XRGlassesService? = null
+    private var errorReceiver: GlassesBroadcastReceiver? = null
 
     override fun definition() = ModuleDefinition {
         Name("XRGlasses")
@@ -42,7 +45,9 @@ class XRGlassesModule : Module() {
             "onStreamStopped",       // Stream stopped
             "onStreamError",         // Streaming error
             "onViewerUpdate",        // Viewer count/info changed
-            "onStreamCameraSourceChanged"  // Camera source changed (phone vs glasses)
+            "onStreamCameraSourceChanged",  // Camera source changed (phone vs glasses)
+            // Native error events (for error reporting)
+            "onNativeError"          // Native Kotlin/Android errors
         )
 
         // Initialize the XR Glasses service
@@ -51,9 +56,21 @@ class XRGlassesModule : Module() {
                 ?: throw CodedException("NO_CONTEXT", "No context available", null)
             glassesService = XRGlassesService(context, this@XRGlassesModule)
 
+            // Initialize native error handler for crash reporting
+            NativeErrorHandler.initialize(context)
+
             // Register callback for speech events from GlassesActivity
             GlassesBroadcastReceiver.moduleCallback = { eventName, data ->
                 this@XRGlassesModule.sendEvent(eventName, data)
+            }
+
+            // Register broadcast receiver for native errors
+            errorReceiver = GlassesBroadcastReceiver()
+            val errorFilter = IntentFilter(NativeErrorHandler.ACTION_NATIVE_ERROR)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(errorReceiver, errorFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                context.registerReceiver(errorReceiver, errorFilter)
             }
         }
 
@@ -336,6 +353,15 @@ class XRGlassesModule : Module() {
             glassesService?.cleanup()
             // Clear the broadcast receiver callback
             GlassesBroadcastReceiver.moduleCallback = null
+            // Unregister error receiver
+            errorReceiver?.let {
+                try {
+                    appContext.reactContext?.unregisterReceiver(it)
+                } catch (e: Exception) {
+                    // Ignore if already unregistered
+                }
+            }
+            errorReceiver = null
         }
     }
 

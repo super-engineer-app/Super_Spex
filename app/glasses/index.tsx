@@ -7,7 +7,7 @@ import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useRemoteView } from '../../src/hooks/useRemoteView';
 import { QualitySelector } from '../../src/components/QualitySelector';
 import { useState, useCallback, useEffect } from 'react';
-import { sendText, sendImage } from '../../src/services/backendApi';
+import { sendText, sendImage } from '../../src/services';
 
 /**
  * Simplified Glasses Dashboard

@@ -1,12 +1,11 @@
-1. i have acidentally commited the agora app certificate and app id to the commit, how do i get new ones, do i have to create a new project in agora and change the cloudfare endpoint to reach to? or can i use the same project and regenerate the certificate (it only uses the primary one + token)
-after this, help me to set up a discord web hook for a server channel where all the runtime errors/issues should go to, together with the severance level (so if user use something and it fails we should send the log there with context and some debugging info.). si this a good idea, how do we
+help me to set up a discord web hook for a server channel where all the runtime errors/issues should go to, together with the severance level (so if user use something and it fails we should send the log there with context and some debugging info.). si this a good idea, how do we
 even approach this, surely we dont jsut wrap everything into try except statements? so how we capture crashes/runtime errors ?
 2. we should implement audio sending to the streaming, currently it only streams the glasses camera, but should also send the glasses audio + send the audio from the participant of the channel to the speakers on the glasses to play the sound.
 3. does the current streaming implementation support multiple people joining the link?
 4. we should add some more user features to the streaming, to make it more like google meet or zoom , e.g:
  - muting / unmuting (probably in the app, as the glasses have their own micro mute button right or no?)
  - turn on/off camera (default on)
- - in the app the user should be able to accept/reject people who try to join the stream + they should input their name when joining
+ - in the app the user should be able to accept/reject people who try to join the stream + they should input their name when joining + it seems like the participant count does not work.
  - there should be a chat feature in the call in the phone app so they both can send text or links, it should be closable and openable
 5. can you identify why the current app apk is so heavy (its 350mb< already for release build, do we include lots of things that we dont have to or is that because of logging? dont delete it for now, but ujst tell me)
 6. do we need to use the legacy things? i see imports from expo/legacy in the codebase

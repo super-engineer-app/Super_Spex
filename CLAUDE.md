@@ -73,6 +73,23 @@ Avoid:
 - Large files - split into modules
 - Duplicated code - extract to shared utilities
 
+### Type Safety & Runtime Error Prevention
+**NEVER** use language features that may cause runtime errors:
+- **TypeScript**: Never use `any` type - use proper types, `unknown`, or generics instead
+- **TypeScript**: Avoid type assertions (`as`) unless absolutely necessary with a comment explaining why
+- **TypeScript**: Enable strict mode and address all type errors
+- **Kotlin**: Avoid `!!` (non-null assertion) - use safe calls `?.` or `?:` instead
+- **Kotlin**: Use sealed classes for exhaustive when expressions
+- **Both**: Avoid race conditions - use proper synchronization/mutex/atomic operations
+- **Both**: Handle all error cases explicitly - no silent failures
+
+### Error Reporting
+The app uses Discord webhook for error reporting (configured via `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` in `.env`):
+- JS uncaught exceptions → Discord with stack trace
+- Unhandled promise rejections → Discord with context
+- Native Kotlin crashes → Discord via broadcast receiver
+- Manual error reporting: `reportError(error, 'warning', { context: 'value' })`
+
 ---
 
 ## Project Overview
