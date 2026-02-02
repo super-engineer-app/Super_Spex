@@ -6,6 +6,7 @@ import {
   StreamStoppedEvent,
   StreamErrorEvent,
   ViewerUpdateEvent,
+  StreamCameraSourceChangedEvent,
   StreamQuality,
 } from '../../modules/xr-glasses';
 
@@ -27,6 +28,10 @@ export interface RemoteViewState {
   error: string | null;
   /** Whether an operation is in progress */
   loading: boolean;
+  /** Camera source being used for streaming (e.g., "PHONE CAMERA (Emulation Mode)" or "GLASSES CAMERA") */
+  cameraSource: string | null;
+  /** Whether streaming is using emulation mode (phone camera instead of glasses) */
+  isEmulationMode: boolean;
 }
 
 /**
@@ -116,6 +121,8 @@ export function useRemoteView(): UseRemoteViewReturn {
     selectedQuality: 'balanced',
     error: null,
     loading: false,
+    cameraSource: null,
+    isEmulationMode: false,
   });
 
   // Set up event listeners
@@ -153,6 +160,8 @@ export function useRemoteView(): UseRemoteViewReturn {
             viewerUrl: null,
             viewerCount: 0,
             loading: false,
+            cameraSource: null,
+            isEmulationMode: false,
           }));
         }
       }
@@ -187,6 +196,21 @@ export function useRemoteView(): UseRemoteViewReturn {
       }
     );
 
+    // Camera source changed event
+    const cameraSourceSub = XRGlassesNative.addListener(
+      'onStreamCameraSourceChanged',
+      (event: StreamCameraSourceChangedEvent) => {
+        if (mounted) {
+          console.log('[RemoteView] Camera source changed:', event.cameraSource, 'emulation:', event.isEmulationMode);
+          setState(prev => ({
+            ...prev,
+            cameraSource: event.cameraSource,
+            isEmulationMode: event.isEmulationMode,
+          }));
+        }
+      }
+    );
+
     // Check initial streaming state
     XRGlassesNative.isRemoteViewActive().then(active => {
       if (mounted && active) {
@@ -200,6 +224,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       stoppedSub.remove();
       errorSub.remove();
       viewerSub.remove();
+      cameraSourceSub.remove();
     };
   }, []);
 

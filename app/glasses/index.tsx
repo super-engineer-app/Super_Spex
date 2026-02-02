@@ -50,6 +50,8 @@ export default function GlassesDashboard() {
     selectedQuality,
     error: streamError,
     loading: streamLoading,
+    cameraSource,
+    isEmulationMode: streamEmulationMode,
     startStream,
     stopStream,
     setQuality,
@@ -285,6 +287,16 @@ export default function GlassesDashboard() {
                 <Text style={styles.streamLabel}>Viewers</Text>
                 <Text style={styles.viewerCount}>{viewerCount}</Text>
               </View>
+
+              {/* Camera Source Label */}
+              {cameraSource && (
+                <View style={[styles.cameraSourceBox, streamEmulationMode && styles.cameraSourceBoxEmulation]}>
+                  <Text style={styles.cameraSourceLabel}>Camera Source:</Text>
+                  <Text style={[styles.cameraSourceText, streamEmulationMode && styles.cameraSourceTextEmulation]}>
+                    {cameraSource}
+                  </Text>
+                </View>
+              )}
 
               {viewerUrl && (
                 <View style={styles.resultBox}>
@@ -567,5 +579,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // Camera source styles
+  cameraSourceBox: {
+    backgroundColor: '#1a3a1a',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2a5a2a',
+  },
+  cameraSourceBoxEmulation: {
+    backgroundColor: '#3a3a1a',
+    borderColor: '#8a8a2a',
+  },
+  cameraSourceLabel: {
+    color: '#888',
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  cameraSourceText: {
+    color: '#4a4',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  cameraSourceTextEmulation: {
+    color: '#cc4',
   },
 });

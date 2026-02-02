@@ -51,13 +51,7 @@ class AgoraStreamManager(
         }
 
         private val TOKEN_SERVER_URL: String by lazy {
-            try {
-                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
-                val field = buildConfigClass.getField("AGORA_TOKEN_SERVER_URL")
-                field.get(null) as? String ?: "https://REDACTED_TOKEN_SERVER/"
-            } catch (e: Exception) {
-                "https://REDACTED_TOKEN_SERVER/"
-            }
+            "https://REDACTED_TOKEN_SERVER/"
         }
     }
 
