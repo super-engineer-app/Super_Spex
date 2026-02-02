@@ -125,6 +125,7 @@ class XRGlassesService(
     private var agoraStreamManager: AgoraStreamManager? = null
     private var streamingLifecycleOwner: LifecycleOwner? = null
     private var currentStreamQuality: StreamQuality = StreamQuality.BALANCED
+    private var currentStreamingCameraSource: String = "unknown"
 
     // Agora App ID - loaded from BuildConfig (set via .env file)
     private val AGORA_APP_ID: String by lazy {
@@ -1156,12 +1157,22 @@ class XRGlassesService(
                             streamingCameraManager?.stopCapture()
                         }
                     }
+                },
+                onCameraSourceChanged = { source ->
+                    Log.d(TAG, "Streaming camera source changed: $source")
+                    currentStreamingCameraSource = source
+                    module.emitEvent("onStreamCameraSourceChanged", mapOf(
+                        "cameraSource" to source,
+                        "isEmulationMode" to emulationMode,
+                        "timestamp" to System.currentTimeMillis()
+                    ))
                 }
             )
         }
 
         // Start camera capture (Agora will be started when camera is ready)
-        streamingCameraManager?.startCapture(lifecycleOwner, currentStreamQuality)
+        // In emulation mode, use phone camera for testing (glasses camera in emulator returns black frames)
+        streamingCameraManager?.startCapture(lifecycleOwner, currentStreamQuality, emulationMode)
         isStreamingActive = true
         Log.d(TAG, "Remote view starting...")
     }

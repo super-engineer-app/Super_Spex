@@ -83,6 +83,7 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 - Engagement mode toggles work in emulation mode
 
 **Known Issues:**
+- **Emulation Mode on Real Phone (2026-02-02):** Share feature doesn't work when running emulation mode on a real physical phone (not emulator). Likely a permissions issue. Note: This is different from emulation mode not working on the Android emulator - they are separate issues.
 
 ### Backend Integration (2026-01-31) ✅
 
@@ -109,6 +110,7 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 1. ~~**🔴 PRIORITY: Verify Projection** - SOLVED via separate process architecture~~
 2. ~~**Backend Integration** - COMPLETE (2026-01-31)~~
 3. **End-to-End Testing** - Full flow testing with real glasses when available
+4. **🔴 Investigate Share Permissions** - Emulation mode share not working on real phone (permissions issue?)
 
 ---
 

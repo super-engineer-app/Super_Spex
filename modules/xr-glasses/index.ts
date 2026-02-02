@@ -178,6 +178,12 @@ export type ViewerUpdateEvent = {
   timestamp: number;
 };
 
+export type StreamCameraSourceChangedEvent = {
+  cameraSource: string;
+  isEmulationMode: boolean;
+  timestamp: number;
+};
+
 // Quality preset type
 export type StreamQuality = 'low_latency' | 'balanced' | 'high_quality';
 

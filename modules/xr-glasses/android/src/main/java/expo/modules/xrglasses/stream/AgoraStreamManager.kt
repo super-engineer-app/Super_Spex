@@ -44,20 +44,14 @@ class AgoraStreamManager(
             try {
                 val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
                 val field = buildConfigClass.getField("SPEX_VIEWER_URL_BASE")
-                field.get(null) as? String ?: "https://spex-viewer.spex-remote.workers.dev/view/"
+                field.get(null) as? String ?: "https://spex-viewer.pages.dev/view/"
             } catch (e: Exception) {
-                "https://spex-viewer.spex-remote.workers.dev/view/"
+                "https://spex-viewer.pages.dev/view/"
             }
         }
 
         private val TOKEN_SERVER_URL: String by lazy {
-            try {
-                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
-                val field = buildConfigClass.getField("AGORA_TOKEN_SERVER_URL")
-                field.get(null) as? String ?: "https://agora-token.spex-remote.workers.dev/"
-            } catch (e: Exception) {
-                "https://agora-token.spex-remote.workers.dev/"
-            }
+            "https://agora-token.spex-remote.workers.dev/"
         }
     }
 

@@ -41,7 +41,8 @@ class XRGlassesModule : Module() {
             "onStreamStarted",       // Stream started with channel/URL info
             "onStreamStopped",       // Stream stopped
             "onStreamError",         // Streaming error
-            "onViewerUpdate"         // Viewer count/info changed
+            "onViewerUpdate",        // Viewer count/info changed
+            "onStreamCameraSourceChanged"  // Camera source changed (phone vs glasses)
         )
 
         // Initialize the XR Glasses service

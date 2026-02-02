@@ -26,12 +26,15 @@ import java.util.concurrent.Executors
  * 2. CameraX ImageAnalysis captures YUV_420_888 frames continuously
  * 3. Convert to NV21 format (fast, ~1ms)
  * 4. Push to Agora via callback
+ *
+ * In EMULATION MODE: Uses phone's camera instead of glasses camera (for testing).
  */
 class StreamingCameraManager(
     private val context: Context,
     private val onFrame: (buffer: ByteArray, width: Int, height: Int, rotation: Int, timestampMs: Long) -> Unit,
     private val onError: (String) -> Unit,
-    private val onCameraReady: (Boolean) -> Unit
+    private val onCameraReady: (Boolean) -> Unit,
+    private val onCameraSourceChanged: ((String) -> Unit)? = null
 ) {
     companion object {
         private const val TAG = "StreamingCameraManager"
@@ -46,21 +49,27 @@ class StreamingCameraManager(
     // Camera context obtained via ProjectedContext
     private var glassesContext: Context? = null
     private var cameraSource: String = "unknown"
+    private var isEmulationMode: Boolean = false
 
     // Reusable buffer to avoid allocations
     private var nv21Buffer: ByteArray? = null
 
     /**
      * Start capturing camera frames at the specified quality.
+     *
+     * @param lifecycleOwner Lifecycle owner for camera binding
+     * @param quality Stream quality preset
+     * @param emulationMode If true, uses phone camera instead of glasses camera (for testing)
      */
-    fun startCapture(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
+    fun startCapture(lifecycleOwner: LifecycleOwner, quality: StreamQuality, emulationMode: Boolean = false) {
+        this.isEmulationMode = emulationMode
         if (isCapturing) {
             Log.w(TAG, "Already capturing, stopping first")
             stopCapture()
         }
 
         currentQuality = quality
-        Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps")
+        Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps (emulation: $emulationMode)")
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
@@ -87,8 +96,21 @@ class StreamingCameraManager(
     /**
      * Get the glasses camera context via ProjectedContext.createProjectedDeviceContext().
      * This allows accessing the glasses camera from the main process.
+     *
+     * In EMULATION MODE: Always returns phone context (for testing purposes).
      */
     private fun getGlassesCameraContext(): Context? {
+        // In emulation mode, always use phone camera for testing
+        if (isEmulationMode) {
+            cameraSource = "PHONE CAMERA (Emulation Mode)"
+            Log.d(TAG, "========================================")
+            Log.d(TAG, ">>> EMULATION MODE: Using PHONE CAMERA")
+            Log.d(TAG, ">>> (Not glasses camera)")
+            Log.d(TAG, "========================================")
+            onCameraSourceChanged?.invoke(cameraSource)
+            return context
+        }
+
         return try {
             val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
             val createMethod = projectedContextClass.methods.find {
@@ -99,33 +121,48 @@ class StreamingCameraManager(
                 val result = createMethod.invoke(null, context)
                 if (result is Context) {
                     glassesContext = result
-                    cameraSource = "GLASSES (via ProjectedContext)"
+                    cameraSource = "GLASSES CAMERA"
                     Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
+                    onCameraSourceChanged?.invoke(cameraSource)
                     result
                 } else {
                     Log.w(TAG, "createProjectedDeviceContext returned non-Context: $result")
-                    cameraSource = "PHONE (fallback)"
+                    cameraSource = "PHONE CAMERA (fallback)"
                     Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
+                    onCameraSourceChanged?.invoke(cameraSource)
                     context
                 }
             } else {
                 Log.w(TAG, "createProjectedDeviceContext method not found, using phone camera")
-                cameraSource = "PHONE (no ProjectedContext)"
+                cameraSource = "PHONE CAMERA (no ProjectedContext)"
                 Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
+                onCameraSourceChanged?.invoke(cameraSource)
                 context
             }
         } catch (e: IllegalStateException) {
             Log.w(TAG, "Projected device not found: ${e.message}, using phone camera")
-            cameraSource = "PHONE (no projected device)"
+            cameraSource = "PHONE CAMERA (no projected device)"
             Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
+            onCameraSourceChanged?.invoke(cameraSource)
             context
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get glasses camera context: ${e.message}", e)
-            cameraSource = "PHONE (error fallback)"
+            cameraSource = "PHONE CAMERA (error fallback)"
             Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
+            onCameraSourceChanged?.invoke(cameraSource)
             context
         }
     }
+
+    /**
+     * Get the current camera source being used for streaming.
+     */
+    fun getCameraSource(): String = cameraSource
+
+    /**
+     * Check if currently in emulation mode.
+     */
+    fun isInEmulationMode(): Boolean = isEmulationMode
 
     /**
      * Setup ImageAnalysis use case for continuous frame capture.
