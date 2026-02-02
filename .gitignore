@@ -123,3 +123,10 @@ fastlane/test_output/
 # Ruby (for iOS builds)
 vendor/bundle/
 .bundle/
+
+# Claude Code
+.claude/
+
+# Cloudflare Workers
+.wrangler/
+cloudflare-workers/node_modules/

@@ -133,6 +133,28 @@ Key considerations:
 }
 ```
 
+### Agora Error 101 (Invalid App ID)
+
+**Symptoms**: RTC engine fails to initialize with error code 101
+
+**Cause**: Kotlin nested `apply` blocks can corrupt the `mAppId` field in `RtcEngineConfig`
+
+**Solution**: Use explicit property assignments instead of nested `apply`:
+```kotlin
+// BAD - nested apply corrupts mAppId
+val config = RtcEngineConfig().apply {
+    mContext = context
+    mAppId = appId
+    mEventHandler = object : IRtcEngineEventHandler() { ... }
+}
+
+// GOOD - explicit assignments
+val config = RtcEngineConfig()
+config.mContext = context
+config.mAppId = appId
+config.mEventHandler = object : IRtcEngineEventHandler() { ... }
+```
+
 ### Connection Failures
 
 **Token errors**:
