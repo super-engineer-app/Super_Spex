@@ -279,7 +279,7 @@ export function useRemoteView(): UseRemoteViewReturn {
 
     try {
       const result = await Share.share({
-        message: `Watch my glasses view: ${state.viewerUrl}`,
+        message: state.viewerUrl,
         url: Platform.OS === 'ios' ? state.viewerUrl : undefined,
       });
 

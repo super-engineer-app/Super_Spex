@@ -1,10 +1,8 @@
 package expo.modules.xrglasses.glasses
 
 import android.Manifest
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -25,11 +23,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import expo.modules.xrglasses.stream.AgoraStreamManager
-import expo.modules.xrglasses.stream.TextureCameraProvider
-import expo.modules.xrglasses.stream.StreamQuality
-import expo.modules.xrglasses.stream.StreamSession
-import expo.modules.xrglasses.stream.ViewerInfo
 
 /**
  * GlassesActivity - Activity that runs ON THE GLASSES hardware.
@@ -49,58 +42,18 @@ class GlassesActivity : ComponentActivity() {
         const val ACTION_SPEECH_ERROR = "expo.modules.xrglasses.SPEECH_ERROR"
         const val ACTION_SPEECH_STATE = "expo.modules.xrglasses.SPEECH_STATE"
 
-        // Remote View stream broadcast actions (outgoing to phone)
-        const val ACTION_STREAM_STARTED = "expo.modules.xrglasses.STREAM_STARTED"
-        const val ACTION_STREAM_STOPPED = "expo.modules.xrglasses.STREAM_STOPPED"
-        const val ACTION_STREAM_ERROR = "expo.modules.xrglasses.STREAM_ERROR"
-        const val ACTION_VIEWER_UPDATE = "expo.modules.xrglasses.VIEWER_UPDATE"
-
         // Extras - Speech
         const val EXTRA_TEXT = "text"
         const val EXTRA_CONFIDENCE = "confidence"
         const val EXTRA_ERROR_CODE = "error_code"
         const val EXTRA_ERROR_MESSAGE = "error_message"
         const val EXTRA_IS_LISTENING = "is_listening"
-
-        // Extras - Remote View
-        const val EXTRA_CHANNEL_ID = "channel_id"
-        const val EXTRA_VIEWER_URL = "viewer_url"
-        const val EXTRA_QUALITY = "quality"
-        const val EXTRA_VIEWER_COUNT = "viewer_count"
-        const val EXTRA_VIEWER_UID = "viewer_uid"
-        const val EXTRA_VIEWER_NAME = "viewer_name"
-        const val EXTRA_VIEWER_SPEAKING = "viewer_speaking"
-
-        // Agora App ID - loaded from BuildConfig (set via .env file)
-        private val AGORA_APP_ID: String by lazy {
-            try {
-                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
-                val field = buildConfigClass.getField("AGORA_APP_ID")
-                field.get(null) as? String ?: ""
-            } catch (e: Exception) {
-                android.util.Log.e("GlassesActivity", "Failed to get AGORA_APP_ID from BuildConfig", e)
-                ""
-            }
-        }
     }
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var continuousMode = false
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    // Remote View streaming
-    private var streamManager: AgoraStreamManager? = null
-    private var cameraProvider: TextureCameraProvider? = null
-    private var isStreaming = false
-
-    // Broadcast receiver for stream control from phone process
-    private val streamControlReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d(TAG, "Received broadcast: ${intent?.action}")
-            handleIntent(intent)
-        }
-    }
 
     // Track permission state for UI
     private var isPermissionGranted by mutableStateOf(false)
@@ -118,15 +71,6 @@ class GlassesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "GlassesActivity created on glasses display")
-
-        // Register broadcast receiver for stream control
-        val filter = IntentFilter().apply {
-            addAction("expo.modules.xrglasses.START_STREAM")
-            addAction("expo.modules.xrglasses.STOP_STREAM")
-            addAction("expo.modules.xrglasses.SET_STREAM_QUALITY")
-        }
-        registerReceiver(streamControlReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        Log.d(TAG, "Stream control receiver registered")
 
         // Try to set up projected permissions launcher via reflection
         setupProjectedPermissionsLauncher()
@@ -422,20 +366,6 @@ class GlassesActivity : ComponentActivity() {
                 val response = intent.getStringExtra("response") ?: ""
                 updateUiState { copy(aiResponse = response) }
             }
-            // Remote View streaming actions
-            "expo.modules.xrglasses.START_STREAM" -> {
-                val qualityStr = intent.getStringExtra(EXTRA_QUALITY) ?: "balanced"
-                val quality = StreamQuality.fromString(qualityStr)
-                startStreaming(quality)
-            }
-            "expo.modules.xrglasses.STOP_STREAM" -> {
-                stopStreaming()
-            }
-            "expo.modules.xrglasses.SET_STREAM_QUALITY" -> {
-                val qualityStr = intent.getStringExtra(EXTRA_QUALITY) ?: "balanced"
-                val quality = StreamQuality.fromString(qualityStr)
-                updateStreamQuality(quality)
-            }
         }
     }
 
@@ -515,137 +445,6 @@ class GlassesActivity : ComponentActivity() {
         sendBroadcast(intent)
     }
 
-    // ============================================================
-    // Remote View Streaming Methods
-    // ============================================================
-
-    /**
-     * Start streaming the glasses camera view via Agora.
-     */
-    private fun startStreaming(quality: StreamQuality) {
-        Log.d(TAG, "Starting stream with quality: ${quality.displayName}")
-
-        if (isStreaming) {
-            Log.w(TAG, "Already streaming, stopping first")
-            stopStreaming()
-        }
-
-        // Initialize Agora stream manager
-        if (streamManager == null) {
-            streamManager = AgoraStreamManager(
-                context = this,
-                appId = AGORA_APP_ID,
-                onStreamStarted = { session ->
-                    mainHandler.post { sendStreamStarted(session) }
-                },
-                onStreamStopped = {
-                    mainHandler.post { sendStreamStopped() }
-                },
-                onStreamError = { error ->
-                    mainHandler.post { sendStreamError(error) }
-                },
-                onViewerUpdate = { count, viewerInfo ->
-                    mainHandler.post { sendViewerUpdate(count, viewerInfo) }
-                }
-            )
-        }
-
-        // Initialize camera provider for frame capture
-        if (cameraProvider == null) {
-            cameraProvider = TextureCameraProvider(
-                context = this,
-                onFrame = { buffer, width, height, rotation, timestampMs ->
-                    // Push frame to Agora
-                    streamManager?.pushVideoFrameBuffer(buffer, width, height, rotation, timestampMs)
-                },
-                onError = { error ->
-                    Log.e(TAG, "Camera error: $error")
-                    sendStreamError("Camera error: $error")
-                }
-            )
-        }
-
-        // Start the stream
-        val session = streamManager?.startStream(quality)
-        if (session != null) {
-            // Start camera capture
-            cameraProvider?.startCapture(this, quality)
-            isStreaming = true
-            updateUiState { copy(isStreaming = true) }
-            Log.d(TAG, "Stream started successfully: ${session.viewerUrl}")
-        } else {
-            Log.e(TAG, "Failed to start stream")
-            sendStreamError("Failed to start stream")
-        }
-    }
-
-    /**
-     * Stop the current stream.
-     */
-    private fun stopStreaming() {
-        Log.d(TAG, "Stopping stream")
-
-        cameraProvider?.stopCapture()
-        streamManager?.stopStream()
-
-        isStreaming = false
-        updateUiState { copy(isStreaming = false) }
-        Log.d(TAG, "Stream stopped")
-    }
-
-    /**
-     * Update stream quality while streaming.
-     */
-    private fun updateStreamQuality(quality: StreamQuality) {
-        Log.d(TAG, "Updating stream quality to: ${quality.displayName}")
-
-        streamManager?.setQuality(quality)
-        cameraProvider?.updateQuality(this, quality)
-    }
-
-    // IPC methods - send stream events to phone app via broadcast
-    private fun sendStreamStarted(session: StreamSession) {
-        val intent = Intent(ACTION_STREAM_STARTED).apply {
-            putExtra(EXTRA_CHANNEL_ID, session.channelId)
-            putExtra(EXTRA_VIEWER_URL, session.viewerUrl)
-            putExtra(EXTRA_QUALITY, session.quality.name.lowercase())
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
-        Log.d(TAG, "Broadcast: STREAM_STARTED - ${session.viewerUrl}")
-    }
-
-    private fun sendStreamStopped() {
-        val intent = Intent(ACTION_STREAM_STOPPED).apply {
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
-        Log.d(TAG, "Broadcast: STREAM_STOPPED")
-    }
-
-    private fun sendStreamError(error: String) {
-        val intent = Intent(ACTION_STREAM_ERROR).apply {
-            putExtra(EXTRA_ERROR_MESSAGE, error)
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
-        Log.e(TAG, "Broadcast: STREAM_ERROR - $error")
-    }
-
-    private fun sendViewerUpdate(count: Int, viewerInfo: ViewerInfo?) {
-        val intent = Intent(ACTION_VIEWER_UPDATE).apply {
-            putExtra(EXTRA_VIEWER_COUNT, count)
-            viewerInfo?.let {
-                putExtra(EXTRA_VIEWER_UID, it.uid)
-                putExtra(EXTRA_VIEWER_NAME, it.displayName)
-                putExtra(EXTRA_VIEWER_SPEAKING, it.isSpeaking)
-            }
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
-        Log.d(TAG, "Broadcast: VIEWER_UPDATE - count=$count")
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         Log.d(TAG, "onNewIntent: ${intent.action}")
@@ -657,22 +456,6 @@ class GlassesActivity : ComponentActivity() {
         isListening = false
         speechRecognizer?.destroy()
         speechRecognizer = null
-
-        // Unregister broadcast receiver
-        try {
-            unregisterReceiver(streamControlReceiver)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to unregister receiver: ${e.message}")
-        }
-
-        // Cleanup streaming resources
-        if (isStreaming) {
-            stopStreaming()
-        }
-        streamManager?.destroy()
-        streamManager = null
-        cameraProvider = null
-
         Log.d(TAG, "GlassesActivity destroyed")
     }
 }
@@ -685,7 +468,5 @@ data class GlassesUiState(
     val transcript: String = "",
     val partialTranscript: String = "",
     val aiResponse: String = "",
-    val error: String? = null,
-    // Remote View streaming state
-    val isStreaming: Boolean = false
+    val error: String? = null
 )
