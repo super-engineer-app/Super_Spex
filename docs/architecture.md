@@ -90,12 +90,12 @@ modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
 ├── XRGlassesService.kt             # Connection & state management (main process)
 ├── GlassesBroadcastReceiver.kt     # Receives IPC from :xr_process
 ├── GlassesCameraManager.kt         # Camera capture logic
+├── StreamingCameraManager.kt       # Video streaming frame capture
 ├── ProjectionLauncherActivity.kt   # XR SDK setup (:xr_process)
 ├── stream/                         # Remote View (Agora streaming)
 │   ├── AgoraStreamManager.kt       # Agora RTC engine wrapper (:xr_process)
 │   ├── StreamQuality.kt            # Quality presets enum
-│   ├── StreamSession.kt            # Session data class
-│   └── ViewerInfo.kt               # Viewer tracking data
+│   └── StreamSession.kt            # Session & ViewerInfo data classes
 └── glasses/
     ├── GlassesActivity.kt          # Runs on glasses display (:xr_process)
     └── GlassesScreen.kt            # Compose UI for glasses
@@ -145,8 +145,6 @@ in the main process for image capture.
 │ - Token auth            │
 └─────────────────────────┘
 ```
-
-**Key Fix (2026-02-01):** Agora error 101 caused by nested Kotlin `apply` blocks corrupting App ID. Use explicit property assignments for `RtcEngineConfig`. See `docs/AGORA_ERROR_101_INVESTIGATION.md`.
 
 ---
 
