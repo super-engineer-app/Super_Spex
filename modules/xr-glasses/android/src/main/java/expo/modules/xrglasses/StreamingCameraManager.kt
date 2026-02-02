@@ -56,8 +56,9 @@ class StreamingCameraManager(
     // Reusable buffer to avoid allocations
     private var nv21Buffer: ByteArray? = null
 
-    // Debug: frame counter to analyze first frames
+    // Frame counter for periodic logging
     private var frameCount = 0
+    private var lastLogTime = 0L
 
     /**
      * Start capturing camera frames at the specified quality.
@@ -253,37 +254,11 @@ class StreamingCameraManager(
 
             frameCount++
 
-            // Debug: Analyze first 20 frames to see if they have content
-            if (frameCount <= 20) {
-                val yPlane = imageProxy.planes[0]
-                val yBuffer = yPlane.buffer.duplicate()  // Use duplicate to avoid modifying original
-                val ySize = yBuffer.remaining()
-
-                // Sample some pixels from Y plane to check if there's actual content
-                val sampleSize = minOf(1000, ySize)
-                var sum = 0L
-                var min = 255
-                var max = 0
-                yBuffer.rewind()
-                for (i in 0 until sampleSize) {
-                    val pixel = yBuffer.get().toInt() and 0xFF
-                    sum += pixel
-                    if (pixel < min) min = pixel
-                    if (pixel > max) max = pixel
-                }
-                val avg = sum / sampleSize
-
-                Log.d(TAG, ">>> FRAME #$frameCount: ${width}x${height}, rotation=$rotation, Y plane size=$ySize, stats: avg=$avg, min=$min, max=$max, range=${max - min}")
-
-                // If range is very small, frame is likely grey/black
-                if (max - min < 10) {
-                    Log.w(TAG, ">>> FRAME #$frameCount appears GREY/EMPTY (low variance) - Camera may not be providing real content!")
-                } else {
-                    Log.d(TAG, ">>> FRAME #$frameCount has CONTENT (good variance)")
-                }
-
-                // Log image format info
-                Log.d(TAG, ">>> ImageProxy format: ${imageProxy.format}, planes: ${imageProxy.planes.size}")
+            // Log periodically (every 5 seconds) for monitoring
+            val now = System.currentTimeMillis()
+            if (now - lastLogTime > 5000) {
+                Log.d(TAG, "Streaming frame #$frameCount: ${width}x${height}, rotation=$rotation")
+                lastLogTime = now
             }
 
             // Convert YUV_420_888 to NV21 format (standard Android camera format)
@@ -320,7 +295,6 @@ class StreamingCameraManager(
         // Reuse or allocate buffer
         if (nv21Buffer == null || nv21Buffer!!.size != totalSize) {
             nv21Buffer = ByteArray(totalSize)
-            Log.d(TAG, "Allocated NV21 buffer: ${totalSize} bytes for ${width}x${height}")
         }
         val nv21 = nv21Buffer!!
 
@@ -332,14 +306,6 @@ class StreamingCameraManager(
         val yRowStride = planes[0].rowStride
         val uvRowStride = planes[1].rowStride
         val uvPixelStride = planes[1].pixelStride
-
-        // Debug: Log plane info for first few frames
-        if (frameCount <= 5) {
-            Log.d(TAG, ">>> YUV Planes: Y stride=$yRowStride, UV stride=$uvRowStride, UV pixelStride=$uvPixelStride")
-            Log.d(TAG, ">>> Y buffer: remaining=${yBuffer.remaining()}, capacity=${yBuffer.capacity()}")
-            Log.d(TAG, ">>> U buffer: remaining=${uBuffer.remaining()}, capacity=${uBuffer.capacity()}")
-            Log.d(TAG, ">>> V buffer: remaining=${vBuffer.remaining()}, capacity=${vBuffer.capacity()}")
-        }
 
         // Copy Y plane
         yBuffer.rewind()
@@ -381,24 +347,6 @@ class StreamingCameraManager(
                     nv21[uvIndex++] = vBuffer.get()  // V
                     nv21[uvIndex++] = uBuffer.get()  // U
                 }
-            }
-        }
-
-        // Debug: Check if buffer has actual content
-        if (frameCount <= 5) {
-            var ySum = 0L
-            var minY = 255
-            var maxY = 0
-            for (i in 0 until minOf(1000, ySize)) {
-                val pixel = nv21[i].toInt() and 0xFF
-                ySum += pixel
-                if (pixel < minY) minY = pixel
-                if (pixel > maxY) maxY = pixel
-            }
-            val avgY = ySum / minOf(1000, ySize)
-            Log.d(TAG, ">>> NV21 Y plane stats: avg=$avgY, min=$minY, max=$maxY, range=${maxY - minY}")
-            if (maxY - minY < 10) {
-                Log.w(TAG, ">>> NV21 buffer appears GREY/EMPTY (low variance in Y plane)")
             }
         }
 

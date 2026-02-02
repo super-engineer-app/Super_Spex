@@ -9,6 +9,7 @@ This folder contains troubleshooting guides and maintenance documentation for ea
 | [xr-glasses-projection.md](xr-glasses-projection.md) | **CRITICAL** - How projection works with separate process | Phone UI broken after connecting |
 | [speech-recognition.md](speech-recognition.md) | Speech recognition architecture & troubleshooting | Speech not working |
 | [camera-capture.md](camera-capture.md) | Camera capture system & issues | Camera not capturing |
+| [remote-view-streaming.md](remote-view-streaming.md) | Remote View (Agora) streaming & troubleshooting | Video streaming grey/black |
 | [emulator-testing.md](emulator-testing.md) | Emulator setup, pairing, known issues | Emulator problems |
 | [build-deploy.md](build-deploy.md) | Build process, installation, dependencies | Build failing |
 
@@ -52,6 +53,7 @@ See [xr-glasses-projection.md](xr-glasses-projection.md) for full details.
 | Glasses not projecting | Display not woken | Press glasses button in emulator |
 | Speech not working | Emulator limitation | Use real glasses or phone emulator |
 | Camera stopped working | Emulator resource leak | Restart phone emulator |
+| Remote view grey/black | CSS issue or wrong format | Use NV21 format, check video CSS |
 | Connect fails | Pairing lost | Re-pair in Glasses companion app |
 | Build fails | Stale cache | Run `./gradlew clean` |
 

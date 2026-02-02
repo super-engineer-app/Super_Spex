@@ -11,17 +11,17 @@
 | `modules/xr-glasses/android/.../XRGlassesService.kt` | Core XR service, connection management |
 | `modules/xr-glasses/android/.../GlassesCameraManager.kt` | Image capture (uses ProjectedContext) |
 | `modules/xr-glasses/android/.../GlassesBroadcastReceiver.kt` | IPC from :xr_process |
+| `modules/xr-glasses/android/.../StreamingCameraManager.kt` | Video streaming (YUV→NV21 conversion) |
+| `modules/xr-glasses/android/.../stream/AgoraStreamManager.kt` | Agora RTC engine wrapper |
+| `modules/xr-glasses/android/.../stream/StreamQuality.kt` | Quality presets enum |
+| `modules/xr-glasses/android/.../stream/StreamSession.kt` | Session/viewer data classes |
 
 **:xr_process (phone process, displays to glasses):**
 | File | Purpose |
 |------|---------|
 | `modules/xr-glasses/android/.../ProjectionLauncherActivity.kt` | XR SDK setup |
-| `modules/xr-glasses/android/.../glasses/GlassesActivity.kt` | Glasses UI, speech, streaming |
+| `modules/xr-glasses/android/.../glasses/GlassesActivity.kt` | Glasses UI, speech |
 | `modules/xr-glasses/android/.../glasses/GlassesScreen.kt` | Compose UI for glasses display |
-| `modules/xr-glasses/android/.../stream/AgoraStreamManager.kt` | Agora RTC engine wrapper |
-| `modules/xr-glasses/android/.../stream/TextureCameraProvider.kt` | Camera frames for streaming (uses ProjectedContext) |
-| `modules/xr-glasses/android/.../stream/StreamQuality.kt` | Quality presets enum |
-| `modules/xr-glasses/android/.../stream/StreamSession.kt` | Session/viewer data classes |
 
 ### TypeScript (React Native)
 | File | Purpose |
@@ -70,6 +70,7 @@ For detailed troubleshooting, see the maintenance docs:
 | Phone UI broken after connect | [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md) |
 | Speech recognition not working | [maintenance/speech-recognition.md](maintenance/speech-recognition.md) |
 | Camera issues | [maintenance/camera-capture.md](maintenance/camera-capture.md) |
+| Remote view grey/black video | [maintenance/remote-view-streaming.md](maintenance/remote-view-streaming.md) |
 | Emulator problems | [maintenance/emulator-testing.md](maintenance/emulator-testing.md) |
 | Build failures | [maintenance/build-deploy.md](maintenance/build-deploy.md) |
 
