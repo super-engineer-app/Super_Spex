@@ -133,7 +133,6 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 | [docs/maintenance/camera-capture.md](docs/maintenance/camera-capture.md) | Camera capture system & issues |
 | [docs/maintenance/emulator-testing.md](docs/maintenance/emulator-testing.md) | Emulator setup, pairing, known issues |
 | [docs/maintenance/build-deploy.md](docs/maintenance/build-deploy.md) | Build process, installation, dependencies |
-| [docs/PROJECTION_FIX_ATTEMPTS.md](docs/PROJECTION_FIX_ATTEMPTS.md) | Log of all projection fix attempts |
 
 ---
 
@@ -142,16 +141,3 @@ See `/docs/maintenance/xr-glasses-projection.md` for full details.
 Build a React Native (Expo) app that communicates with Android XR glasses using Jetpack XR APIs, with architecture designed for future iOS cross-platform support via C++ protocol implementation.
 
 **Current Goal:** ✅ ACHIEVED - Speech recognition and camera capture send data to AI backend and display response.
-
----
-
-## Timeline Summary
-
-| Week | Phase | Deliverables |
-|------|-------|--------------|
-| 1 | Project Setup | Expo project, native module structure, TypeScript interfaces |
-| 1-2 | Android Implementation | Kotlin module with Jetpack XR, hooks, basic UI |
-| 2 | Testing | Test on Android device with glasses |
-| 3 | Protocol Capture | Bluetooth/WiFi packet captures, initial documentation |
-| 4+ | C++ Core | Shared protocol implementation |
-| 5+ | iOS Implementation | Swift platform layer, CoreBluetooth integration |
