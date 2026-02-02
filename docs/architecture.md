@@ -170,3 +170,4 @@ For implementation details and troubleshooting:
 - [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md) - Process separation
 - [maintenance/speech-recognition.md](maintenance/speech-recognition.md) - Speech architecture
 - [maintenance/camera-capture.md](maintenance/camera-capture.md) - Camera system
+- [maintenance/remote-view-streaming.md](maintenance/remote-view-streaming.md) - Remote View (Agora streaming)

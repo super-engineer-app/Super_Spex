@@ -347,7 +347,7 @@ class AgoraStreamManager(
         return engine.pushExternalVideoFrame(frame)
     }
 
-    // Debug: frame push counter
+    // Frame counter for periodic logging
     private var pushFrameCount = 0
     private var lastPushLogTime = 0L
 
@@ -370,9 +370,6 @@ class AgoraStreamManager(
         val engine = rtcEngine ?: return false
         if (currentSession == null) return false
 
-        // Calculate expected buffer size for NV21: Y (width*height) + VU (width*height/2)
-        val expectedSize = width * height + width * height / 2
-
         val frame = AgoraVideoFrame().apply {
             format = AgoraVideoFrame.FORMAT_NV21  // NV21 is standard Android camera format
             this.buf = buffer
@@ -384,30 +381,11 @@ class AgoraStreamManager(
 
         val success = engine.pushExternalVideoFrame(frame)
 
-        // Debug: Log first 10 frames and then every 5 seconds
+        // Log periodically (every 5 seconds) for monitoring
         pushFrameCount++
         val now = System.currentTimeMillis()
-        if (pushFrameCount <= 10 || now - lastPushLogTime > 5000) {
-            val sizeMatch = if (buffer.size == expectedSize) "OK" else "MISMATCH (expected=$expectedSize)"
-            Log.d(TAG, ">>> PUSH FRAME #$pushFrameCount: ${width}x${height}, rotation=$rotation, bufSize=${buffer.size} $sizeMatch, format=NV21, success=$success")
-
-            // Also log some pixel values from the buffer to check if it has content
-            if (buffer.isNotEmpty()) {
-                var sum = 0L
-                var min = 255
-                var max = 0
-                val sampleSize = minOf(1000, buffer.size)
-                for (i in 0 until sampleSize) {
-                    val pixel = buffer[i].toInt() and 0xFF
-                    sum += pixel
-                    if (pixel < min) min = pixel
-                    if (pixel > max) max = pixel
-                }
-                val avg = sum / sampleSize
-                val status = if (max - min < 10) "GREY/EMPTY" else "HAS_CONTENT"
-                Log.d(TAG, ">>> FRAME #$pushFrameCount Y-plane: avg=$avg, min=$min, max=$max, range=${max - min}, status=$status")
-            }
-
+        if (now - lastPushLogTime > 5000) {
+            Log.d(TAG, "Streaming: pushed $pushFrameCount frames, latest ${width}x${height}")
             lastPushLogTime = now
         }
 
