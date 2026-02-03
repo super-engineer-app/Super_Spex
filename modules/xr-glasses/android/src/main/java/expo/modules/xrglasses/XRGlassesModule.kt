@@ -51,6 +51,8 @@ class XRGlassesModule : Module() {
             "onParkingTimerWarning",   // 5 minute warning
             "onParkingTimerExpired",   // Timer expired (alarm!)
             "onParkingTimerCancelled", // Timer cancelled
+            // UI events
+            "onUiRefreshNeeded",       // Hint to refresh UI (after XR permission flow)
             // Native error events (for error reporting)
             "onNativeError"          // Native Kotlin/Android errors
         )

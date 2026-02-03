@@ -56,6 +56,8 @@ See [xr-glasses-projection.md](xr-glasses-projection.md) for full details.
 | Remote view grey/black | CSS issue or wrong format | Use NV21 format, check video CSS |
 | Connect fails | Pairing lost | Re-pair in Glasses companion app |
 | Build fails | Stale cache | Run `./gradlew clean` |
+| Glasses show UI after disconnect | Close broadcast not received | Check `CLOSE_GLASSES` broadcast in GlassesActivity |
+| UI corrupted on first cold start | XR permission overlay | `onUiRefreshNeeded` event triggers re-render |
 
 ## Adding New Maintenance Docs
 

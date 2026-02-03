@@ -174,11 +174,38 @@ export function useXRGlasses(): UseXRGlassesReturn {
       }
     });
 
+    // Subscribe to UI refresh hints (after XR permission flow on cold start)
+    const uiRefreshSub = service.onUiRefreshNeeded(async (event) => {
+      if (mounted) {
+        console.log('[useXRGlasses] UI refresh needed:', event.reason);
+        // Refetch all state to force a proper re-render
+        // This helps recover from XR SDK's RequestPermissionsOnHostActivity overlay
+        try {
+          const [isConnected, engagementMode, capabilities] = await Promise.all([
+            service.isGlassesConnected(),
+            service.getEngagementMode(),
+            service.getDeviceCapabilities(),
+          ]);
+          if (mounted) {
+            setState(prev => ({
+              ...prev,
+              connected: isConnected,
+              engagementMode,
+              capabilities,
+            }));
+          }
+        } catch (err) {
+          console.warn('[useXRGlasses] Failed to refresh state:', err);
+        }
+      }
+    });
+
     return () => {
       mounted = false;
       connectionSub.remove();
       engagementSub.remove();
       deviceStateSub.remove();
+      uiRefreshSub.remove();
     };
   }, [initialize]);
 
