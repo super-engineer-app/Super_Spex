@@ -61,8 +61,10 @@ Testing the XR Glasses app requires two emulators running simultaneously:
 
 **Fixes**:
 1. Press the **glasses button** in emulator (icon above 3 dots menu) to wake display
-2. Check if pairing is still valid - may need to re-pair
-3. Cold boot phone emulator (Wipe data not usually needed)
+2. Disconnect and reconnect from the phone app
+3. Check if pairing is still valid - may need to re-pair
+
+**Note**: Wiping emulator data is rarely needed. Disconnect/reconnect should be sufficient.
 
 ### Issue: "No XR glasses detected" error
 
@@ -72,7 +74,9 @@ Testing the XR Glasses app requires two emulators running simultaneously:
 1. Verify glasses emulator is running
 2. Check pairing in Glasses companion app on phone
 3. Restart both emulators
-4. If persists: Wipe glasses AVD data, forget device on phone, re-pair
+4. If persists: Re-pair through the Glasses companion app on the phone
+
+**Note**: Wiping glasses AVD data is only needed for initial setup or if pairing is completely broken.
 
 ### Issue: Speech recognition not available
 

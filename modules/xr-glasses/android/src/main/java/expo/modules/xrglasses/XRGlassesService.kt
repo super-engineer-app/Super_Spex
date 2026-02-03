@@ -65,6 +65,9 @@ class XRGlassesService(
     companion object {
         private const val TAG = "XRGlassesService"
 
+        // Track connection cycles for debugging state corruption
+        private var connectionCycleCount = 0
+
         // Real Android XR feature constants (discovered from actual device features)
         private const val FEATURE_XR_PERIPHERAL = "android.hardware.type.xr_peripheral"  // Device is XR glasses
         private const val FEATURE_XR_PROJECTED = "com.google.android.feature.XR_PROJECTED"  // Phone can project to glasses
@@ -246,7 +249,8 @@ class XRGlassesService(
      * Validates device compatibility before attempting connection.
      */
     suspend fun connect() = withContext(Dispatchers.Main) {
-        Log.d(TAG, "Connecting to XR glasses (emulation: $emulationMode, xrSdkAvailable: $xrSdkAvailable)")
+        connectionCycleCount++
+        Log.d(TAG, "Connecting to XR glasses (cycle #$connectionCycleCount, emulation: $emulationMode, xrSdkAvailable: $xrSdkAvailable)")
 
         connectionState = ConnectionState.CONNECTING
 
@@ -470,7 +474,6 @@ class XRGlassesService(
         Log.d(TAG, "Launch method set to: ${if (useIntermediate) "intermediate activity" else "direct"}")
     }
 
-
     /**
      * Start polling for connection state changes.
      */
@@ -508,7 +511,7 @@ class XRGlassesService(
      * Disconnect from the XR glasses.
      */
     suspend fun disconnect() = withContext(Dispatchers.Main) {
-        Log.d(TAG, "Disconnecting from XR glasses")
+        Log.d(TAG, "Disconnecting from XR glasses (cycle #$connectionCycleCount)")
 
         connectionMonitorJob?.cancel()
         connectionMonitorJob = null
