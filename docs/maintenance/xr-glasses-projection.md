@@ -36,7 +36,7 @@ The Android XR SDK (Jetpack XR) corrupts React Native's rendering context when c
 |------|---------|---------|
 | `XRGlassesService.kt` | Main | Bridge between RN and XR. Does NOT call XR SDK directly |
 | `XRGlassesModule.kt` | Main | Expo native module, receives events via broadcast |
-| `ProjectionLauncherActivity.kt` | :xr_process | Handles XR SDK setup, launches GlassesActivity |
+| `ProjectionLauncherActivity.kt` | :xr_process | Handles XR SDK setup, launches GlassesActivity, **closes projected context after use** |
 | `GlassesActivity.kt` | :xr_process | Runs on glasses display, handles speech/UI |
 | `GlassesBroadcastReceiver.kt` | Main | Receives broadcasts from :xr_process |
 
@@ -78,10 +78,18 @@ grep -A5 "GlassesActivity\|ProjectionLauncherActivity" modules/xr-glasses/androi
 
 **Cause**: XR system state from previous session may be stale.
 
-**Fix**:
-1. Fully kill the app (not just close)
-2. Reconnect to glasses
-3. If persists, disconnect glasses in system settings and re-pair
+**Fix**: Simply disconnect and reconnect from the phone app. No need to wipe emulator data.
+
+1. Tap "Disconnect" on the phone app
+2. Tap "Connect" again
+
+This works because `ProjectionLauncherActivity` properly closes the `projectedDeviceContext` after each connection, preventing state corruption across sessions.
+
+### Issue: User pressed back on glasses, projection gone
+
+**Cause**: User pressed back button on glasses which closes `GlassesActivity`.
+
+**Fix**: Disconnect and reconnect from the phone app. This is the expected behavior - the glasses "back" button closes the projection, and reconnecting relaunches it.
 
 ### Issue: Communication between phone and glasses not working
 

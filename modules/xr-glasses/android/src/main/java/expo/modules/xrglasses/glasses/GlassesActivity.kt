@@ -36,6 +36,10 @@ class GlassesActivity : ComponentActivity() {
     companion object {
         private const val TAG = "GlassesActivity"
 
+        // Track activity instances for debugging
+        private var instanceCount = 0
+        private var activeInstances = 0
+
         // Broadcast actions for IPC to phone (outgoing)
         const val ACTION_SPEECH_RESULT = "expo.modules.xrglasses.SPEECH_RESULT"
         const val ACTION_SPEECH_PARTIAL = "expo.modules.xrglasses.SPEECH_PARTIAL"
@@ -70,7 +74,9 @@ class GlassesActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "GlassesActivity created on glasses display")
+        instanceCount++
+        activeInstances++
+        Log.d(TAG, "GlassesActivity created on glasses display (instance #$instanceCount, active: $activeInstances)")
 
         // Try to set up projected permissions launcher via reflection
         setupProjectedPermissionsLauncher()
@@ -453,10 +459,22 @@ class GlassesActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        activeInstances--
+
+        // Clean up speech recognizer
         isListening = false
+        continuousMode = false
+        speechRecognizer?.stopListening()
         speechRecognizer?.destroy()
         speechRecognizer = null
-        Log.d(TAG, "GlassesActivity destroyed")
+
+        Log.d(TAG, "GlassesActivity destroyed (instance #$instanceCount, remaining active: $activeInstances)")
+
+        // Warn if there are leaked instances
+        if (activeInstances < 0) {
+            Log.e(TAG, "WARNING: activeInstances went negative ($activeInstances) - tracking error!")
+            activeInstances = 0
+        }
     }
 }
 
