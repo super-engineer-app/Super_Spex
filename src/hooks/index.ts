@@ -15,3 +15,6 @@ export type { SpeechRecognitionState, UseSpeechRecognitionReturn } from './useSp
 
 export { useGlassesCamera } from './useGlassesCamera';
 export type { CameraState, UseGlassesCameraReturn } from './useGlassesCamera';
+
+export { useParkingTimer, TIMER_PRESETS } from './useParkingTimer';
+export type { ParkingTimerHookState, UseParkingTimerReturn } from './useParkingTimer';

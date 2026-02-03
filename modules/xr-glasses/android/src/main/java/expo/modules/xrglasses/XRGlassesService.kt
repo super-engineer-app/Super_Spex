@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -146,6 +149,17 @@ class XRGlassesService(
             ""
         }
     }
+
+    // ============================================================
+    // Parking Timer (uses coroutine delay - efficient, no CPU waste)
+    // ============================================================
+    private var parkingTimerJob: Job? = null
+    private var parkingTimerEndTime: Long = 0
+    private var parkingTimerWarningTime: Long = 0
+    private var parkingTimerDurationMinutes: Int = 0
+    private var parkingTimerWarningShown = false
+    private var parkingTimerExpired = false
+    private var alarmRingtone: android.media.Ringtone? = null
 
     init {
         Log.d(TAG, "XRGlassesService initialized")
@@ -1325,12 +1339,225 @@ class XRGlassesService(
         return isStreamingActive
     }
 
+    // ============================================================
+    // Parking Timer Implementation
+    // Uses coroutine delay() which suspends efficiently without blocking
+    // Similar to Linux sleep/wait - no CPU waste, just scheduling
+    // ============================================================
+
+    /**
+     * Start a parking timer with the specified duration.
+     * Will emit warning event 5 minutes before expiration and alarm event at expiration.
+     *
+     * @param durationMinutes Timer duration in minutes
+     */
+    fun startParkingTimer(durationMinutes: Int) {
+        Log.d(TAG, "Starting parking timer for $durationMinutes minutes")
+
+        // Cancel existing timer if running
+        cancelParkingTimer()
+
+        val now = System.currentTimeMillis()
+        val durationMs = durationMinutes * 60 * 1000L
+        val warningAdvanceMs = 5 * 60 * 1000L // 5 minutes warning
+
+        parkingTimerDurationMinutes = durationMinutes
+        parkingTimerEndTime = now + durationMs
+        parkingTimerWarningTime = parkingTimerEndTime - warningAdvanceMs
+        parkingTimerWarningShown = false
+        parkingTimerExpired = false
+
+        // Emit start event
+        module.emitEvent("onParkingTimerStarted", mapOf(
+            "durationMinutes" to durationMinutes,
+            "endTime" to parkingTimerEndTime,
+            "warningTime" to parkingTimerWarningTime,
+            "timestamp" to System.currentTimeMillis()
+        ))
+
+        // Launch coroutine for efficient waiting (uses delay, not polling)
+        parkingTimerJob = scope.launch {
+            try {
+                // Calculate delay until warning time
+                val warningDelayMs = parkingTimerWarningTime - System.currentTimeMillis()
+
+                // Only schedule warning if it's in the future (timer > 5 min)
+                if (warningDelayMs > 0) {
+                    Log.d(TAG, "Parking timer: waiting ${warningDelayMs}ms until warning")
+                    delay(warningDelayMs) // Efficient suspend, no CPU waste
+
+                    if (isActive) {
+                        Log.d(TAG, "Parking timer: 5 minute warning!")
+                        parkingTimerWarningShown = true
+                        playWarningSound()
+                        module.emitEvent("onParkingTimerWarning", mapOf(
+                            "remainingMinutes" to 5,
+                            "remainingMs" to (parkingTimerEndTime - System.currentTimeMillis()),
+                            "timestamp" to System.currentTimeMillis()
+                        ))
+                    }
+                }
+
+                // Calculate remaining delay until expiration
+                val endDelayMs = parkingTimerEndTime - System.currentTimeMillis()
+                if (endDelayMs > 0) {
+                    Log.d(TAG, "Parking timer: waiting ${endDelayMs}ms until expiration")
+                    delay(endDelayMs) // Efficient suspend
+                }
+
+                if (isActive) {
+                    Log.d(TAG, "Parking timer: EXPIRED!")
+                    parkingTimerExpired = true
+                    playAlarmSound()
+                    module.emitEvent("onParkingTimerExpired", mapOf(
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                }
+            } catch (e: CancellationException) {
+                Log.d(TAG, "Parking timer cancelled")
+                throw e // Re-throw to properly cancel
+            } catch (e: Exception) {
+                Log.e(TAG, "Parking timer error: ${e.message}", e)
+            }
+        }
+
+        Log.d(TAG, "Parking timer started: ends at $parkingTimerEndTime, warning at $parkingTimerWarningTime")
+    }
+
+    /**
+     * Cancel the parking timer if running.
+     */
+    fun cancelParkingTimer() {
+        Log.d(TAG, "Cancelling parking timer")
+
+        parkingTimerJob?.cancel()
+        parkingTimerJob = null
+
+        // Stop alarm if playing
+        stopAlarmSound()
+
+        val wasActive = parkingTimerEndTime > System.currentTimeMillis()
+
+        parkingTimerEndTime = 0
+        parkingTimerWarningTime = 0
+        parkingTimerDurationMinutes = 0
+        parkingTimerWarningShown = false
+        parkingTimerExpired = false
+
+        if (wasActive) {
+            module.emitEvent("onParkingTimerCancelled", mapOf(
+                "timestamp" to System.currentTimeMillis()
+            ))
+        }
+    }
+
+    /**
+     * Get current parking timer state.
+     * Returns active status, remaining time, and warning/expiration flags.
+     */
+    fun getParkingTimerState(): Map<String, Any> {
+        val now = System.currentTimeMillis()
+        val isActive = parkingTimerEndTime > now && parkingTimerJob?.isActive == true
+        val remainingMs = if (isActive) parkingTimerEndTime - now else 0L
+
+        return mapOf(
+            "isActive" to isActive,
+            "remainingMs" to remainingMs,
+            "endTime" to parkingTimerEndTime,
+            "durationMinutes" to parkingTimerDurationMinutes,
+            "warningShown" to parkingTimerWarningShown,
+            "expired" to parkingTimerExpired
+        )
+    }
+
+    /**
+     * Stop the alarm sound if it's currently playing.
+     */
+    fun stopAlarmSound() {
+        try {
+            alarmRingtone?.stop()
+            alarmRingtone = null
+            Log.d(TAG, "Alarm sound stopped")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping alarm: ${e.message}")
+        }
+    }
+
+    /**
+     * Play a warning beep sound (5 minutes before timer expires).
+     * Uses ToneGenerator for a short, attention-getting beep.
+     */
+    private fun playWarningSound() {
+        try {
+            // Play 3 short beeps for warning
+            val toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+            mainHandler.post {
+                toneGenerator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200)
+            }
+            mainHandler.postDelayed({
+                toneGenerator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200)
+            }, 400)
+            mainHandler.postDelayed({
+                toneGenerator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200)
+            }, 800)
+            mainHandler.postDelayed({
+                toneGenerator.release()
+            }, 1200)
+            Log.d(TAG, "Warning sound played")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to play warning sound: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Play the alarm sound when timer expires.
+     * Uses the system alarm ringtone for maximum attention.
+     * Sound continues until stopAlarmSound() is called.
+     */
+    private fun playAlarmSound() {
+        try {
+            // Stop existing alarm if playing
+            stopAlarmSound()
+
+            // Get alarm or notification sound
+            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
+            if (alarmUri != null) {
+                alarmRingtone = RingtoneManager.getRingtone(context, alarmUri)
+                alarmRingtone?.play()
+                Log.d(TAG, "Alarm sound started")
+
+                // Auto-stop after 30 seconds to prevent endless alarm
+                mainHandler.postDelayed({
+                    stopAlarmSound()
+                }, 30_000)
+            } else {
+                // Fallback to ToneGenerator if no ringtone available
+                Log.w(TAG, "No alarm ringtone found, using ToneGenerator fallback")
+                val toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                toneGenerator.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 5000)
+                mainHandler.postDelayed({
+                    toneGenerator.release()
+                }, 5500)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to play alarm sound: ${e.message}", e)
+        }
+    }
+
     /**
      * Cleanup resources.
      */
     fun cleanup() {
         Log.d(TAG, "Cleaning up XRGlassesService")
         connectionMonitorJob?.cancel()
+
+        // Cleanup parking timer
+        cancelParkingTimer()
+
+        // Cancel scope after parking timer to ensure proper cleanup
         scope.cancel()
 
         // Cleanup speech recognizer
@@ -1350,8 +1577,8 @@ class XRGlassesService(
 
         if (projectedContextInstance != null) {
             try {
-                val closeMethod = projectedContextInstance!!.javaClass.getMethod("close")
-                closeMethod.invoke(projectedContextInstance)
+                val closeMethod = projectedContextInstance?.javaClass?.getMethod("close")
+                closeMethod?.invoke(projectedContextInstance)
             } catch (e: Exception) {
                 // Ignore cleanup errors
             }
