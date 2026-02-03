@@ -46,6 +46,11 @@ class XRGlassesModule : Module() {
             "onStreamError",         // Streaming error
             "onViewerUpdate",        // Viewer count/info changed
             "onStreamCameraSourceChanged",  // Camera source changed (phone vs glasses)
+            // Parking timer events
+            "onParkingTimerStarted",   // Timer started
+            "onParkingTimerWarning",   // 5 minute warning
+            "onParkingTimerExpired",   // Timer expired (alarm!)
+            "onParkingTimerCancelled", // Timer cancelled
             // Native error events (for error reporting)
             "onNativeError"          // Native Kotlin/Android errors
         )
@@ -345,6 +350,66 @@ class XRGlassesModule : Module() {
         AsyncFunction("isRemoteViewActive") { promise: Promise ->
             val active = glassesService?.isRemoteViewActive() ?: false
             promise.resolve(active)
+        }
+
+        // ============================================================
+        // Parking Timer Functions
+        // Efficient timer using coroutine delay (no CPU waste)
+        // ============================================================
+
+        // Start parking timer with specified duration
+        AsyncFunction("startParkingTimer") { durationMinutes: Int, promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.startParkingTimer(durationMinutes)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("TIMER_START_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Cancel parking timer
+        AsyncFunction("cancelParkingTimer") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.cancelParkingTimer()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("TIMER_CANCEL_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Get current parking timer state
+        AsyncFunction("getParkingTimerState") { promise: Promise ->
+            scope.launch {
+                try {
+                    val state = glassesService?.getParkingTimerState() ?: mapOf(
+                        "isActive" to false,
+                        "remainingMs" to 0L,
+                        "endTime" to 0L,
+                        "durationMinutes" to 0,
+                        "warningShown" to false,
+                        "expired" to false
+                    )
+                    promise.resolve(state)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("TIMER_STATE_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Stop the alarm sound (user dismisses alarm)
+        AsyncFunction("stopParkingAlarm") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.stopAlarmSound()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("ALARM_STOP_FAILED", e.message, e))
+                }
+            }
         }
 
         // Cleanup on module destroy

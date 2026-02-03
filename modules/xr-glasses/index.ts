@@ -104,6 +104,26 @@ interface XRGlassesNativeModule extends NativeModule {
 
   /** Check if remote view is currently active */
   isRemoteViewActive(): Promise<boolean>;
+
+  // ============================================================
+  // Parking Timer (efficient coroutine-based, no CPU waste)
+  // ============================================================
+
+  /**
+   * Start a parking timer with the specified duration.
+   * Emits warning event 5 minutes before expiration and alarm at expiration.
+   * @param durationMinutes Timer duration in minutes
+   */
+  startParkingTimer(durationMinutes: number): Promise<boolean>;
+
+  /** Cancel the parking timer if running */
+  cancelParkingTimer(): Promise<boolean>;
+
+  /** Get current parking timer state */
+  getParkingTimerState(): Promise<ParkingTimerState>;
+
+  /** Stop the alarm sound (user dismisses alarm) */
+  stopParkingAlarm(): Promise<boolean>;
 }
 
 // Export the native module
@@ -203,6 +223,45 @@ export type NativeErrorEvent = {
   threadName: string;
   deviceModel: string;
   androidVersion: number;
+  timestamp: number;
+};
+
+// ============================================================
+// Parking Timer Types
+// ============================================================
+
+/** Parking timer state returned by getParkingTimerState() */
+export type ParkingTimerState = {
+  isActive: boolean;
+  remainingMs: number;
+  endTime: number;
+  durationMinutes: number;
+  warningShown: boolean;
+  expired: boolean;
+};
+
+/** Event emitted when parking timer is started */
+export type ParkingTimerStartedEvent = {
+  durationMinutes: number;
+  endTime: number;
+  warningTime: number;
+  timestamp: number;
+};
+
+/** Event emitted 5 minutes before timer expires */
+export type ParkingTimerWarningEvent = {
+  remainingMinutes: number;
+  remainingMs: number;
+  timestamp: number;
+};
+
+/** Event emitted when parking timer expires (alarm!) */
+export type ParkingTimerExpiredEvent = {
+  timestamp: number;
+};
+
+/** Event emitted when parking timer is cancelled */
+export type ParkingTimerCancelledEvent = {
   timestamp: number;
 };
 

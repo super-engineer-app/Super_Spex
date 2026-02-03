@@ -5,7 +5,9 @@ import { useXRGlasses } from '../../src/hooks/useXRGlasses';
 import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
 import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useRemoteView } from '../../src/hooks/useRemoteView';
+import { useParkingTimer } from '../../src/hooks/useParkingTimer';
 import { QualitySelector } from '../../src/components/QualitySelector';
+import { TimePicker } from '../../src/components/TimePicker';
 import { useState, useCallback, useEffect } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { sendText, sendImage } from '../../src/services';
@@ -58,6 +60,19 @@ export default function GlassesDashboard() {
     setQuality,
     shareLink,
   } = useRemoteView();
+
+  const {
+    isActive: timerActive,
+    formattedTime,
+    durationMinutes: timerDuration,
+    warningShown: timerWarning,
+    expired: timerExpired,
+    loading: timerLoading,
+    error: timerError,
+    startTimer,
+    cancelTimer,
+    stopAlarm,
+  } = useParkingTimer();
 
   const [isSendingAudio, setIsSendingAudio] = useState(false);
   const [isSendingImage, setIsSendingImage] = useState(false);
@@ -343,6 +358,61 @@ export default function GlassesDashboard() {
           )}
 
           {streamError ? <Text style={styles.error}>{streamError}</Text> : null}
+        </View>
+
+        {/* Parking Timer Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Parking Timer</Text>
+
+          {timerExpired ? (
+            // Timer expired - show alarm state
+            <View style={styles.timerExpiredContainer}>
+              <Text style={styles.timerExpiredText}>TIME'S UP!</Text>
+              <Text style={styles.timerExpiredSubtext}>Move your car!</Text>
+              <Pressable
+                style={styles.stopAlarmButton}
+                onPress={stopAlarm}
+              >
+                <Text style={styles.stopAlarmButtonText}>STOP ALARM</Text>
+              </Pressable>
+            </View>
+          ) : timerActive ? (
+            // Timer running - show countdown
+            <View style={styles.timerActiveContainer}>
+              <Text style={[
+                styles.timerCountdown,
+                timerWarning && styles.timerCountdownWarning
+              ]}>
+                {formattedTime}
+              </Text>
+              {timerWarning && (
+                <Text style={styles.timerWarningText}>5 minutes remaining!</Text>
+              )}
+              <Text style={styles.timerDurationText}>
+                {timerDuration} min timer
+              </Text>
+              <Pressable
+                style={[styles.cancelTimerButton, timerLoading && styles.buttonDisabled]}
+                onPress={cancelTimer}
+                disabled={timerLoading}
+              >
+                <Text style={styles.cancelTimerButtonText}>
+                  {timerLoading ? 'Cancelling...' : 'Cancel Timer'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            // No timer - show time picker
+            <TimePicker
+              initialHours={1}
+              initialMinutes={0}
+              maxHours={4}
+              onConfirm={startTimer}
+              disabled={timerLoading}
+            />
+          )}
+
+          {timerError ? <Text style={styles.error}>{timerError}</Text> : null}
         </View>
 
         {/* AI Response Section */}
@@ -641,5 +711,71 @@ const styles = StyleSheet.create({
   },
   cameraSourceTextEmulation: {
     color: '#cc4',
+  },
+  // Parking Timer styles
+  timerExpiredContainer: {
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#4a1a1a',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#f44',
+  },
+  timerExpiredText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#f44',
+    marginBottom: 4,
+  },
+  timerExpiredSubtext: {
+    fontSize: 16,
+    color: '#faa',
+    marginBottom: 16,
+  },
+  stopAlarmButton: {
+    backgroundColor: '#f44',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  stopAlarmButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  timerActiveContainer: {
+    alignItems: 'center',
+    padding: 16,
+  },
+  timerCountdown: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#4af',
+    fontFamily: 'monospace',
+  },
+  timerCountdownWarning: {
+    color: '#fa4',
+  },
+  timerWarningText: {
+    fontSize: 14,
+    color: '#fa4',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  timerDurationText: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  cancelTimerButton: {
+    backgroundColor: '#444',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  cancelTimerButtonText: {
+    color: '#aaa',
+    fontSize: 14,
   },
 });
