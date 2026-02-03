@@ -12,54 +12,41 @@ import type {
   TaggedImage,
 } from '../types/tagging';
 
-const BACKEND_URL = 'https://superspexwins.fly.dev';
+// For Android emulator: 10.0.2.2 maps to host machine's localhost
+// For real device on same network: use host machine's local IP (e.g., 192.168.x.x)
+const BACKEND_URL = 'http://10.0.2.2:8000';
 const TAGGING_ENDPOINT = `${BACKEND_URL}/tagging-sessions`;
 
-/**
- * Generate a random integer ID for user/org.
- * TODO: Replace with proper authentication.
- */
-function generateRandomId(): number {
-  // Generate a random number between 1 and 999999
-  return Math.floor(Math.random() * 999999) + 1;
-}
-
-// Session IDs - generated once per app session
-// TODO: Replace with proper authentication
-let sessionUserId: number | null = null;
-let sessionOrgId: number | null = null;
+// DEV MODE: Fixed IDs for testing with local backend
+// These must match users/orgs that exist in the backend database
+const DEV_USER_ID = 1;
+const DEV_ORG_ID = 1;
 
 /**
- * Get or create session user ID.
+ * Get user ID for tagging.
+ * Currently using fixed ID for dev testing.
  * TODO: Replace with proper authentication.
  */
 export function getTaggingUserId(): number {
-  if (sessionUserId === null) {
-    sessionUserId = generateRandomId();
-    console.log('[TaggingAPI] Generated session user_id:', sessionUserId);
-  }
-  return sessionUserId;
+  console.log('[TaggingAPI] Using dev user_id:', DEV_USER_ID);
+  return DEV_USER_ID;
 }
 
 /**
- * Get or create session org ID.
+ * Get org ID for tagging.
+ * Currently using fixed ID for dev testing.
  * TODO: Replace with proper authentication.
  */
 export function getTaggingOrgId(): number {
-  if (sessionOrgId === null) {
-    sessionOrgId = generateRandomId();
-    console.log('[TaggingAPI] Generated session org_id:', sessionOrgId);
-  }
-  return sessionOrgId;
+  console.log('[TaggingAPI] Using dev org_id:', DEV_ORG_ID);
+  return DEV_ORG_ID;
 }
 
 /**
- * Reset session IDs (for testing).
+ * Reset session (no-op in dev mode with fixed IDs).
  */
 export function resetTaggingSession(): void {
-  sessionUserId = null;
-  sessionOrgId = null;
-  console.log('[TaggingAPI] Session reset');
+  console.log('[TaggingAPI] Session reset (no-op in dev mode)');
 }
 
 /**
