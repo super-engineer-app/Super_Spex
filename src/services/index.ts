@@ -19,3 +19,20 @@ export {
 } from './errorReporting';
 
 export type { ErrorSeverity } from './errorReporting';
+
+// Tagging API
+export {
+  submitTaggingSession,
+  createTaggedImage,
+  getCurrentLocation,
+  requestLocationPermission,
+  getTaggingUserId,
+  getTaggingOrgId,
+  resetTaggingSession,
+} from './taggingApi';
+
+export type {
+  SubmitTaggingSessionOptions,
+  SubmitTaggingSessionResult,
+  LocationPermissionStatus,
+} from './taggingApi';

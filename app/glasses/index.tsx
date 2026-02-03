@@ -6,9 +6,11 @@ import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
 import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useRemoteView } from '../../src/hooks/useRemoteView';
 import { useParkingTimer } from '../../src/hooks/useParkingTimer';
+import { useTaggingSession } from '../../src/hooks/useTaggingSession';
 import { QualitySelector } from '../../src/components/QualitySelector';
 import { TimePicker } from '../../src/components/TimePicker';
-import { useState, useCallback, useEffect } from 'react';
+import { TaggingMode } from '../../src/components/TaggingMode';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { sendText, sendImage } from '../../src/services';
 
@@ -74,6 +76,29 @@ export default function GlassesDashboard() {
     stopAlarm,
   } = useParkingTimer();
 
+  // Tagging session hook
+  const {
+    isTaggingActive,
+    taggingTranscript,
+    taggingImages,
+    isSaving: isTaggingSaving,
+    error: taggingError,
+    statusMessage: taggingStatus,
+    isGlassesCameraReady: taggingCameraReady,
+    isGlassesCapturing: taggingCameraCapturing,
+    startTagging,
+    cancelTagging,
+    saveTaggingSession,
+    captureFromGlasses,
+    captureFromPhone,
+    pickFromGallery,
+    removeImage: removeTaggingImage,
+    processSpeechResult,
+  } = useTaggingSession();
+
+  // Track last processed transcript to avoid duplicates
+  const lastProcessedTranscriptRef = useRef<string>('');
+
   const [isSendingAudio, setIsSendingAudio] = useState(false);
   const [isSendingImage, setIsSendingImage] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
@@ -100,6 +125,19 @@ export default function GlassesDashboard() {
       }
     };
   }, [cameraReady, releaseCamera]);
+
+  // Process speech results for tagging keyword detection
+  useEffect(() => {
+    // Only process final transcript (not partial)
+    if (!transcript) return;
+
+    // Avoid processing the same transcript multiple times
+    if (transcript === lastProcessedTranscriptRef.current) return;
+    lastProcessedTranscriptRef.current = transcript;
+
+    // Pass to tagging processor for keyword detection
+    processSpeechResult(transcript);
+  }, [transcript, processSpeechResult]);
 
   // Toggle audio capture
   const handleAudioPress = useCallback(async () => {
@@ -243,6 +281,25 @@ export default function GlassesDashboard() {
 
           {speechError ? <Text style={styles.error}>{speechError}</Text> : null}
         </View>
+
+        {/* Tagging Section */}
+        <TaggingMode
+          isActive={isTaggingActive}
+          transcript={taggingTranscript}
+          images={taggingImages}
+          isSaving={isTaggingSaving}
+          error={taggingError}
+          statusMessage={taggingStatus}
+          isGlassesCameraReady={taggingCameraReady}
+          isGlassesCapturing={taggingCameraCapturing}
+          onStartTagging={startTagging}
+          onCancelTagging={cancelTagging}
+          onSaveTagging={saveTaggingSession}
+          onCaptureFromGlasses={captureFromGlasses}
+          onCaptureFromPhone={captureFromPhone}
+          onPickFromGallery={pickFromGallery}
+          onRemoveImage={removeTaggingImage}
+        />
 
         {/* Image Section */}
         <View style={styles.section}>
@@ -392,7 +449,7 @@ export default function GlassesDashboard() {
                 {timerDuration} min timer
               </Text>
               <Pressable
-                style={[styles.cancelTimerButton, timerLoading && styles.buttonDisabled]}
+                style={[styles.cancelTimerButton, timerLoading && styles.sendButtonDisabled]}
                 onPress={cancelTimer}
                 disabled={timerLoading}
               >
