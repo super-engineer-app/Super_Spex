@@ -12,6 +12,7 @@ import {
   ImageCapturedEvent,
   CameraErrorEvent,
   CameraStateEvent,
+  UiRefreshNeededEvent,
 } from '../index';
 
 /**
@@ -140,6 +141,9 @@ export interface IXRGlassesService {
   onImageCaptured(callback: (event: ImageCapturedEvent) => void): Subscription;
   onCameraError(callback: (event: CameraErrorEvent) => void): Subscription;
   onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription;
+
+  // UI events
+  onUiRefreshNeeded(callback: (event: UiRefreshNeededEvent) => void): Subscription;
 }
 
 
@@ -292,6 +296,12 @@ class AndroidXRGlassesService implements IXRGlassesService {
     const subscription = XRGlassesNative.addListener('onCameraStateChanged', callback);
     return { remove: () => subscription.remove() };
   }
+
+  // UI event subscriptions
+  onUiRefreshNeeded(callback: (event: UiRefreshNeededEvent) => void): Subscription {
+    const subscription = XRGlassesNative.addListener('onUiRefreshNeeded', callback);
+    return { remove: () => subscription.remove() };
+  }
 }
 
 /**
@@ -427,6 +437,10 @@ class IOSXRGlassesService implements IXRGlassesService {
   }
 
   onCameraStateChanged(_callback: (event: CameraStateEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onUiRefreshNeeded(_callback: (event: UiRefreshNeededEvent) => void): Subscription {
     return { remove: () => {} };
   }
 }
@@ -726,6 +740,11 @@ class WebXRGlassesService implements IXRGlassesService {
         this.cameraStateCallbacks.delete(callback);
       },
     };
+  }
+
+  onUiRefreshNeeded(_callback: (event: UiRefreshNeededEvent) => void): Subscription {
+    // Web doesn't have XR permission flows that would cause UI corruption
+    return { remove: () => {} };
   }
 }
 

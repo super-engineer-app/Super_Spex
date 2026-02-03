@@ -265,6 +265,12 @@ export type ParkingTimerCancelledEvent = {
   timestamp: number;
 };
 
+/** Event emitted when UI may need refresh (after XR permission flow on cold start) */
+export type UiRefreshNeededEvent = {
+  reason: string;
+  timestamp: number;
+};
+
 // Re-export the service module
 export { createXRGlassesService, getXRGlassesService } from './src/XRGlassesModule';
 export type { IXRGlassesService, DeviceCapabilities, EngagementMode } from './src/XRGlassesModule';

@@ -410,6 +410,17 @@ class XRGlassesService(
             context.startActivity(intent)
             Log.d(TAG, "ProjectionLauncherActivity started - it will launch GlassesActivity")
 
+            // The XR SDK may launch RequestPermissionsOnHostActivity on the phone display
+            // which can temporarily corrupt React Native's UI on first connection after cold start.
+            // Emit a refresh hint after a delay to let React Native know it may need to re-render.
+            mainHandler.postDelayed({
+                Log.d(TAG, "Emitting UI refresh hint after glasses launch")
+                module.emitEvent("onUiRefreshNeeded", mapOf(
+                    "reason" to "post_glasses_launch",
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            }, 2000) // 2 second delay to allow permission flow to complete
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch via intermediate activity: ${e.message}", e)
             Log.d(TAG, "Falling back to direct launch...")
@@ -537,11 +548,21 @@ class XRGlassesService(
             emulatedEngagementMode = EngagementMode(visualsOn = false, audioOn = false)
         }
 
+        // Send broadcast to close GlassesActivity on glasses
+        try {
+            val closeIntent = Intent("expo.modules.xrglasses.CLOSE_GLASSES")
+            closeIntent.setPackage(context.packageName)
+            context.sendBroadcast(closeIntent)
+            Log.d(TAG, "Sent close broadcast to GlassesActivity")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not send close broadcast: ${e.message}")
+        }
+
         // Clean up projected context
         if (projectedContextInstance != null) {
             try {
-                val closeMethod = projectedContextInstance!!.javaClass.getMethod("close")
-                closeMethod.invoke(projectedContextInstance)
+                val closeMethod = projectedContextInstance?.javaClass?.getMethod("close")
+                closeMethod?.invoke(projectedContextInstance)
             } catch (e: Exception) {
                 Log.d(TAG, "Could not close ProjectedContext: ${e.message}")
             }

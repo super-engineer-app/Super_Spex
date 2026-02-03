@@ -37,8 +37,24 @@ The Android XR SDK (Jetpack XR) corrupts React Native's rendering context when c
 | `XRGlassesService.kt` | Main | Bridge between RN and XR. Does NOT call XR SDK directly |
 | `XRGlassesModule.kt` | Main | Expo native module, receives events via broadcast |
 | `ProjectionLauncherActivity.kt` | :xr_process | Handles XR SDK setup, launches GlassesActivity, **closes projected context after use** |
-| `GlassesActivity.kt` | :xr_process | Runs on glasses display, handles speech/UI |
+| `GlassesActivity.kt` | :xr_process | Runs on glasses display, handles speech/UI, listens for close broadcast |
 | `GlassesBroadcastReceiver.kt` | Main | Receives broadcasts from :xr_process |
+
+### Connection/Disconnection Flow
+
+**Connect Flow:**
+1. User taps "Connect" in React Native UI
+2. `XRGlassesService.connect()` sends Intent to `ProjectionLauncherActivity`
+3. `ProjectionLauncherActivity` (in `:xr_process`) creates `ProjectedContext` and launches `GlassesActivity`
+4. After 2 seconds, emits `onUiRefreshNeeded` event to help React Native recover from any XR permission overlays
+5. `GlassesActivity` appears on glasses display
+
+**Disconnect Flow:**
+1. User taps "Disconnect" in React Native UI
+2. `XRGlassesService.disconnect()` sends `CLOSE_GLASSES` broadcast
+3. `GlassesActivity` receives broadcast and calls `finish()` to close itself
+4. `XRGlassesService` closes the `ProjectedContext`
+5. Glasses display clears, phone UI returns to disconnected state
 
 ### Critical Manifest Configuration
 
@@ -104,6 +120,34 @@ val intent = Intent(ACTION_SPEECH_RESULT).apply {
 sendBroadcast(intent)
 ```
 
+### Issue: Glasses still show projected UI after disconnect
+
+**Cause**: `GlassesActivity` wasn't receiving the close command.
+
+**Fix**: The disconnect flow now sends a `CLOSE_GLASSES` broadcast:
+```kotlin
+// In XRGlassesService.disconnect()
+val closeIntent = Intent("expo.modules.xrglasses.CLOSE_GLASSES")
+closeIntent.setPackage(context.packageName)
+context.sendBroadcast(closeIntent)
+```
+
+`GlassesActivity` has a `BroadcastReceiver` that listens for this and calls `finish()`.
+
+### Issue: React Native UI corrupted on first connection after cold start
+
+**Cause**: The XR SDK launches `RequestPermissionsOnHostActivity` on the phone display during first connection, which overlays React Native's MainActivity.
+
+**Fix**: After launching glasses, `XRGlassesService` emits `onUiRefreshNeeded` event after 2 seconds. The `useXRGlasses` hook listens for this and refetches state to force a re-render:
+```typescript
+// In useXRGlasses.ts
+service.onUiRefreshNeeded(async (event) => {
+  // Refetch state to force re-render
+  const [isConnected, engagementMode, capabilities] = await Promise.all([...]);
+  setState(prev => ({ ...prev, connected: isConnected, engagementMode, capabilities }));
+});
+```
+
 ---
 
 ## What NOT to Do
@@ -143,8 +187,10 @@ After any changes to the XR module:
 - [ ] Glasses display shows GlassesActivity
 - [ ] Speech recognition works on glasses
 - [ ] Disconnect works without crashing
+- [ ] **Glasses display clears after disconnect** (no lingering projected UI)
 - [ ] Reconnect works after disconnect
 - [ ] App restart + connect works correctly
+- [ ] **Cold start after wipe**: First connection doesn't corrupt React Native UI
 
 ---
 

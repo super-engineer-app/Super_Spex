@@ -1,8 +1,10 @@
 package expo.modules.xrglasses.glasses
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -46,6 +48,9 @@ class GlassesActivity : ComponentActivity() {
         const val ACTION_SPEECH_ERROR = "expo.modules.xrglasses.SPEECH_ERROR"
         const val ACTION_SPEECH_STATE = "expo.modules.xrglasses.SPEECH_STATE"
 
+        // Broadcast actions from phone (incoming)
+        const val ACTION_CLOSE_GLASSES = "expo.modules.xrglasses.CLOSE_GLASSES"
+
         // Extras - Speech
         const val EXTRA_TEXT = "text"
         const val EXTRA_CONFIDENCE = "confidence"
@@ -58,6 +63,16 @@ class GlassesActivity : ComponentActivity() {
     private var isListening = false
     private var continuousMode = false
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Broadcast receiver to handle close command from phone
+    private val closeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_CLOSE_GLASSES) {
+                Log.d(TAG, "Received close command from phone, finishing activity")
+                finish()
+            }
+        }
+    }
 
     // Track permission state for UI
     private var isPermissionGranted by mutableStateOf(false)
@@ -77,6 +92,14 @@ class GlassesActivity : ComponentActivity() {
         instanceCount++
         activeInstances++
         Log.d(TAG, "GlassesActivity created on glasses display (instance #$instanceCount, active: $activeInstances)")
+
+        // Register close receiver to handle disconnect from phone
+        val closeFilter = IntentFilter(ACTION_CLOSE_GLASSES)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(closeReceiver, closeFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(closeReceiver, closeFilter)
+        }
 
         // Try to set up projected permissions launcher via reflection
         setupProjectedPermissionsLauncher()
@@ -460,6 +483,13 @@ class GlassesActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         activeInstances--
+
+        // Unregister close receiver
+        try {
+            unregisterReceiver(closeReceiver)
+        } catch (e: Exception) {
+            // Ignore if already unregistered
+        }
 
         // Clean up speech recognizer
         isListening = false
