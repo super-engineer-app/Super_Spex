@@ -1006,25 +1006,18 @@ class XRGlassesService(
 
     /**
      * Initialize camera for capturing images from glasses.
-     * Uses ProjectedContext to access glasses camera when connected.
+     * Uses SharedCameraProvider to access glasses camera when connected.
+     * SharedCameraProvider allows both ImageCapture and ImageAnalysis to work simultaneously.
      * Falls back to phone camera in emulation mode.
      *
      * @param lifecycleOwner Lifecycle owner for camera binding
      * @param lowPowerMode If true, uses lower resolution (640x480 vs 1280x720)
      */
     fun initializeCamera(lifecycleOwner: LifecycleOwner, lowPowerMode: Boolean = false) {
-        Log.d(TAG, "Initializing camera (emulation: $emulationMode, lowPower: $lowPowerMode)")
+        Log.d(TAG, "Initializing camera (emulation: $emulationMode, lowPower: $lowPowerMode, streaming: $isStreamingActive)")
 
-        // IMPORTANT: Don't initialize image capture camera while streaming is active
-        // Both use CameraX and unbindAll() would kill the streaming camera
-        if (isStreamingActive) {
-            Log.w(TAG, "Cannot initialize image capture camera while streaming - would kill streaming camera")
-            module.emitEvent("onCameraError", mapOf(
-                "message" to "Cannot use camera capture while streaming. Stop streaming first.",
-                "timestamp" to System.currentTimeMillis()
-            ))
-            return
-        }
+        // Note: SharedCameraProvider now allows both ImageCapture and ImageAnalysis to work
+        // simultaneously, so we no longer need to block camera init during streaming.
 
         if (cameraManager != null) {
             Log.d(TAG, "Camera already initialized, releasing first")

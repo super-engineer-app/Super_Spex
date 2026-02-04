@@ -9,9 +9,10 @@
 |------|---------|
 | `modules/xr-glasses/android/.../XRGlassesModule.kt` | Expo module bridge to React Native |
 | `modules/xr-glasses/android/.../XRGlassesService.kt` | Core XR service, connection management |
-| `modules/xr-glasses/android/.../GlassesCameraManager.kt` | Image capture (uses ProjectedContext) |
+| `modules/xr-glasses/android/.../SharedCameraProvider.kt` | CameraX singleton with ref counting |
+| `modules/xr-glasses/android/.../GlassesCameraManager.kt` | Image capture (uses SharedCameraProvider) |
 | `modules/xr-glasses/android/.../GlassesBroadcastReceiver.kt` | IPC from :xr_process |
-| `modules/xr-glasses/android/.../StreamingCameraManager.kt` | Video streaming (YUV→NV21 conversion) |
+| `modules/xr-glasses/android/.../StreamingCameraManager.kt` | Video streaming (uses SharedCameraProvider) |
 | `modules/xr-glasses/android/.../stream/AgoraStreamManager.kt` | Agora RTC engine wrapper |
 | `modules/xr-glasses/android/.../stream/StreamQuality.kt` | Quality presets enum |
 | `modules/xr-glasses/android/.../stream/StreamSession.kt` | Session/viewer data classes |

@@ -1,10 +1,8 @@
 ### PENDING:
-1. move the web view and the token worker to ts.
 1. video streaming recording from the user B side. in the web-viewer there should be a button "record" and they should record audio + video (in a single video file) and be able to store it locally.
 2. every participant in the channel should be able to mute/unmute
 3. every participant should be able to turn their camera on and off.
-2. User features (mute, camera toggle, chat, viewer`s camera (which should be projected to the app) + video recording on the end side in the web viewer,
-there should be a "record" button so anyone can press it, select a destination of video file, and start a recording of what the app user is streaming (audio + video) + transcription).
+4. add manual text entry option to tagging text (not only voice transcription.). 
 4. Legacy imports cleanup
 5. Remove 'any' keyword usage
 6. Scan for unsafe language features
@@ -14,6 +12,5 @@ there should be a "record" button so anyone can press it, select a destination o
 10. Switch tagging API to HTTPS (remove cleartext HTTP workaround)
 
 ### FUTURE FEATURES:
-1. Stream recording (web viewer side)
 2. Pre-record video with glasses + transcription + share
 3. Text chat between host and viewers (WebSocket infrastructure ready)
