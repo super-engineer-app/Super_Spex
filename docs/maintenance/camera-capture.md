@@ -89,15 +89,6 @@ val cameraProvider = ProcessCameraProvider.getInstance(glassesContext)
 
 SharedCameraProvider handles this automatically based on emulation mode.
 
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `GlassesCameraManager.kt` | CameraX setup, image capture logic |
-| `XRGlassesService.kt` | Camera lifecycle management |
-| `XRGlassesModule.kt` | Expo bridge for camera functions |
-| `useGlassesCamera.ts` | React Native hook |
-
 ## Camera Flow
 
 1. **Initialize**: `initializeCamera(lowPowerMode)` → Sets up CameraX with projected context
@@ -185,15 +176,13 @@ ImageCapture.Builder()
 
 ### Projected Context for Glasses Camera
 
-To access the glasses camera (not phone camera), we would need to use:
+SharedCameraProvider automatically uses `ProjectedContext.createProjectedDeviceContext()` to access glasses camera when not in emulation mode:
 ```kotlin
-val glassesContext = ProjectedContext.createProjectedDeviceContext(activity)
+val glassesContext = ProjectedContext.createProjectedDeviceContext(context)
 val cameraProvider = ProcessCameraProvider.getInstance(glassesContext)
 ```
 
-**WARNING**: We currently DON'T do this from the main process because it corrupts React Native (see projection fix docs). Camera currently uses phone context.
-
-**Future improvement**: Move camera capture to `:xr_process` to properly access glasses camera.
+In emulation/demo mode, it falls back to phone camera for testing.
 
 ### Memory Management
 
@@ -211,3 +200,6 @@ val cameraProvider = ProcessCameraProvider.getInstance(glassesContext)
 - [ ] Re-initialize after release works
 - [ ] Error events fire on failure
 - [ ] Low power mode captures faster (lower quality)
+- [ ] **Simultaneous use**: Capture works while streaming is active
+- [ ] **Simultaneous use**: Streaming continues after capture
+- [ ] **Simultaneous use**: Both can be released independently
