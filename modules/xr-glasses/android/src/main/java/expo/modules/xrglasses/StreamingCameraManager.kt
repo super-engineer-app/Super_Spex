@@ -2,32 +2,23 @@ package expo.modules.xrglasses
 
 import android.content.Context
 import android.util.Log
-import android.util.Size
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import expo.modules.xrglasses.stream.StreamQuality
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
  * StreamingCameraManager - Captures continuous frames from glasses camera for Agora streaming.
  *
- * This class runs in the MAIN PROCESS and uses ProjectedContext.createProjectedDeviceContext()
- * to access the glasses camera. This is necessary because:
- * 1. :xr_process cannot access cameras via ProjectedContext (verified by testing)
- * 2. The main process CAN access glasses camera via ProjectedContext (GlassesCameraManager works)
+ * This class runs in the MAIN PROCESS and uses SharedCameraProvider to access the camera.
+ * SharedCameraProvider handles ProjectedContext for glasses camera access and allows
+ * multiple use cases (ImageAnalysis + ImageCapture) to work simultaneously.
  *
  * Frame flow:
- * 1. Get glasses camera context via ProjectedContext.createProjectedDeviceContext()
+ * 1. SharedCameraProvider gets glasses camera context via ProjectedContext
  * 2. CameraX ImageAnalysis captures YUV_420_888 frames continuously
  * 3. Convert to NV21 format (fast, ~1ms)
  * 4. Push to Agora via callback
@@ -45,14 +36,10 @@ class StreamingCameraManager(
         private const val TAG = "StreamingCameraManager"
     }
 
-    private var cameraProvider: ProcessCameraProvider? = null
     private var imageAnalysis: ImageAnalysis? = null
-    @Volatile private var cameraExecutor: ExecutorService? = null
     private val isCapturing = AtomicBoolean(false)
     @Volatile private var currentQuality: StreamQuality = StreamQuality.BALANCED
 
-    // Camera context obtained via ProjectedContext
-    private var glassesContext: Context? = null
     @Volatile private var cameraSource: String = "unknown"
     @Volatile private var isEmulationMode: Boolean = false
 
@@ -71,14 +58,10 @@ class StreamingCameraManager(
     private val lifecycleObserver = object : DefaultLifecycleObserver {
         override fun onResume(owner: LifecycleOwner) {
             Log.d(TAG, ">>> Lifecycle RESUMED - wasCapturing: $wasCapturingBeforePause, isCapturing: ${isCapturing.get()}")
-            // Camera should auto-resume via CameraX lifecycle binding
-            // But log it so we can debug if there are issues
         }
 
         override fun onPause(owner: LifecycleOwner) {
             Log.d(TAG, ">>> Lifecycle PAUSED - isCapturing: ${isCapturing.get()}")
-            // Note: CameraX will automatically pause when lifecycle pauses
-            // Frames will stop being captured until the app resumes
             wasCapturingBeforePause = isCapturing.get()
         }
 
@@ -110,86 +93,39 @@ class StreamingCameraManager(
         currentLifecycleOwner = lifecycleOwner
         lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
 
-        cameraExecutor = Executors.newSingleThreadExecutor()
-
-        // Get glasses camera context via ProjectedContext (MUST use this from main process)
-        val effectiveCameraContext = getGlassesCameraContext()
-        if (effectiveCameraContext == null) {
-            Log.e(TAG, "Failed to get glasses camera context")
-            onError("Failed to get glasses camera context")
-            return
+        // Create analyzer that processes frames
+        val analyzer = ImageAnalysis.Analyzer { imageProxy ->
+            processFrame(imageProxy)
         }
 
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(effectiveCameraContext)
-        cameraProviderFuture.addListener({
-            try {
-                cameraProvider = cameraProviderFuture.get()
-                setupImageAnalysis(lifecycleOwner, quality)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to get camera provider", e)
-                onError("Failed to initialize camera: ${e.message}")
-            }
-        }, ContextCompat.getMainExecutor(context))
-    }
+        // Acquire ImageAnalysis from SharedCameraProvider
+        val config = SharedCameraProvider.AnalysisConfig(
+            width = quality.width,
+            height = quality.height,
+            analyzer = analyzer
+        )
 
-    /**
-     * Get the glasses camera context via ProjectedContext.createProjectedDeviceContext().
-     * This allows accessing the glasses camera from the main process.
-     *
-     * In DEMO MODE: Always returns phone context (for testing purposes).
-     */
-    private fun getGlassesCameraContext(): Context? {
-        // In demo mode, always use phone camera for testing
-        if (isEmulationMode) {
-            cameraSource = "PHONE CAMERA (Demo Mode)"
+        imageAnalysis = SharedCameraProvider.getInstance(context).acquireImageAnalysis(
+            lifecycleOwner = lifecycleOwner,
+            config = config,
+            emulationMode = emulationMode,
+            onSourceChanged = { source ->
+                cameraSource = source
+                onCameraSourceChanged?.invoke(source)
+            }
+        )
+
+        if (imageAnalysis != null) {
+            isCapturing.set(true)
+            cameraSource = SharedCameraProvider.getInstance(context).getCameraSource()
             Log.d(TAG, "========================================")
-            Log.d(TAG, ">>> DEMO MODE: Using PHONE CAMERA")
-            Log.d(TAG, ">>> (Not glasses camera - for testing)")
+            Log.d(TAG, ">>> STREAMING CAMERA STARTED: $cameraSource")
+            Log.d(TAG, ">>> Resolution: ${quality.width}x${quality.height} @ ${quality.fps}fps")
             Log.d(TAG, "========================================")
-            onCameraSourceChanged?.invoke(cameraSource)
-            return context
-        }
-
-        return try {
-            val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
-            val createMethod = projectedContextClass.methods.find {
-                it.name == "createProjectedDeviceContext"
-            }
-
-            if (createMethod != null) {
-                val result = createMethod.invoke(null, context)
-                if (result is Context) {
-                    glassesContext = result
-                    cameraSource = "GLASSES CAMERA"
-                    Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
-                    onCameraSourceChanged?.invoke(cameraSource)
-                    result
-                } else {
-                    Log.w(TAG, "createProjectedDeviceContext returned non-Context: $result")
-                    cameraSource = "PHONE CAMERA (fallback)"
-                    Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
-                    onCameraSourceChanged?.invoke(cameraSource)
-                    context
-                }
-            } else {
-                Log.w(TAG, "createProjectedDeviceContext method not found, using phone camera")
-                cameraSource = "PHONE CAMERA (no ProjectedContext)"
-                Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
-                onCameraSourceChanged?.invoke(cameraSource)
-                context
-            }
-        } catch (e: IllegalStateException) {
-            Log.w(TAG, "Projected device not found: ${e.message}, using phone camera")
-            cameraSource = "PHONE CAMERA (no projected device)"
-            Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
-            onCameraSourceChanged?.invoke(cameraSource)
-            context
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get glasses camera context: ${e.message}", e)
-            cameraSource = "PHONE CAMERA (error fallback)"
-            Log.d(TAG, ">>> STREAMING CAMERA SOURCE: $cameraSource")
-            onCameraSourceChanged?.invoke(cameraSource)
-            context
+            onCameraReady(true)
+        } else {
+            Log.e(TAG, "Failed to acquire ImageAnalysis from SharedCameraProvider")
+            onError("Failed to initialize streaming camera")
         }
     }
 
@@ -202,79 +138,6 @@ class StreamingCameraManager(
      * Check if currently in emulation mode.
      */
     fun isInEmulationMode(): Boolean = isEmulationMode
-
-    /**
-     * Setup ImageAnalysis use case for continuous frame capture.
-     * Uses the same ResolutionSelector pattern as GlassesCameraManager for consistency.
-     */
-    private fun setupImageAnalysis(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
-        val provider = cameraProvider ?: run {
-            onError("Camera provider not available")
-            return
-        }
-
-        // Select the back camera (maps to glasses camera when using projected context)
-        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-        // Check if camera is available (same pattern as GlassesCameraManager)
-        if (!provider.hasCamera(cameraSelector)) {
-            Log.w(TAG, "Back camera not available")
-            onError("Camera not available on this device")
-            return
-        }
-
-        // Configure resolution using ResolutionSelector (same as GlassesCameraManager)
-        val targetSize = Size(quality.width, quality.height)
-        val resolutionStrategy = ResolutionStrategy(
-            targetSize,
-            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER
-        )
-        val resolutionSelector = ResolutionSelector.Builder()
-            .setResolutionStrategy(resolutionStrategy)
-            .build()
-
-        // Build ImageAnalysis with quality-appropriate resolution
-        val executor = cameraExecutor
-        if (executor == null) {
-            Log.e(TAG, "Camera executor is null, cannot setup image analysis")
-            onError("Camera executor not initialized")
-            return
-        }
-
-        imageAnalysis = ImageAnalysis.Builder()
-            .setResolutionSelector(resolutionSelector)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-            .build()
-            .also { analysis ->
-                analysis.setAnalyzer(executor) { imageProxy ->
-                    processFrame(imageProxy)
-                }
-            }
-
-        try {
-            // Unbind any existing use cases (same as GlassesCameraManager)
-            provider.unbindAll()
-
-            // Bind to lifecycle
-            provider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                imageAnalysis
-            )
-
-            isCapturing.set(true)
-            Log.d(TAG, "========================================")
-            Log.d(TAG, ">>> STREAMING CAMERA STARTED: $cameraSource")
-            Log.d(TAG, ">>> Resolution: ${quality.width}x${quality.height} @ ${quality.fps}fps")
-            Log.d(TAG, "========================================")
-            onCameraReady(true)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind camera use cases", e)
-            onError("Failed to start camera: ${e.message}")
-        }
-    }
 
     /**
      * Process a single frame from CameraX and send to Agora.
@@ -379,8 +242,6 @@ class StreamingCameraManager(
         // Handle UV planes based on pixel stride
         if (uvPixelStride == 2) {
             // UV planes are interleaved in memory (common on many devices)
-            // vBuffer and uBuffer point to V and U values respectively, but they share memory
-            // We need to interleave V and U into NV21's VU format
             vBuffer.rewind()
             uBuffer.rewind()
 
@@ -421,63 +282,6 @@ class StreamingCameraManager(
     }
 
     /**
-     * Convert YUV_420_888 to I420 format (Y plane + U plane + V plane).
-     * Alternative format for debugging.
-     */
-    private fun yuv420ToI420(imageProxy: ImageProxy): ByteArray? {
-        val width = imageProxy.width
-        val height = imageProxy.height
-        val ySize = width * height
-        val uvSize = width * height / 4  // Each U and V plane is 1/4 of Y
-        val totalSize = ySize + uvSize * 2  // Y + U + V
-
-        // Reuse or allocate buffer - thread-safe via AtomicReference
-        var i420 = nv21BufferRef.get()
-        if (i420 == null || i420.size != totalSize) {
-            i420 = ByteArray(totalSize)
-            nv21BufferRef.set(i420)
-        }
-
-        val planes = imageProxy.planes
-        val yBuffer = planes[0].buffer
-        val uBuffer = planes[1].buffer
-        val vBuffer = planes[2].buffer
-
-        val yRowStride = planes[0].rowStride
-        val uvRowStride = planes[1].rowStride
-        val uvPixelStride = planes[1].pixelStride
-
-        // Copy Y plane
-        yBuffer.rewind()
-        if (yRowStride == width) {
-            yBuffer.get(i420, 0, ySize)
-        } else {
-            for (row in 0 until height) {
-                yBuffer.position(row * yRowStride)
-                yBuffer.get(i420, row * width, width)
-            }
-        }
-
-        // Copy U and V planes separately (I420 format: Y, then U, then V)
-        val uvHeight = height / 2
-        val uvWidth = width / 2
-        var uIndex = ySize
-        var vIndex = ySize + uvSize
-
-        for (row in 0 until uvHeight) {
-            for (col in 0 until uvWidth) {
-                val bufferIndex = row * uvRowStride + col * uvPixelStride
-                uBuffer.position(bufferIndex)
-                vBuffer.position(bufferIndex)
-                i420[uIndex++] = uBuffer.get()
-                i420[vIndex++] = vBuffer.get()
-            }
-        }
-
-        return i420
-    }
-
-    /**
      * Update the quality preset while capturing.
      */
     fun updateQuality(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
@@ -487,8 +291,9 @@ class StreamingCameraManager(
         currentQuality = quality
 
         if (isCapturing.get()) {
-            cameraProvider?.unbindAll()
-            setupImageAnalysis(lifecycleOwner, quality)
+            // Stop and restart with new quality
+            stopCapture()
+            startCapture(lifecycleOwner, quality, isEmulationMode)
         }
     }
 
@@ -504,18 +309,11 @@ class StreamingCameraManager(
         currentLifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
         currentLifecycleOwner = null
 
-        try {
-            cameraProvider?.unbindAll()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error unbinding camera: ${e.message}")
-        }
+        // Release ImageAnalysis from SharedCameraProvider
+        SharedCameraProvider.getInstance(context).releaseImageAnalysis()
 
-        cameraExecutor?.shutdown()
-        cameraExecutor = null
-        cameraProvider = null
         imageAnalysis = null
         nv21BufferRef.set(null)
-        glassesContext = null
         cameraSource = "unknown"
         onCameraReady(false)
     }

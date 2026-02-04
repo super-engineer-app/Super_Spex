@@ -24,6 +24,7 @@
 │  React Native App                                            │
 │  ├── XRGlassesModule.kt (Expo bridge)                       │
 │  ├── XRGlassesService.kt (connection management)            │
+│  ├── SharedCameraProvider.kt (CameraX singleton)            │
 │  ├── GlassesCameraManager.kt (image capture)                │
 │  ├── StreamingCameraManager.kt (video frame capture)        │
 │  ├── AgoraStreamManager.kt (Agora RTC streaming)            │
@@ -89,7 +90,8 @@ modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
 ├── XRGlassesModule.kt              # Expo module bridge (main process)
 ├── XRGlassesService.kt             # Connection & state management (main process)
 ├── GlassesBroadcastReceiver.kt     # Receives IPC from :xr_process (main process)
-├── GlassesCameraManager.kt         # Camera capture logic (main process)
+├── SharedCameraProvider.kt         # CameraX singleton with ref counting (main process)
+├── GlassesCameraManager.kt         # Image capture logic (main process)
 ├── StreamingCameraManager.kt       # Video streaming frame capture (main process)
 ├── NativeErrorHandler.kt           # Error reporting to Discord (main process)
 ├── ProjectionLauncherActivity.kt   # XR SDK setup (:xr_process)

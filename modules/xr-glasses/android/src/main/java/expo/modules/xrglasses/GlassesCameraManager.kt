@@ -6,14 +6,9 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.util.Base64
 import android.util.Log
-import android.util.Size
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.*
@@ -23,8 +18,9 @@ import java.nio.ByteBuffer
 /**
  * GlassesCameraManager - Handles camera capture from AI glasses hardware.
  *
- * Uses Jetpack XR Projected APIs to access the glasses camera from the phone app.
- * See: https://developer.android.com/develop/xr/jetpack-xr-sdk/access-hardware-projected-context
+ * Uses SharedCameraProvider to access the camera, which handles ProjectedContext
+ * for glasses camera access. SharedCameraProvider allows multiple use cases
+ * (ImageAnalysis + ImageCapture) to work simultaneously.
  *
  * Key considerations from docs:
  * - Use ProjectedContext.createProjectedDeviceContext() to access glasses hardware
@@ -44,21 +40,21 @@ class GlassesCameraManager(
         // Video Communication: 1280x720 @ 15fps
         // Computer Vision: 640x480 @ 10fps
         // AI Video Streaming: 640x480 @ 1fps
-        private val DEFAULT_CAPTURE_SIZE = Size(1280, 720)
-        private val LOW_POWER_CAPTURE_SIZE = Size(640, 480)
+        private const val DEFAULT_CAPTURE_WIDTH = 1280
+        private const val DEFAULT_CAPTURE_HEIGHT = 720
+        private const val LOW_POWER_CAPTURE_WIDTH = 640
+        private const val LOW_POWER_CAPTURE_HEIGHT = 480
     }
 
-    private var cameraProvider: ProcessCameraProvider? = null
     private var imageCapture: ImageCapture? = null
-    private var glassesContext: Context? = null
     private var isCameraReady = false
     private var isEmulationMode = false
-    private var cameraSource: String = "unknown"  // Track which camera source is being used
+    private var cameraSource: String = "unknown"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     /**
-     * Initialize camera using projected context for glasses hardware.
+     * Initialize camera using SharedCameraProvider for glasses hardware access.
      *
      * @param lifecycleOwner Lifecycle owner for camera binding
      * @param emulationMode If true, uses phone camera instead of glasses camera
@@ -74,39 +70,32 @@ class GlassesCameraManager(
 
         scope.launch {
             try {
-                // Get the appropriate context for camera access
-                val cameraContext = if (emulationMode) {
-                    // In emulation mode, use phone's camera
-                    cameraSource = "PHONE (emulation mode)"
-                    Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
-                    context
+                // Determine resolution based on power mode
+                val width = if (lowPowerMode) LOW_POWER_CAPTURE_WIDTH else DEFAULT_CAPTURE_WIDTH
+                val height = if (lowPowerMode) LOW_POWER_CAPTURE_HEIGHT else DEFAULT_CAPTURE_HEIGHT
+
+                // Acquire ImageCapture from SharedCameraProvider
+                val config = SharedCameraProvider.CaptureConfig(
+                    width = width,
+                    height = height,
+                    captureMode = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                )
+
+                imageCapture = SharedCameraProvider.getInstance(context).acquireImageCapture(
+                    lifecycleOwner = lifecycleOwner,
+                    config = config,
+                    emulationMode = emulationMode
+                )
+
+                if (imageCapture != null) {
+                    cameraSource = SharedCameraProvider.getInstance(context).getCameraSource()
+                    isCameraReady = true
+                    onCameraStateChanged(true)
+                    Log.d(TAG, "Camera initialized successfully (resolution: ${width}x${height}, source: $cameraSource)")
                 } else {
-                    // Use ProjectedContext to access glasses camera
-                    Log.d(TAG, "Attempting to get glasses camera context via ProjectedContext")
-                    val glassesCtx = getGlassesContext()
-                    if (glassesCtx != null) {
-                        cameraSource = "GLASSES (via ProjectedContext)"
-                        Log.d(TAG, ">>> CAMERA SOURCE: $cameraSource")
-                        glassesCtx
-                    } else {
-                        cameraSource = "PHONE (glasses context unavailable)"
-                        Log.w(TAG, ">>> CAMERA SOURCE: $cameraSource - falling back to phone camera")
-                        context
-                    }
+                    Log.e(TAG, "Failed to acquire ImageCapture from SharedCameraProvider")
+                    onError("Failed to initialize camera")
                 }
-
-                // Get CameraProvider using the appropriate context
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(cameraContext)
-
-                cameraProviderFuture.addListener({
-                    try {
-                        cameraProvider = cameraProviderFuture.get()
-                        setupImageCapture(lifecycleOwner, lowPowerMode)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to get camera provider", e)
-                        onError("Failed to initialize camera: ${e.message}")
-                    }
-                }, ContextCompat.getMainExecutor(context))
 
             } catch (e: Exception) {
                 Log.e(TAG, "Camera initialization failed", e)
@@ -116,103 +105,12 @@ class GlassesCameraManager(
     }
 
     /**
-     * Get projected device context for glasses hardware access.
-     * Uses reflection since the SDK may not be available on all devices.
-     */
-    private fun getGlassesContext(): Context? {
-        return try {
-            val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
-            val createMethod = projectedContextClass.methods.find {
-                it.name == "createProjectedDeviceContext"
-            }
-
-            if (createMethod != null) {
-                val result = createMethod.invoke(null, context)
-                if (result is Context) {
-                    glassesContext = result
-                    Log.d(TAG, "Successfully obtained glasses context via ProjectedContext")
-                    result
-                } else {
-                    Log.w(TAG, "createProjectedDeviceContext returned non-Context: $result")
-                    null
-                }
-            } else {
-                Log.w(TAG, "createProjectedDeviceContext method not found")
-                null
-            }
-        } catch (e: IllegalStateException) {
-            // Projected device not found - this is expected when glasses aren't connected
-            Log.d(TAG, "Projected device not found: ${e.message}")
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get glasses context", e)
-            null
-        }
-    }
-
-    /**
-     * Setup ImageCapture use case with appropriate resolution.
-     */
-    private fun setupImageCapture(lifecycleOwner: LifecycleOwner, lowPowerMode: Boolean) {
-        val provider = cameraProvider ?: run {
-            onError("Camera provider not available")
-            return
-        }
-
-        // Select the back camera (maps to glasses camera when using projected context)
-        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-        // Check if camera is available
-        if (!provider.hasCamera(cameraSelector)) {
-            Log.w(TAG, "Back camera not available")
-            onError("Camera not available on this device")
-            return
-        }
-
-        // Configure resolution based on power mode
-        val targetSize = if (lowPowerMode) LOW_POWER_CAPTURE_SIZE else DEFAULT_CAPTURE_SIZE
-        val resolutionStrategy = ResolutionStrategy(
-            targetSize,
-            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER
-        )
-        val resolutionSelector = ResolutionSelector.Builder()
-            .setResolutionStrategy(resolutionStrategy)
-            .build()
-
-        // Build ImageCapture use case
-        val imageCaptureBuilder = ImageCapture.Builder()
-            .setResolutionSelector(resolutionSelector)
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-
-        imageCapture = imageCaptureBuilder.build()
-
-        try {
-            // Unbind any existing use cases
-            provider.unbindAll()
-
-            // Bind to lifecycle
-            provider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                imageCapture
-            )
-
-            isCameraReady = true
-            onCameraStateChanged(true)
-            Log.d(TAG, "Camera initialized successfully (resolution: ${targetSize.width}x${targetSize.height})")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind camera use cases", e)
-            onError("Failed to start camera: ${e.message}")
-        }
-    }
-
-    /**
      * Capture a single image from the glasses camera.
      * Returns the image as a base64-encoded JPEG via callback.
      */
     fun captureImage() {
-        val capture = imageCapture ?: run {
+        // Get ImageCapture from SharedCameraProvider (may have been updated)
+        val capture = SharedCameraProvider.getInstance(context).getImageCapture() ?: run {
             onError("Camera not initialized")
             return
         }
@@ -314,15 +212,10 @@ class GlassesCameraManager(
         Log.d(TAG, "Releasing camera resources")
         scope.cancel()
 
-        try {
-            cameraProvider?.unbindAll()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error unbinding camera: ${e.message}")
-        }
+        // Release ImageCapture from SharedCameraProvider
+        SharedCameraProvider.getInstance(context).releaseImageCapture()
 
-        cameraProvider = null
         imageCapture = null
-        glassesContext = null
         isCameraReady = false
         onCameraStateChanged(false)
     }

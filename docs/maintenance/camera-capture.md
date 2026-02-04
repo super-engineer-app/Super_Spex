@@ -8,29 +8,34 @@ Neither the main process nor `:xr_process` have direct access to glasses hardwar
 
 ## Architecture
 
-There are TWO camera use cases in the app:
+Both camera use cases (Image Capture and Video Streaming) now use **SharedCameraProvider**,
+a singleton that manages a single `ProcessCameraProvider` with multiple use cases bound simultaneously.
 
-### 1. Image Capture (Send Image to AI)
-Runs in **main process** via `GlassesCameraManager`.
+### SharedCameraProvider Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    PHONE (Main Process)                          │
 │                                                                  │
-│  ┌─────────────────────┐                                        │
-│  │ XRGlassesModule     │◄──── React Native calls                │
-│  │ initializeCamera()  │                                        │
-│  │ captureImage()      │                                        │
-│  └─────────┬───────────┘                                        │
-│            │                                                     │
-│            ▼                                                     │
 │  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
-│  │ XRGlassesService    │───▶│ GlassesCameraManager            │ │
-│  │                     │    │ uses ProjectedContext.          │ │
-│  │                     │    │ createProjectedDeviceContext()  │ │
-│  └─────────────────────┘    └─────────────────────────────────┘ │
-│                                       │                          │
-└───────────────────────────────────────│──────────────────────────┘
+│  │ XRGlassesService    │    │ SharedCameraProvider (singleton)│ │
+│  │                     │───▶│                                 │ │
+│  └─────────────────────┘    │ - ProcessCameraProvider         │ │
+│            │                │ - ImageAnalysis (streaming)     │ │
+│            │                │ - ImageCapture (snapshots)      │ │
+│            ▼                │ - Reference counting per use    │ │
+│  ┌─────────────────────┐    │ - ProjectedContext for glasses  │ │
+│  │ StreamingCameraManager│   └─────────────────────────────────┘ │
+│  │ (acquireImageAnalysis)│                │                      │
+│  └─────────────────────┘                  │                      │
+│            │                              │                      │
+│            ▼                              ▼                      │
+│  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
+│  │ GlassesCameraManager│    │ CameraX bindToLifecycle()       │ │
+│  │ (acquireImageCapture)│──▶│ with BOTH use cases bound       │ │
+│  └─────────────────────┘    │ simultaneously                  │ │
+│                             └─────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
                                         │ ProjectedContext
                                         ▼
                               ┌─────────────────────┐
@@ -38,26 +43,34 @@ Runs in **main process** via `GlassesCameraManager`.
                               └─────────────────────┘
 ```
 
-### 2. Video Streaming (Remote View)
-Runs in **:xr_process** via `TextureCameraProvider`.
+### Key Benefit: Simultaneous Use Cases
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PHONE (:xr_process)                           │
-│                                                                  │
-│  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
-│  │ GlassesActivity     │───▶│ TextureCameraProvider           │ │
-│  │ (displays on        │    │ uses ProjectedContext.          │ │
-│  │  glasses screen)    │    │ createProjectedDeviceContext()  │ │
-│  └─────────────────────┘    └─────────────────────────────────┘ │
-│                                       │                          │
-└───────────────────────────────────────│──────────────────────────┘
-                                        │ ProjectedContext
-                                        ▼
-                              ┌─────────────────────┐
-                              │ Glasses Camera      │
-                              └─────────────────────┘
-```
+**CameraX allows binding multiple use cases in a single `bindToLifecycle()` call.**
+This means Image Capture and Video Streaming can work simultaneously:
+- User can capture images while streaming is active
+- No need to stop streaming to take a snapshot
+- Both share the same camera stream efficiently
+
+### Reference Counting
+
+SharedCameraProvider uses reference counting to track active consumers:
+- `acquireImageAnalysis()` - Increments analysis ref count, creates use case if first consumer
+- `releaseImageAnalysis()` - Decrements ref count, removes use case if no consumers
+- `acquireImageCapture()` - Increments capture ref count, creates use case if first consumer
+- `releaseImageCapture()` - Decrements ref count, removes use case if no consumers
+
+When use cases change, the provider calls `unbindAll()` then `bindToLifecycle()` with all active use cases.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `SharedCameraProvider.kt` | Singleton managing CameraX with multiple use cases |
+| `GlassesCameraManager.kt` | Image capture logic, uses SharedCameraProvider |
+| `StreamingCameraManager.kt` | Video streaming frame capture, uses SharedCameraProvider |
+| `XRGlassesService.kt` | Camera lifecycle management |
+| `XRGlassesModule.kt` | Expo bridge for camera functions |
+| `useGlassesCamera.ts` | React Native hook |
 
 ## Key Insight: Process vs Hardware Access
 
@@ -73,6 +86,8 @@ To access glasses hardware from ANY process, you must use:
 val glassesContext = ProjectedContext.createProjectedDeviceContext(context)
 val cameraProvider = ProcessCameraProvider.getInstance(glassesContext)
 ```
+
+SharedCameraProvider handles this automatically based on emulation mode.
 
 ## Key Files
 
