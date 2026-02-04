@@ -7,15 +7,56 @@
 
 import { RtcTokenBuilder, RtcRole } from 'agora-token';
 
-// Viewer heartbeat TTL in seconds
+// ============================================================================
+// Types
+// ============================================================================
+
+interface Env {
+  AGORA_APP_ID: string;
+  AGORA_APP_CERTIFICATE: string;
+  VIEWERS: KVNamespace;
+  CHANNEL_ROOM: DurableObjectNamespace;
+}
+
+interface ViewerData {
+  joinedAt: number;
+  lastSeen: number;
+}
+
+interface Session {
+  ws: WebSocket;
+  role: string;
+  name: string;
+}
+
+interface ChatMessage {
+  type: 'chat';
+  text: string;
+}
+
+interface PingMessage {
+  type: 'ping';
+}
+
+type IncomingMessage = ChatMessage | PingMessage | { type: string };
+
+interface NotifyPayload {
+  event: 'viewer_join' | 'viewer_leave';
+  viewerId: string;
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
 const VIEWER_TTL_SECONDS = 60;
 
-// ============================================================
+// ============================================================================
 // Main Worker - Routes requests
-// ============================================================
+// ============================================================================
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -43,15 +84,15 @@ export default {
     }
 
     // Default: token generation
-    return handleTokenRequest(request, env, url);
+    return handleTokenRequest(env, url);
   },
 };
 
-// ============================================================
+// ============================================================================
 // WebSocket Handler - Routes to Durable Object
-// ============================================================
+// ============================================================================
 
-async function handleWebSocket(request, env, url) {
+async function handleWebSocket(request: Request, env: Env, url: URL): Promise<Response> {
   // URL format: /ws/{channelId}
   const pathParts = url.pathname.split('/');
   const channelId = pathParts[2];
@@ -74,13 +115,13 @@ async function handleWebSocket(request, env, url) {
   return room.fetch(request);
 }
 
-// ============================================================
+// ============================================================================
 // Token Generation
-// ============================================================
+// ============================================================================
 
-async function handleTokenRequest(request, env, url) {
-  const appId = env?.AGORA_APP_ID;
-  const appCertificate = env?.AGORA_APP_CERTIFICATE;
+async function handleTokenRequest(env: Env, url: URL): Promise<Response> {
+  const appId = env.AGORA_APP_ID;
+  const appCertificate = env.AGORA_APP_CERTIFICATE;
 
   if (!appId || !appCertificate) {
     return jsonResponse({
@@ -89,8 +130,8 @@ async function handleTokenRequest(request, env, url) {
   }
 
   const channel = url.searchParams.get('channel');
-  const role = url.searchParams.get('role') || 'subscriber';
-  const uid = parseInt(url.searchParams.get('uid') || '0', 10);
+  const role = url.searchParams.get('role') ?? 'subscriber';
+  const uid = parseInt(url.searchParams.get('uid') ?? '0', 10);
   const viewerId = url.searchParams.get('viewerId');
 
   if (!channel) {
@@ -115,21 +156,22 @@ async function handleTokenRequest(request, env, url) {
     if (role === 'subscriber' && viewerId && env.VIEWERS) {
       await registerViewer(env.VIEWERS, channel, viewerId);
       // Also notify the Durable Object about the new viewer
-      await notifyDurableObject(env, channel, 'viewer_join', { viewerId });
+      await notifyDurableObject(env, channel, 'viewer_join', viewerId);
     }
 
     return jsonResponse({ token, appId, channel, uid });
   } catch (err) {
     console.error('Token generation error:', err);
-    return jsonResponse({ error: err.message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    return jsonResponse({ error: message }, 500);
   }
 }
 
-// ============================================================
+// ============================================================================
 // KV-based Viewer Presence (for web viewers)
-// ============================================================
+// ============================================================================
 
-async function registerViewer(kv, channel, viewerId) {
+async function registerViewer(kv: KVNamespace, channel: string, viewerId: string): Promise<void> {
   const key = `viewer:${channel}:${viewerId}`;
   const now = Date.now();
   await kv.put(key, JSON.stringify({ joinedAt: now, lastSeen: now }), {
@@ -137,7 +179,7 @@ async function registerViewer(kv, channel, viewerId) {
   });
 }
 
-async function handleHeartbeat(url, env) {
+async function handleHeartbeat(url: URL, env: Env): Promise<Response> {
   const channel = url.searchParams.get('channel');
   const viewerId = url.searchParams.get('viewerId');
 
@@ -147,16 +189,18 @@ async function handleHeartbeat(url, env) {
 
   if (env.VIEWERS) {
     const key = `viewer:${channel}:${viewerId}`;
-    const existing = await env.VIEWERS.get(key, { type: 'json' });
+    const existing = await env.VIEWERS.get<ViewerData>(key, { type: 'json' });
     const now = Date.now();
-    const data = existing ? { ...existing, lastSeen: now } : { joinedAt: now, lastSeen: now };
+    const data: ViewerData = existing
+      ? { ...existing, lastSeen: now }
+      : { joinedAt: now, lastSeen: now };
     await env.VIEWERS.put(key, JSON.stringify(data), { expirationTtl: VIEWER_TTL_SECONDS });
   }
 
   return jsonResponse({ success: true });
 }
 
-async function handleLeave(url, env) {
+async function handleLeave(url: URL, env: Env): Promise<Response> {
   const channel = url.searchParams.get('channel');
   const viewerId = url.searchParams.get('viewerId');
 
@@ -170,12 +214,12 @@ async function handleLeave(url, env) {
   }
 
   // Notify Durable Object
-  await notifyDurableObject(env, channel, 'viewer_leave', { viewerId });
+  await notifyDurableObject(env, channel, 'viewer_leave', viewerId);
 
   return jsonResponse({ success: true });
 }
 
-async function handleViewerCount(url, env) {
+async function handleViewerCount(url: URL, env: Env): Promise<Response> {
   const channel = url.searchParams.get('channel');
 
   if (!channel) {
@@ -187,9 +231,9 @@ async function handleViewerCount(url, env) {
     const id = env.CHANNEL_ROOM.idFromName(channel);
     const room = env.CHANNEL_ROOM.get(id);
     const response = await room.fetch(new Request('http://internal/count'));
-    const data = await response.json();
+    const data = await response.json() as { count: number };
     return jsonResponse({ channel, viewerCount: data.count });
-  } catch (e) {
+  } catch {
     // Fallback to KV count
     if (env.VIEWERS) {
       const prefix = `viewer:${channel}:`;
@@ -200,32 +244,38 @@ async function handleViewerCount(url, env) {
   }
 }
 
-async function notifyDurableObject(env, channel, event, data) {
+async function notifyDurableObject(
+  env: Env,
+  channel: string,
+  event: 'viewer_join' | 'viewer_leave',
+  viewerId: string
+): Promise<void> {
   try {
     const id = env.CHANNEL_ROOM.idFromName(channel);
     const room = env.CHANNEL_ROOM.get(id);
     await room.fetch(new Request('http://internal/notify', {
       method: 'POST',
-      body: JSON.stringify({ event, ...data })
+      body: JSON.stringify({ event, viewerId })
     }));
   } catch (e) {
     console.error('Failed to notify Durable Object:', e);
   }
 }
 
-// ============================================================
+// ============================================================================
 // Durable Object - Channel Room
-// ============================================================
+// ============================================================================
 
-export class ChannelRoom {
-  constructor(state, env) {
-    this.state = state;
-    this.env = env;
-    this.sessions = new Map(); // WebSocket sessions: id -> { ws, role, name }
-    this.viewers = new Set();  // Viewer IDs (from KV heartbeats)
+export class ChannelRoom implements DurableObject {
+  private sessions: Map<string, Session>;
+  private viewers: Set<string>;
+
+  constructor(_state: DurableObjectState, _env: Env) {
+    this.sessions = new Map();
+    this.viewers = new Set();
   }
 
-  async fetch(request) {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     // Internal: get viewer count
@@ -237,7 +287,7 @@ export class ChannelRoom {
 
     // Internal: notify of viewer join/leave (from KV)
     if (url.pathname === '/notify') {
-      const data = await request.json();
+      const data = await request.json() as NotifyPayload;
       if (data.event === 'viewer_join' && data.viewerId) {
         this.viewers.add(data.viewerId);
         this.broadcast({ type: 'viewer_count', count: this.getViewerCount() });
@@ -251,18 +301,19 @@ export class ChannelRoom {
     // WebSocket upgrade
     const upgradeHeader = request.headers.get('Upgrade');
     if (upgradeHeader === 'websocket') {
-      return this.handleWebSocketUpgrade(request, url);
+      return this.handleWebSocketUpgrade(url);
     }
 
     return jsonResponse({ error: 'Expected WebSocket' }, 400);
   }
 
-  async handleWebSocketUpgrade(request, url) {
-    const role = url.searchParams.get('role') || 'viewer'; // 'host' or 'viewer'
-    const name = url.searchParams.get('name') || 'Anonymous';
+  private handleWebSocketUpgrade(url: URL): Response {
+    const role = url.searchParams.get('role') ?? 'viewer';
+    const name = url.searchParams.get('name') ?? 'Anonymous';
 
     const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
+    const client = pair[0];
+    const server = pair[1];
 
     const sessionId = crypto.randomUUID();
     this.sessions.set(sessionId, { ws: server, role, name });
@@ -281,7 +332,8 @@ export class ChannelRoom {
 
     // Handle messages
     server.addEventListener('message', (event) => {
-      this.handleMessage(sessionId, event.data);
+      const data = typeof event.data === 'string' ? event.data : '';
+      this.handleMessage(sessionId, data);
     });
 
     // Handle close
@@ -297,9 +349,9 @@ export class ChannelRoom {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  handleMessage(sessionId, data) {
+  private handleMessage(sessionId: string, data: string): void {
     try {
-      const message = JSON.parse(data);
+      const message = JSON.parse(data) as IncomingMessage;
       const session = this.sessions.get(sessionId);
 
       switch (message.type) {
@@ -307,9 +359,9 @@ export class ChannelRoom {
           // Broadcast chat message to all
           this.broadcast({
             type: 'chat',
-            from: session?.name || 'Anonymous',
-            role: session?.role || 'viewer',
-            text: message.text,
+            from: session?.name ?? 'Anonymous',
+            role: session?.role ?? 'viewer',
+            text: (message as ChatMessage).text,
             timestamp: Date.now()
           });
           break;
@@ -327,29 +379,29 @@ export class ChannelRoom {
     }
   }
 
-  getViewerCount() {
+  private getViewerCount(): number {
     const wsViewers = Array.from(this.sessions.values()).filter(s => s.role === 'viewer').length;
     const kvViewers = this.viewers.size;
     return wsViewers + kvViewers;
   }
 
-  broadcast(message) {
+  private broadcast(message: Record<string, unknown>): void {
     const data = JSON.stringify(message);
     for (const session of this.sessions.values()) {
       try {
         session.ws.send(data);
-      } catch (e) {
+      } catch {
         // Connection might be closed
       }
     }
   }
 }
 
-// ============================================================
+// ============================================================================
 // Utilities
-// ============================================================
+// ============================================================================
 
-function corsHeaders() {
+function corsHeaders(): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -357,7 +409,7 @@ function corsHeaders() {
   };
 }
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders() },

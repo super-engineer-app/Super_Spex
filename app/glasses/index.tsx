@@ -28,16 +28,6 @@ export default function GlassesDashboard() {
   const { connected, emulationMode, disconnect, refreshKey } = useXRGlasses();
   const initialRefreshKey = useRef(refreshKey);
 
-  // When refreshKey changes (after XR SDK corrupts RN UI), do a navigation refresh
-  // This simulates pressing back and re-opening the dashboard
-  useEffect(() => {
-    if (refreshKey > initialRefreshKey.current) {
-      console.log('[GlassesDashboard] UI refresh triggered, doing navigation refresh');
-      // Replace current route with itself to force full remount
-      router.replace('/glasses');
-    }
-  }, [refreshKey, router]);
-
   const {
     isListening,
     transcript,
@@ -115,6 +105,15 @@ export default function GlassesDashboard() {
   const [aiResponse, setAiResponse] = useState('');
   const [aiError, setAiError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+
+  // When refreshKey changes (after XR SDK corrupts RN UI), do a navigation refresh
+  // Skip if streaming is active to avoid losing stream state
+  useEffect(() => {
+    if (refreshKey > initialRefreshKey.current && !isStreaming) {
+      console.log('[GlassesDashboard] UI refresh triggered, doing navigation refresh');
+      router.replace('/glasses');
+    }
+  }, [refreshKey, router, isStreaming]);
 
   // Copy URL to clipboard
   const handleCopyUrl = useCallback(async () => {
