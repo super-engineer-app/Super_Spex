@@ -165,7 +165,7 @@ All connected clients receive:
 
 | File | Purpose |
 |------|---------|
-| `cloudflare-workers/index.js` | Token generation, viewer tracking, WebSocket handling |
+| `cloudflare-workers/src/index.ts` | Token generation, viewer tracking, WebSocket handling (TypeScript) |
 | `cloudflare-workers/wrangler.toml` | Worker config with Durable Objects and KV bindings |
 
 ## Video Format Pipeline

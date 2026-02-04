@@ -136,17 +136,39 @@ context.sendBroadcast(closeIntent)
 
 ### Issue: React Native UI corrupted on first connection after cold start
 
-**Cause**: The XR SDK launches `RequestPermissionsOnHostActivity` on the phone display during first connection, which overlays React Native's MainActivity.
+**Cause**: The XR SDK launches `RequestPermissionsOnHostActivity` on the phone display during first connection, which overlays React Native's MainActivity and corrupts native text rendering.
 
-**Fix**: After launching glasses, `XRGlassesService` emits `onUiRefreshNeeded` event after 2 seconds. The `useXRGlasses` hook listens for this and refetches state to force a re-render:
-```typescript
-// In useXRGlasses.ts
-service.onUiRefreshNeeded(async (event) => {
-  // Refetch state to force re-render
-  const [isConnected, engagementMode, capabilities] = await Promise.all([...]);
-  setState(prev => ({ ...prev, connected: isConnected, engagementMode, capabilities }));
-});
+**Symptoms**: Button text disappears (buttons show as solid colored rectangles without text), section titles may still render correctly.
+
+**Fix**: A two-part solution:
+
+1. **Native side** (`XRGlassesService.kt`): Emits `onUiRefreshNeeded` event **once per app session** (first connection only) after 2 seconds:
+```kotlin
+// Only fires once per app session (hasEmittedInitialRefresh flag)
+if (!hasEmittedInitialRefresh) {
+    hasEmittedInitialRefresh = true
+    mainHandler.postDelayed({
+        module.emitEvent("onUiRefreshNeeded", mapOf("reason" to "post_glasses_launch"))
+    }, 2000)
+}
 ```
+
+2. **React side** (`useXRGlasses.ts` + `GlassesDashboard`): Increments `refreshKey` which triggers a navigation refresh to fix corrupted UI:
+```typescript
+// In useXRGlasses.ts - increment refreshKey
+setState(prev => ({ ...prev, refreshKey: prev.refreshKey + 1 }));
+
+// In GlassesDashboard - do navigation refresh (skip if streaming)
+useEffect(() => {
+  if (refreshKey > initialRefreshKey.current && !isStreaming) {
+    router.replace('/glasses');  // Full remount fixes corrupted native views
+  }
+}, [refreshKey, router, isStreaming]);
+```
+
+**Why navigation refresh?** Simple state updates don't fix corrupted native text views - a full component unmount/remount is required. The navigation refresh simulates what users do manually (back + reopen).
+
+**Why only once?** The corruption only happens on **first connection after cold start** when the XR permission overlay appears. Subsequent connections don't cause corruption, and we don't want to disrupt active streaming sessions.
 
 ---
 

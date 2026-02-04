@@ -110,6 +110,8 @@ export function useTaggingSession(): UseTaggingSessionReturn {
   // Refs for tracking state in callbacks
   const isTaggingActiveRef = useRef(false);
   const transcriptRef = useRef('');
+  // Flag to trigger save after transcript is updated (avoids setTimeout race condition)
+  const pendingSaveRef = useRef(false);
 
   // Glasses camera hook
   const {
@@ -129,6 +131,16 @@ export function useTaggingSession(): UseTaggingSessionReturn {
   useEffect(() => {
     transcriptRef.current = taggingTranscript;
   }, [taggingTranscript]);
+
+  // Effect to handle pending save (triggered by end keyword detection)
+  // This runs after state has been updated, avoiding the setTimeout race condition
+  useEffect(() => {
+    if (pendingSaveRef.current && isTaggingActive && taggingTranscript) {
+      pendingSaveRef.current = false;
+      // Use void to explicitly ignore the promise (fire-and-forget)
+      void saveTaggingSessionInternal();
+    }
+  }, [taggingTranscript, isTaggingActive]);
 
   // Request location permission on mount
   useEffect(() => {
@@ -197,19 +209,26 @@ export function useTaggingSession(): UseTaggingSessionReturn {
   }, []);
 
   /**
-   * Save the current tagging session to the backend.
+   * Internal save function - used by both manual save and auto-save on end keyword.
+   * Extracted to avoid circular dependency issues with useCallback.
    */
-  const saveTaggingSession = useCallback(async () => {
-    if (!isTaggingActive) {
+  const saveTaggingSessionInternal = async () => {
+    // Get current state from refs to avoid stale closure issues
+    const currentTranscript = transcriptRef.current;
+    const currentActive = isTaggingActiveRef.current;
+
+    if (!currentActive) {
       setError('No active tagging session');
       return;
     }
 
-    if (!taggingTranscript.trim()) {
+    if (!currentTranscript.trim()) {
       setError('Transcript is empty');
       return;
     }
 
+    // Note: We check taggingImages from state since we need the array reference
+    // This is safe because setTaggingImages is stable and the effect watches taggingTranscript
     if (taggingImages.length === 0) {
       setError('At least one image is required');
       return;
@@ -220,7 +239,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
     setError(null);
     setStatusMessage('Saving...');
 
-    const result = await submitTaggingSession(taggingTranscript, taggingImages, {
+    const result = await submitTaggingSession(currentTranscript, taggingImages, {
       onStatus: (status: TaggingStatusEvent) => {
         setStatusMessage(status.content);
       },
@@ -247,7 +266,14 @@ export function useTaggingSession(): UseTaggingSessionReturn {
         releaseGlassesCamera();
       }
     }
-  }, [isTaggingActive, taggingTranscript, taggingImages, isGlassesCameraReady, releaseGlassesCamera]);
+  };
+
+  /**
+   * Save the current tagging session to the backend.
+   */
+  const saveTaggingSession = useCallback(async () => {
+    await saveTaggingSessionInternal();
+  }, [taggingImages, isGlassesCameraReady, releaseGlassesCamera]);
 
   /**
    * Capture image from glasses camera.
@@ -386,20 +412,19 @@ export function useTaggingSession(): UseTaggingSessionReturn {
         // Add the text before the keyword
         const beforeKeyword = removeEndKeyword(text, endKeyword);
         if (beforeKeyword) {
+          // Set flag to trigger save after transcript state updates
+          pendingSaveRef.current = true;
           setTaggingTranscript((prev) => prev ? `${prev} ${beforeKeyword}` : beforeKeyword);
+        } else {
+          // No text to add, save immediately since transcript is already complete
+          void saveTaggingSessionInternal();
         }
-
-        // Save the session
-        // Note: saveTaggingSession will be called after state updates
-        setTimeout(() => {
-          saveTaggingSession();
-        }, 100);
       } else {
         // Add text to transcript
         addTranscript(text);
       }
     }
-  }, [startTagging, addTranscript, saveTaggingSession]);
+  }, [startTagging, addTranscript]);
 
   return {
     isTaggingActive,
