@@ -43,10 +43,11 @@ Remote View uses Agora RTC to stream video from the glasses camera to a web-base
 ┌─────────────────────────────────────────────────────────────────┐
 │                      WEB VIEWER (Browser)                        │
 ├─────────────────────────────────────────────────────────────────┤
-│  viewer.js                                                       │
+│  viewer.ts                                                       │
+│  - Lobby: camera/mic setup, name entry                          │
+│  - Participant grid with host priority                           │
 │  - Fetches token from Cloudflare Worker                         │
-│  - Subscribes to Agora channel                                   │
-│  - Displays video stream                                         │
+│  - Two-way audio/video streaming                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -157,9 +158,16 @@ All connected clients receive:
 
 | File | Purpose |
 |------|---------|
-| `viewer.js` | Agora client, subscribes to stream, displays video |
-| `index.html` | Viewer page structure |
-| `styles.css` | Viewer styling |
+| `viewer.ts` | Agora client, lobby, participant grid, two-way media |
+| `index.html` | Viewer page: lobby screen, participant grid |
+| `styles.css` | Styling: lobby, grid layouts, participant tiles |
+
+### Web Viewer Features
+
+- **Lobby**: Pre-join screen for camera/mic setup, name entry, permissions
+- **Participant Grid**: Shows all participants (like Zoom/Google Meet)
+- **Host Priority**: Host camera is larger and centered in grid
+- **Display Names**: Names shown under each participant tile (persisted in localStorage)
 
 ### Token Server (Cloudflare Worker)
 
