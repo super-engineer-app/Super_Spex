@@ -34,6 +34,7 @@ class StreamingCameraManager(
 ) {
     companion object {
         private const val TAG = "StreamingCameraManager"
+        private const val LOG_INTERVAL_MS = 5000L
     }
 
     private var imageAnalysis: ImageAnalysis? = null
@@ -156,9 +157,9 @@ class StreamingCameraManager(
 
             frameCount++
 
-            // Log periodically (every 5 seconds) for monitoring
+            // Log periodically for monitoring
             val now = System.currentTimeMillis()
-            if (now - lastLogTime > 5000) {
+            if (now - lastLogTime > LOG_INTERVAL_MS) {
                 Log.d(TAG, "Streaming frame #$frameCount: ${width}x${height}, rotation=$rotation")
                 lastLogTime = now
             }

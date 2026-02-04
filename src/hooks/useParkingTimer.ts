@@ -46,6 +46,9 @@ export interface UseParkingTimerReturn extends ParkingTimerHookState {
   clearError: () => void;
 }
 
+/** Countdown update interval in milliseconds */
+const COUNTDOWN_INTERVAL_MS = 1000;
+
 /**
  * Preset durations for parking timer (in minutes).
  */
@@ -155,7 +158,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
           clearInterval(countdownIntervalRef.current);
           countdownIntervalRef.current = null;
         }
-      }, 1000);
+      }, COUNTDOWN_INTERVAL_MS);
 
       return () => {
         if (countdownIntervalRef.current) {

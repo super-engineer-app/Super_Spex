@@ -291,7 +291,48 @@ wrangler secret put AGORA_APP_CERTIFICATE
 
 ## Audio Streaming
 
-Audio is enabled via `engine.enableAudio()` in AgoraStreamManager. The web viewer supports audio playback via `remoteAudioTrack.play()`.
+Audio is enabled via `engine.enableAudio()` in AgoraStreamManager. The system supports **two-way audio**:
+
+### Two-Way Audio Architecture
+
+```
+Web Viewer (Browser)                    SPEX App (Phone/Glasses)
+─────────────────────                   ────────────────────────
+Mic → LocalAudioTrack → Agora Cloud → onRemoteAudioStateChanged → Speaker
+                                   ↓
+Speaker ← RemoteAudioTrack ← Agora Cloud ← Glasses/Phone Mic
+```
+
+### How It Works
+
+**Phone/Glasses → Web Viewer:**
+- `enableAudio()` enables the device microphone
+- Audio is automatically published with the video stream
+- Web viewer receives via `remoteAudioTrack.play()`
+
+**Web Viewer → Phone/Glasses:**
+- Web viewer joins as `host` role (not `audience`)
+- Viewer requests `publisher` token (not `subscriber`)
+- Microphone track is created and published when user unmutes
+- Android receives via `onRemoteAudioStateChanged` callback
+- Audio auto-plays through device speaker or Bluetooth (glasses)
+
+### Web Viewer Configuration (Two-Way Audio)
+
+The web viewer (`spex-web-viewer`) is configured for two-way audio:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| Token role | `publisher` | Allows publishing audio back |
+| Client role | `host` | Can send and receive media |
+| Mic default | Muted | Privacy - user must click to enable |
+
+### Browser Autoplay Handling
+
+Browsers block audio autoplay. The web viewer:
+1. Attempts to play incoming audio immediately
+2. If blocked, shows "Click anywhere to enable audio" prompt
+3. On first user interaction, retries playback
 
 ### Audio Routing Behavior
 
@@ -317,9 +358,65 @@ Audio is enabled via `engine.enableAudio()` in AgoraStreamManager. The web viewe
 1. Glasses pair as Bluetooth audio device (HFP profile)
 2. `onAudioRouteChanged` shows `BLUETOOTH HEADSET` (route 5)
 3. Audio from glasses mic transmits to web viewers
-4. Audio from web viewers plays through glasses speakers
+4. **Two-way audio**: Audio from web viewers plays through glasses speakers
 
 If Bluetooth routing doesn't work on real hardware, implement external audio source/sink using ProjectedContext (similar to how camera uses `createProjectedDeviceContext()`).
+
+## Two-Way Video
+
+The system supports **two-way video**, allowing web viewers to share their camera back to the host.
+
+### Two-Way Video Architecture
+
+```
+Web Viewer (Browser)                    SPEX App (Phone/Glasses)
+─────────────────────                   ────────────────────────
+Camera → LocalVideoTrack → Agora Cloud → onRemoteVideoStateChanged → Display
+                                     ↓
+Display ← RemoteVideoTrack ← Agora Cloud ← Glasses Camera
+```
+
+### How It Works
+
+**Web Viewer → Phone/Glasses:**
+- Web viewer joins as `host` role (allows publishing media)
+- Camera track created with privacy-first defaults (starts disabled)
+- When user clicks camera button, track is enabled and published
+- Android receives via `onRemoteVideoStateChanged` callback
+- `ViewerInfo.isStreaming` tracks which viewers have camera on
+
+### Web Viewer Camera Configuration
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| Resolution | 640×480 | Optimized for remote viewing |
+| Frame rate | 15 fps | Balance quality/bandwidth |
+| Bitrate | 200-500 kbps | Adaptive quality |
+| Default state | OFF | Privacy - user must click to enable |
+
+### Android Callbacks
+
+The `AgoraStreamManager` tracks viewer video state via:
+
+```kotlin
+override fun onRemoteVideoStateChanged(uid: Int, state: Int, reason: Int, elapsed: Int) {
+    val isStreaming = state == Constants.REMOTE_VIDEO_STATE_DECODING
+    viewers[uid]?.let { viewer ->
+        val updatedViewer = viewer.copy(isStreaming = isStreaming)
+        viewers[uid] = updatedViewer
+        onViewerUpdate(viewerCountAtomic.get(), updatedViewer)
+    }
+}
+```
+
+### ViewerInfo Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uid` | Int | Agora user ID |
+| `displayName` | String? | Optional display name |
+| `isSpeaking` | Boolean | True when viewer's mic is active |
+| `isStreaming` | Boolean | True when viewer's camera is active |
 
 ## Logs to Monitor
 
