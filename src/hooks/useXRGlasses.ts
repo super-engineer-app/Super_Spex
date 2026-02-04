@@ -22,6 +22,8 @@ export interface GlassesState {
   capabilities: DeviceCapabilities | null;
   /** Whether emulation mode is enabled */
   emulationMode: boolean;
+  /** Key that changes when UI needs full remount (after XR SDK corrupts RN views) */
+  refreshKey: number;
 }
 
 /**
@@ -88,6 +90,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
     engagementMode: { visualsOn: false, audioOn: false },
     capabilities: null,
     emulationMode: false,
+    refreshKey: 0,
   });
 
   const [error, setError] = useState<Error | null>(null);
@@ -178,8 +181,10 @@ export function useXRGlasses(): UseXRGlassesReturn {
     const uiRefreshSub = service.onUiRefreshNeeded(async (event) => {
       if (mounted) {
         console.log('[useXRGlasses] UI refresh needed:', event.reason);
-        // Refetch all state to force a proper re-render
-        // This helps recover from XR SDK's RequestPermissionsOnHostActivity overlay
+        // Increment refreshKey to force full component remount
+        // This is necessary because XR SDK's RequestPermissionsOnHostActivity overlay
+        // corrupts React Native's native text rendering, and state updates alone
+        // don't fix the visual corruption - a full unmount/remount is required.
         try {
           const [isConnected, engagementMode, capabilities] = await Promise.all([
             service.isGlassesConnected(),
@@ -192,7 +197,9 @@ export function useXRGlasses(): UseXRGlassesReturn {
               connected: isConnected,
               engagementMode,
               capabilities,
+              refreshKey: prev.refreshKey + 1, // Force remount of components using this key
             }));
+            console.log('[useXRGlasses] Incremented refreshKey to force UI remount');
           }
         } catch (err) {
           console.warn('[useXRGlasses] Failed to refresh state:', err);
@@ -322,6 +329,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
       engagementMode: { visualsOn: false, audioOn: false },
       capabilities: null,
       emulationMode: false,
+      refreshKey: 0,
     });
     await initialize();
   }, [initialize]);

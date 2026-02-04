@@ -419,7 +419,7 @@ class XRGlassesService(
                     "reason" to "post_glasses_launch",
                     "timestamp" to System.currentTimeMillis()
                 ))
-            }, 2000) // 2 second delay to allow permission flow to complete
+            }, 2000) // Emit refresh hint - React side will do navigation refresh to fix corrupted UI
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch via intermediate activity: ${e.message}", e)
