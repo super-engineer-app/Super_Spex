@@ -47,6 +47,18 @@ class AgoraStreamManager(
         private const val TAG = "AgoraStreamManager"
         private const val HOST_UID = 0  // 0 = auto-assign UID
 
+        // Network timeouts
+        private const val CONNECT_TIMEOUT_MS = 10000
+        private const val READ_TIMEOUT_MS = 10000
+        private const val TOKEN_FETCH_TIMEOUT_SECONDS = 15L
+
+        // Video encoding
+        private const val MIN_BITRATE_KBPS = 200  // Floor to prevent unwatchable quality
+
+        // Logging intervals
+        private const val LOG_INTERVAL_MS = 5000L
+        private const val DROPPED_FRAME_LOG_INTERVAL = 30
+
         // URLs loaded from BuildConfig (set via .env file)
         private val VIEWER_URL_BASE: String by lazy {
             try {
@@ -180,8 +192,8 @@ class AgoraStreamManager(
                     val url = URL("$TOKEN_SERVER_URL?channel=$channelId&role=$role")
                     val connection = url.openConnection() as HttpURLConnection
                     connection.requestMethod = "GET"
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 10000
+                    connection.connectTimeout = CONNECT_TIMEOUT_MS
+                    connection.readTimeout = READ_TIMEOUT_MS
 
                     if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                         val response = connection.inputStream.bufferedReader().readText()
@@ -197,7 +209,7 @@ class AgoraStreamManager(
                 }
             }
             // Wait for result (with timeout)
-            future.get(15, TimeUnit.SECONDS)
+            future.get(TOKEN_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch token", e)
             null
@@ -300,7 +312,7 @@ class AgoraStreamManager(
             quality.bitrate,
             VideoEncoderConfiguration.ORIENTATION_MODE.ORIENTATION_MODE_FIXED_PORTRAIT
         ).apply {
-            minBitrate = 200  // Floor to prevent unwatchable quality
+            minBitrate = MIN_BITRATE_KBPS
         }
 
         engine.setVideoEncoderConfiguration(config)
@@ -401,7 +413,7 @@ class AgoraStreamManager(
         if (currentSessionRef.get() == null) {
             droppedBeforeSessionCount++
             // Only log occasionally to avoid spam
-            if (droppedBeforeSessionCount == 1 || droppedBeforeSessionCount % 30 == 0) {
+            if (droppedBeforeSessionCount == 1 || droppedBeforeSessionCount % DROPPED_FRAME_LOG_INTERVAL == 0) {
                 Log.w(TAG, "Frame dropped - session not ready yet (dropped: $droppedBeforeSessionCount)")
             }
             return false
@@ -424,9 +436,9 @@ class AgoraStreamManager(
             pushFailCount++
         }
 
-        // Log periodically (every 5 seconds) for monitoring
+        // Log periodically for monitoring
         val now = System.currentTimeMillis()
-        if (now - lastPushLogTime > 5000) {
+        if (now - lastPushLogTime > LOG_INTERVAL_MS) {
             Log.d(TAG, "Streaming: pushed $pushFrameCount frames (failed: $pushFailCount, dropped before session: $droppedBeforeSessionCount), latest ${width}x${height}")
             lastPushLogTime = now
         }
@@ -533,6 +545,22 @@ class AgoraStreamManager(
             val isSpeaking = state == Constants.REMOTE_AUDIO_STATE_DECODING
             viewers[uid]?.let { viewer ->
                 val updatedViewer = viewer.copy(isSpeaking = isSpeaking)
+                viewers[uid] = updatedViewer
+                onViewerUpdate(viewerCountAtomic.get(), updatedViewer)
+            }
+        }
+
+        override fun onRemoteVideoStateChanged(
+            uid: Int,
+            state: Int,
+            reason: Int,
+            elapsed: Int
+        ) {
+            // Track when viewer is streaming video (enabled their camera)
+            val isStreaming = state == Constants.REMOTE_VIDEO_STATE_DECODING
+            Log.d(TAG, ">>> REMOTE VIDEO STATE: uid=$uid, streaming=$isStreaming, state=$state")
+            viewers[uid]?.let { viewer ->
+                val updatedViewer = viewer.copy(isStreaming = isStreaming)
                 viewers[uid] = updatedViewer
                 onViewerUpdate(viewerCountAtomic.get(), updatedViewer)
             }

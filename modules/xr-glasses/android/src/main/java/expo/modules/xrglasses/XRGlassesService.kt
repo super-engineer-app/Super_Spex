@@ -1304,22 +1304,25 @@ class XRGlassesService(
      */
     private fun setScreenOn(enabled: Boolean) {
         try {
-            // Get current activity from context
-            val activity = context as? android.app.Activity
-                ?: (context as? android.content.ContextWrapper)?.baseContext as? android.app.Activity
+            // Use the stored currentActivity (set via setCurrentActivity from module)
+            val activity = currentActivity
 
             if (activity != null) {
                 activity.runOnUiThread {
-                    if (enabled) {
-                        activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                        Log.d(TAG, "Screen keep-awake ENABLED")
-                    } else {
-                        activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                        Log.d(TAG, "Screen keep-awake DISABLED")
+                    try {
+                        if (enabled) {
+                            activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            Log.d(TAG, "Screen keep-awake ENABLED")
+                        } else {
+                            activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            Log.d(TAG, "Screen keep-awake DISABLED")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to modify window flags: ${e.message}")
                     }
                 }
             } else {
-                Log.w(TAG, "Could not get Activity for screen keep-awake")
+                Log.w(TAG, "Could not get Activity for screen keep-awake - currentActivity is null")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set screen on: ${e.message}")

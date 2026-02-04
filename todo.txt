@@ -1,9 +1,11 @@
 ### PENDING:
 1. video streaming recording from the user B side. in the web-viewer there should be a button "record" and they should record audio + video (in a single video file) and be able to store it locally.
-2. every participant in the channel should be able to mute/unmute
-3. every participant should be able to turn their camera on and off.
-4. add manual text entry option to tagging text (not only voice transcription.). 
+4. add manual text entry option to tagging text (not only voice transcription.).
 4. Legacy imports cleanup
+
+### DONE:
+2. ~~every participant in the channel should be able to mute/unmute~~ (implemented in web viewer)
+3. ~~every participant should be able to turn their camera on and off.~~ (implemented in web viewer)
 5. Remove 'any' keyword usage
 6. Scan for unsafe language features
 7. Glasses camera dimensions/quality options

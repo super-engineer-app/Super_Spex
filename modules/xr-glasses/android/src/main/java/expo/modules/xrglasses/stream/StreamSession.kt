@@ -18,5 +18,6 @@ data class StreamSession(
 data class ViewerInfo(
     val uid: Int,
     val displayName: String? = null,
-    val isSpeaking: Boolean = false
+    val isSpeaking: Boolean = false,
+    val isStreaming: Boolean = false
 )

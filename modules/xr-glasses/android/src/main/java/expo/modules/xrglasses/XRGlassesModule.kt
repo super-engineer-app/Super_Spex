@@ -312,6 +312,8 @@ class XRGlassesModule : Module() {
                     val activity = appContext.currentActivity
                     if (activity is LifecycleOwner) {
                         glassesService?.setStreamingLifecycleOwner(activity)
+                        // Also set current activity for screen keep-awake
+                        glassesService?.setCurrentActivity(activity)
                     } else {
                         promise.reject(CodedException("NO_LIFECYCLE_OWNER", "Activity is not a LifecycleOwner", null))
                         return@launch

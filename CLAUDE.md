@@ -67,6 +67,11 @@ Write code that is:
 - **Maintainable**: Self-documenting, clear naming, minimal complexity
 
 Avoid:
+- unsafe language features such as "any"
+- any potential runtime unsafety
+- any type unsafe features
+- any potential race conditions 
+- any potential memory/resource leaks
 - Over-engineering or premature optimization
 - Magic numbers/strings - use constants
 - Deep nesting - extract to functions
@@ -207,7 +212,7 @@ For quick UI testing without emulators:
 
 ## Progress & Documentation
 
-**Project Status:** See `XR_GLASSES_APP_PLAN.md` for current status, next steps, and milestones.
+**Project Status:** See the docs and architecture for current status, next steps, and milestones.
 
 **Understanding the Codebase:**
 1. Start with `docs/architecture.md` for system overview
