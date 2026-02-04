@@ -71,6 +71,10 @@ class XRGlassesService(
         // Track connection cycles for debugging state corruption
         private var connectionCycleCount = 0
 
+        // Track if we've already emitted the UI refresh hint for this app session
+        // Only needed once after cold start when XR SDK permission overlay corrupts RN UI
+        private var hasEmittedInitialRefresh = false
+
         // Real Android XR feature constants (discovered from actual device features)
         private const val FEATURE_XR_PERIPHERAL = "android.hardware.type.xr_peripheral"  // Device is XR glasses
         private const val FEATURE_XR_PROJECTED = "com.google.android.feature.XR_PROJECTED"  // Phone can project to glasses
@@ -412,14 +416,17 @@ class XRGlassesService(
 
             // The XR SDK may launch RequestPermissionsOnHostActivity on the phone display
             // which can temporarily corrupt React Native's UI on first connection after cold start.
-            // Emit a refresh hint after a delay to let React Native know it may need to re-render.
-            mainHandler.postDelayed({
-                Log.d(TAG, "Emitting UI refresh hint after glasses launch")
-                module.emitEvent("onUiRefreshNeeded", mapOf(
-                    "reason" to "post_glasses_launch",
-                    "timestamp" to System.currentTimeMillis()
-                ))
-            }, 2000) // Emit refresh hint - React side will do navigation refresh to fix corrupted UI
+            // Only emit refresh hint once per app session (on first connection).
+            if (!hasEmittedInitialRefresh) {
+                hasEmittedInitialRefresh = true
+                mainHandler.postDelayed({
+                    Log.d(TAG, "Emitting UI refresh hint after first glasses launch (cold start fix)")
+                    module.emitEvent("onUiRefreshNeeded", mapOf(
+                        "reason" to "post_glasses_launch",
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                }, 2000)
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch via intermediate activity: ${e.message}", e)
