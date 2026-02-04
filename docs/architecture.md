@@ -25,6 +25,8 @@
 │  ├── XRGlassesModule.kt (Expo bridge)                       │
 │  ├── XRGlassesService.kt (connection management)            │
 │  ├── GlassesCameraManager.kt (image capture)                │
+│  ├── StreamingCameraManager.kt (video frame capture)        │
+│  ├── AgoraStreamManager.kt (Agora RTC streaming)            │
 │  └── GlassesBroadcastReceiver.kt (receives IPC)             │
 └─────────────────────────────────────────────────────────────┘
                               │ Intent (IPC)
@@ -32,9 +34,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │              :xr_process (on phone, DISPLAYS to glasses)     │
 │  ├── ProjectionLauncherActivity.kt (XR SDK setup)           │
-│  ├── GlassesActivity.kt (glasses UI, speech, streaming)     │
-│  ├── AgoraStreamManager.kt (Agora RTC)                      │
-│  └── TextureCameraProvider.kt (camera frames for streaming) │
+│  └── GlassesActivity.kt (glasses UI, speech recognition)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,12 +88,13 @@ See [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md)
 modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
 ├── XRGlassesModule.kt              # Expo module bridge (main process)
 ├── XRGlassesService.kt             # Connection & state management (main process)
-├── GlassesBroadcastReceiver.kt     # Receives IPC from :xr_process
-├── GlassesCameraManager.kt         # Camera capture logic
-├── StreamingCameraManager.kt       # Video streaming frame capture
+├── GlassesBroadcastReceiver.kt     # Receives IPC from :xr_process (main process)
+├── GlassesCameraManager.kt         # Camera capture logic (main process)
+├── StreamingCameraManager.kt       # Video streaming frame capture (main process)
+├── NativeErrorHandler.kt           # Error reporting to Discord (main process)
 ├── ProjectionLauncherActivity.kt   # XR SDK setup (:xr_process)
 ├── stream/                         # Remote View (Agora streaming)
-│   ├── AgoraStreamManager.kt       # Agora RTC engine wrapper (:xr_process)
+│   ├── AgoraStreamManager.kt       # Agora RTC engine wrapper (main process)
 │   ├── StreamQuality.kt            # Quality presets enum
 │   └── StreamSession.kt            # Session & ViewerInfo data classes
 └── glasses/
@@ -120,28 +121,27 @@ Device capabilities are checked internally before connecting but not displayed i
 ### Remote View (Agora Streaming)
 Real-time video streaming from glasses camera to web viewers via Agora RTC.
 
-**Why Agora runs in :xr_process:**
-- Keeps streaming logic separate from React Native main process
-- AgoraStreamManager handles RTC engine lifecycle
+**Why Agora runs in main process:**
+- `StreamingCameraManager` needs `ProjectedContext.createProjectedDeviceContext()` to access glasses camera
+- ProjectedContext only works from the main process (verified by testing)
+- Running both camera capture and Agora in main process avoids IPC overhead for video frames
 
-**Camera Access from :xr_process:**
-Since `:xr_process` runs on the phone but doesn't have direct hardware access,
-`TextureCameraProvider` must use `ProjectedContext.createProjectedDeviceContext()`
-to access the glasses camera. This is the same approach used by `GlassesCameraManager`
-in the main process for image capture.
+**Camera Access:**
+`StreamingCameraManager` uses `ProjectedContext.createProjectedDeviceContext()` to access the glasses camera.
+This is the same approach used by `GlassesCameraManager` for image capture.
 
 **Architecture:**
 ```
-:xr_process (on phone)                Cloud                    Browser
+Main Process (on phone)               Cloud                    Browser
 ┌─────────────────────────┐   ┌─────────────────┐      ┌──────────────────┐
-│ GlassesActivity         │   │ Cloudflare      │      │ Web Viewer       │
-│   ↓                     │   │ Workers         │      │                  │
-│ TextureCameraProvider   │   │ - Token server  │      │ Agora Web SDK    │
+│ XRGlassesService        │   │ Cloudflare      │      │ Web Viewer       │
+│   ↓                     │   │ Workers (TS)    │      │                  │
+│ StreamingCameraManager  │   │ - Token server  │      │ Agora Web SDK    │
 │   ↓ (via ProjectedCtx)  │   │ - Static viewer │      │ - Subscribe      │
 │ CameraX → NV21 frames   │   │                 │      │ - Display video  │
 │   ↓                     │   │                 │      │                  │
 │ AgoraStreamManager      │──►│                 │◄─────│                  │
-│ - pushVideoFrame()      │   └─────────────────┘      └──────────────────┘
+│ - pushVideoFrameBuffer()│   └─────────────────┘      └──────────────────┘
 │ - Token auth            │
 └─────────────────────────┘
 ```

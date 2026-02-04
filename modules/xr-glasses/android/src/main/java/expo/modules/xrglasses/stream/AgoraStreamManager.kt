@@ -11,21 +11,29 @@ import io.agora.rtc2.video.AgoraVideoFrame
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 
 /**
  * AgoraStreamManager - Manages Agora RTC engine for Remote View streaming.
  *
- * This class runs in :xr_process and handles all Agora SDK interactions.
+ * This class runs in the MAIN PROCESS and handles all Agora SDK interactions.
  * Key responsibilities:
  * - Initialize and configure RtcEngine with low-latency settings
  * - Manage streaming sessions (start/stop)
  * - Push video frames from camera to Agora
  * - Track connected viewers
  *
- * IMPORTANT: This must run in :xr_process to avoid IPC overhead for video frames.
+ * NOTE: This runs in the main process because StreamingCameraManager needs
+ * ProjectedContext to access the glasses camera, which only works from the main process.
+ * Video frames are pushed directly without IPC overhead since both are in the same process.
+ *
+ * Thread Safety: This class is thread-safe. Event handlers from Agora SDK run on
+ * background threads, while public methods may be called from the main thread.
  */
 class AgoraStreamManager(
     private val context: Context,
@@ -55,10 +63,10 @@ class AgoraStreamManager(
         }
     }
 
-    private var rtcEngine: RtcEngine? = null
-    private var currentSession: StreamSession? = null
-    private var viewerCount = 0
-    private val viewers = mutableMapOf<Int, ViewerInfo>()
+    @Volatile private var rtcEngine: RtcEngine? = null
+    private val currentSessionRef = AtomicReference<StreamSession?>(null)
+    private val viewerCountAtomic = AtomicInteger(0)
+    private val viewers = ConcurrentHashMap<Int, ViewerInfo>()
 
     // Executor for network operations (avoids NetworkOnMainThreadException)
     private val networkExecutor = Executors.newSingleThreadExecutor()
@@ -208,7 +216,7 @@ class AgoraStreamManager(
             }
         }
 
-        if (currentSession != null) {
+        if (currentSessionRef.get() != null) {
             Log.w(TAG, "Stream already active, stopping first")
             stopStream()
         }
@@ -249,8 +257,8 @@ class AgoraStreamManager(
                 viewerUrl = viewerUrl,
                 quality = quality
             )
-            currentSession = session
-            viewerCount = 0
+            currentSessionRef.set(session)
+            viewerCountAtomic.set(0)
             viewers.clear()
 
             // Log audio device info
@@ -306,8 +314,8 @@ class AgoraStreamManager(
         Log.d(TAG, "Stopping stream...")
 
         rtcEngine?.leaveChannel()
-        currentSession = null
-        viewerCount = 0
+        currentSessionRef.set(null)
+        viewerCountAtomic.set(0)
         viewers.clear()
 
         onStreamStopped()
@@ -318,13 +326,14 @@ class AgoraStreamManager(
      * Update quality while streaming.
      */
     fun setQuality(quality: StreamQuality) {
-        if (currentSession == null) {
+        val session = currentSessionRef.get()
+        if (session == null) {
             Log.w(TAG, "No active stream to update quality")
             return
         }
 
         applyQualityPreset(quality)
-        currentSession = currentSession?.copy(quality = quality)
+        currentSessionRef.set(session.copy(quality = quality))
         Log.d(TAG, "Quality updated to: ${quality.displayName}")
     }
 
@@ -347,7 +356,7 @@ class AgoraStreamManager(
         timestampMs: Long
     ): Boolean {
         val engine = rtcEngine ?: return false
-        if (currentSession == null) return false
+        if (currentSessionRef.get() == null) return false
 
         val frame = AgoraVideoFrame().apply {
             format = AgoraVideoFrame.FORMAT_TEXTURE_OES
@@ -362,11 +371,11 @@ class AgoraStreamManager(
         return engine.pushExternalVideoFrame(frame)
     }
 
-    // Frame counter for periodic logging
-    private var pushFrameCount = 0
-    private var pushFailCount = 0
-    private var lastPushLogTime = 0L
-    private var droppedBeforeSessionCount = 0
+    // Frame counter for periodic logging - accessed from multiple threads
+    @Volatile private var pushFrameCount = 0
+    @Volatile private var pushFailCount = 0
+    @Volatile private var lastPushLogTime = 0L
+    @Volatile private var droppedBeforeSessionCount = 0
 
     /**
      * Push a video frame to Agora (buffer mode).
@@ -389,7 +398,7 @@ class AgoraStreamManager(
             Log.w(TAG, "Cannot push frame - RTC engine is null")
             return false
         }
-        if (currentSession == null) {
+        if (currentSessionRef.get() == null) {
             droppedBeforeSessionCount++
             // Only log occasionally to avoid spam
             if (droppedBeforeSessionCount == 1 || droppedBeforeSessionCount % 30 == 0) {
@@ -428,22 +437,22 @@ class AgoraStreamManager(
     /**
      * Check if the session is ready for receiving frames.
      */
-    fun isSessionReady(): Boolean = currentSession != null
+    fun isSessionReady(): Boolean = currentSessionRef.get() != null
 
     /**
      * Check if currently streaming.
      */
-    fun isStreaming(): Boolean = currentSession != null
+    fun isStreaming(): Boolean = currentSessionRef.get() != null
 
     /**
      * Get the current session info.
      */
-    fun getCurrentSession(): StreamSession? = currentSession
+    fun getCurrentSession(): StreamSession? = currentSessionRef.get()
 
     /**
      * Get the current viewer count.
      */
-    fun getViewerCount(): Int = viewerCount
+    fun getViewerCount(): Int = viewerCountAtomic.get()
 
     /**
      * Release all resources.
@@ -495,10 +504,10 @@ class AgoraStreamManager(
 
         override fun onUserJoined(uid: Int, elapsed: Int) {
             Log.d(TAG, "Viewer joined: uid=$uid")
-            viewerCount++
+            val newCount = viewerCountAtomic.incrementAndGet()
             val viewerInfo = ViewerInfo(uid = uid)
             viewers[uid] = viewerInfo
-            onViewerUpdate(viewerCount, viewerInfo)
+            onViewerUpdate(newCount, viewerInfo)
         }
 
         override fun onUserOffline(uid: Int, reason: Int) {
@@ -509,9 +518,9 @@ class AgoraStreamManager(
             }
             Log.d(TAG, "Viewer left: uid=$uid, reason=$reasonStr")
 
-            viewerCount = maxOf(0, viewerCount - 1)
+            val newCount = viewerCountAtomic.updateAndGet { count -> maxOf(0, count - 1) }
             viewers.remove(uid)
-            onViewerUpdate(viewerCount, null)
+            onViewerUpdate(newCount, null)
         }
 
         override fun onRemoteAudioStateChanged(
@@ -525,7 +534,7 @@ class AgoraStreamManager(
             viewers[uid]?.let { viewer ->
                 val updatedViewer = viewer.copy(isSpeaking = isSpeaking)
                 viewers[uid] = updatedViewer
-                onViewerUpdate(viewerCount, updatedViewer)
+                onViewerUpdate(viewerCountAtomic.get(), updatedViewer)
             }
         }
 

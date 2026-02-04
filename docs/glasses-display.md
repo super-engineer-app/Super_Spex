@@ -1,10 +1,14 @@
-# Glasses Display - Jetpack Compose Glimmer
+# Glasses Display - Jetpack Compose
 
 ## Overview
 
-To display content on AI glasses, you need two libraries:
+To display content on AI glasses, you need:
 - **Jetpack Projected** (`androidx.xr.projected`) - Bridges phone ↔ glasses communication
-- **Jetpack Compose Glimmer** (`androidx.xr.glimmer`) - UI toolkit optimized for glasses displays
+- **Jetpack Compose** - UI toolkit for the glasses display
+
+> **Note:** Jetpack Compose Glimmer (`androidx.xr.glimmer`) is a specialized UI toolkit
+> optimized for glasses displays. It's documented below for future reference but is
+> **not currently used** in this project. We use standard Compose Material3 instead.
 
 ## Architecture
 
@@ -15,7 +19,7 @@ ProjectedContext.createProjectedActivityOptions()
     ↓
 GlassesActivity (runs on glasses with xr_projected display category)
     ↓ uses
-Jetpack Compose Glimmer UI Components
+Jetpack Compose UI Components (Material3)
     ↓ renders to
 Glasses Display (additive/transparent)
 ```
@@ -29,19 +33,23 @@ dependencies {
     // Jetpack Projected - phone ↔ glasses bridge
     implementation("androidx.xr.projected:projected:1.0.0-alpha04")
 
-    // Jetpack Compose Glimmer - glasses UI toolkit
-    implementation("androidx.xr.glimmer:glimmer:1.0.0-alpha05")
-
-    // Required: Compose foundation
-    implementation("androidx.compose.ui:ui:1.7.0")
-    implementation("androidx.compose.foundation:foundation:1.7.0")
-    implementation("androidx.compose.material3:material3:1.3.0")
-    implementation("androidx.activity:activity-compose:1.9.0")
+    // Jetpack Compose - standard UI toolkit (currently used)
+    implementation("androidx.compose.ui:ui:1.7.7")
+    implementation("androidx.compose.foundation:foundation:1.7.7")
+    implementation("androidx.compose.material3:material3:1.3.1")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
     // XR Extensions (MUST be compileOnly!)
     compileOnly("com.android.extensions.xr:extensions-xr:1.1.0")
 }
 ```
+
+> **Future option:** If you want glasses-optimized UI components, add Glimmer:
+> ```kotlin
+> implementation("androidx.xr.glimmer:glimmer:1.0.0-alpha05")
+> ```
+> See the [Glimmer Theme System](#glimmer-theme-system) section below for details.
 
 ## Manifest Configuration
 

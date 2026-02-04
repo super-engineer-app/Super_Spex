@@ -15,6 +15,8 @@ import androidx.lifecycle.LifecycleOwner
 import expo.modules.xrglasses.stream.StreamQuality
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * StreamingCameraManager - Captures continuous frames from glasses camera for Agora streaming.
@@ -45,39 +47,39 @@ class StreamingCameraManager(
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageAnalysis: ImageAnalysis? = null
-    private var cameraExecutor: ExecutorService? = null
-    private var isCapturing = false
-    private var currentQuality: StreamQuality = StreamQuality.BALANCED
+    @Volatile private var cameraExecutor: ExecutorService? = null
+    private val isCapturing = AtomicBoolean(false)
+    @Volatile private var currentQuality: StreamQuality = StreamQuality.BALANCED
 
     // Camera context obtained via ProjectedContext
     private var glassesContext: Context? = null
-    private var cameraSource: String = "unknown"
-    private var isEmulationMode: Boolean = false
+    @Volatile private var cameraSource: String = "unknown"
+    @Volatile private var isEmulationMode: Boolean = false
 
-    // Reusable buffer to avoid allocations
-    private var nv21Buffer: ByteArray? = null
+    // Reusable buffer to avoid allocations - thread-safe access
+    private val nv21BufferRef = AtomicReference<ByteArray?>(null)
 
     // Frame counter for periodic logging
-    private var frameCount = 0
-    private var lastLogTime = 0L
+    @Volatile private var frameCount = 0
+    @Volatile private var lastLogTime = 0L
 
     // Lifecycle handling for app background/foreground
     private var currentLifecycleOwner: LifecycleOwner? = null
-    private var wasCapturingBeforePause = false
+    @Volatile private var wasCapturingBeforePause = false
 
     // Lifecycle observer to handle app going to background/foreground
     private val lifecycleObserver = object : DefaultLifecycleObserver {
         override fun onResume(owner: LifecycleOwner) {
-            Log.d(TAG, ">>> Lifecycle RESUMED - wasCapturing: $wasCapturingBeforePause, isCapturing: $isCapturing")
+            Log.d(TAG, ">>> Lifecycle RESUMED - wasCapturing: $wasCapturingBeforePause, isCapturing: ${isCapturing.get()}")
             // Camera should auto-resume via CameraX lifecycle binding
             // But log it so we can debug if there are issues
         }
 
         override fun onPause(owner: LifecycleOwner) {
-            Log.d(TAG, ">>> Lifecycle PAUSED - isCapturing: $isCapturing")
+            Log.d(TAG, ">>> Lifecycle PAUSED - isCapturing: ${isCapturing.get()}")
             // Note: CameraX will automatically pause when lifecycle pauses
             // Frames will stop being captured until the app resumes
-            wasCapturingBeforePause = isCapturing
+            wasCapturingBeforePause = isCapturing.get()
         }
 
         override fun onStop(owner: LifecycleOwner) {
@@ -94,7 +96,7 @@ class StreamingCameraManager(
      */
     fun startCapture(lifecycleOwner: LifecycleOwner, quality: StreamQuality, emulationMode: Boolean = false) {
         this.isEmulationMode = emulationMode
-        if (isCapturing) {
+        if (isCapturing.get()) {
             Log.w(TAG, "Already capturing, stopping first")
             stopCapture()
         }
@@ -232,13 +234,20 @@ class StreamingCameraManager(
             .build()
 
         // Build ImageAnalysis with quality-appropriate resolution
+        val executor = cameraExecutor
+        if (executor == null) {
+            Log.e(TAG, "Camera executor is null, cannot setup image analysis")
+            onError("Camera executor not initialized")
+            return
+        }
+
         imageAnalysis = ImageAnalysis.Builder()
             .setResolutionSelector(resolutionSelector)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
             .build()
             .also { analysis ->
-                analysis.setAnalyzer(cameraExecutor!!) { imageProxy ->
+                analysis.setAnalyzer(executor) { imageProxy ->
                     processFrame(imageProxy)
                 }
             }
@@ -254,7 +263,7 @@ class StreamingCameraManager(
                 imageAnalysis
             )
 
-            isCapturing = true
+            isCapturing.set(true)
             Log.d(TAG, "========================================")
             Log.d(TAG, ">>> STREAMING CAMERA STARTED: $cameraSource")
             Log.d(TAG, ">>> Resolution: ${quality.width}x${quality.height} @ ${quality.fps}fps")
@@ -271,7 +280,7 @@ class StreamingCameraManager(
      * Process a single frame from CameraX and send to Agora.
      */
     private fun processFrame(imageProxy: ImageProxy) {
-        if (!isCapturing) {
+        if (!isCapturing.get()) {
             imageProxy.close()
             return
         }
@@ -322,12 +331,13 @@ class StreamingCameraManager(
         val uvSize = width * height / 2  // Interleaved VU for NV21
         val totalSize = ySize + uvSize
 
-        // Reuse or allocate buffer
-        if (nv21Buffer == null || nv21Buffer!!.size != totalSize) {
-            nv21Buffer = ByteArray(totalSize)
+        // Reuse or allocate buffer - thread-safe via AtomicReference
+        var nv21 = nv21BufferRef.get()
+        if (nv21 == null || nv21.size != totalSize) {
+            nv21 = ByteArray(totalSize)
+            nv21BufferRef.set(nv21)
             Log.d(TAG, "Allocated NV21 buffer: $totalSize bytes for ${width}x${height}")
         }
-        val nv21 = nv21Buffer!!
 
         val planes = imageProxy.planes
         val yBuffer = planes[0].buffer
@@ -421,11 +431,12 @@ class StreamingCameraManager(
         val uvSize = width * height / 4  // Each U and V plane is 1/4 of Y
         val totalSize = ySize + uvSize * 2  // Y + U + V
 
-        // Reuse or allocate buffer
-        if (nv21Buffer == null || nv21Buffer!!.size != totalSize) {
-            nv21Buffer = ByteArray(totalSize)
+        // Reuse or allocate buffer - thread-safe via AtomicReference
+        var i420 = nv21BufferRef.get()
+        if (i420 == null || i420.size != totalSize) {
+            i420 = ByteArray(totalSize)
+            nv21BufferRef.set(i420)
         }
-        val i420 = nv21Buffer!!
 
         val planes = imageProxy.planes
         val yBuffer = planes[0].buffer
@@ -475,7 +486,7 @@ class StreamingCameraManager(
         Log.d(TAG, "Updating streaming quality to ${quality.displayName}")
         currentQuality = quality
 
-        if (isCapturing) {
+        if (isCapturing.get()) {
             cameraProvider?.unbindAll()
             setupImageAnalysis(lifecycleOwner, quality)
         }
@@ -486,7 +497,7 @@ class StreamingCameraManager(
      */
     fun stopCapture() {
         Log.d(TAG, "Stopping streaming camera capture (was using: $cameraSource)")
-        isCapturing = false
+        isCapturing.set(false)
         wasCapturingBeforePause = false
 
         // Remove lifecycle observer
@@ -503,7 +514,7 @@ class StreamingCameraManager(
         cameraExecutor = null
         cameraProvider = null
         imageAnalysis = null
-        nv21Buffer = null
+        nv21BufferRef.set(null)
         glassesContext = null
         cameraSource = "unknown"
         onCameraReady(false)
@@ -512,5 +523,5 @@ class StreamingCameraManager(
     /**
      * Check if currently capturing.
      */
-    fun isCapturing(): Boolean = isCapturing
+    fun isCapturing(): Boolean = isCapturing.get()
 }

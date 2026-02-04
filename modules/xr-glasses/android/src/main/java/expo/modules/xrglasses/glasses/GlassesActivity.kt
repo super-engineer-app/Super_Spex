@@ -63,6 +63,7 @@ class GlassesActivity : ComponentActivity() {
     private var isListening = false
     private var continuousMode = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile private var isActivityDestroyed = false
 
     // Broadcast receiver to handle close command from phone
     private val closeReceiver = object : BroadcastReceiver() {
@@ -295,7 +296,9 @@ class GlassesActivity : ComponentActivity() {
                 speechRecognizer = null
                 initSpeechRecognizer()
                 if (isListening) {
-                    mainHandler.postDelayed({ startListeningInternal() }, 100)
+                    mainHandler.postDelayed({
+                        if (!isActivityDestroyed) startListeningInternal()
+                    }, 100)
                 }
                 return
             }
@@ -320,7 +323,7 @@ class GlassesActivity : ComponentActivity() {
 
             if (continuousMode && isListening && isRecoverableError(error)) {
                 mainHandler.postDelayed({
-                    if (isListening) startListeningInternal()
+                    if (!isActivityDestroyed && isListening) startListeningInternal()
                 }, 500)
             }
         }
@@ -350,7 +353,7 @@ class GlassesActivity : ComponentActivity() {
 
             if (continuousMode && isListening) {
                 mainHandler.postDelayed({
-                    if (isListening) startListeningInternal()
+                    if (!isActivityDestroyed && isListening) startListeningInternal()
                 }, 100)
             }
         }
@@ -482,7 +485,11 @@ class GlassesActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isActivityDestroyed = true
         activeInstances--
+
+        // Remove all pending handler callbacks to prevent leaks
+        mainHandler.removeCallbacksAndMessages(null)
 
         // Unregister close receiver
         try {
