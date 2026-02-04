@@ -25,7 +25,18 @@ import { sendText, sendImage } from '../../src/services';
  */
 export default function GlassesDashboard() {
   const router = useRouter();
-  const { connected, emulationMode, disconnect } = useXRGlasses();
+  const { connected, emulationMode, disconnect, refreshKey } = useXRGlasses();
+  const initialRefreshKey = useRef(refreshKey);
+
+  // When refreshKey changes (after XR SDK corrupts RN UI), do a navigation refresh
+  // This simulates pressing back and re-opening the dashboard
+  useEffect(() => {
+    if (refreshKey > initialRefreshKey.current) {
+      console.log('[GlassesDashboard] UI refresh triggered, doing navigation refresh');
+      // Replace current route with itself to force full remount
+      router.replace('/glasses');
+    }
+  }, [refreshKey, router]);
 
   const {
     isListening,
