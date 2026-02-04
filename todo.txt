@@ -2,6 +2,12 @@
 1. video streaming recording from the user B side. in the web-viewer there should be a button "record" and they should record audio + video (in a single video file) and be able to store it locally.
 4. add manual text entry option to tagging text (not only voice transcription.).
 4. Legacy imports cleanup
+11. Transcription on recording stop:
+    - When user stops recording, prompt: "Would you like to make a transcription?"
+    - If yes: "Are you sure?" confirmation
+    - Mix all audio tracks (all participants + host) into single audio file
+    - Send to /transcribe endpoint (accepts audio file, user_id, language)
+    - Save both files: video+audio combined AND transcription text separately
 
 ### DONE:
 2. ~~every participant in the channel should be able to mute/unmute~~ (implemented in web viewer)
@@ -12,6 +18,10 @@
 8. Scan for legacy code to modernize
 9. Video streaming optimization
 10. Switch tagging API to HTTPS (remove cleartext HTTP workaround)
+12. ~~Lobby/landing page before joining channel~~ (camera/mic setup, name entry, permissions)
+13. ~~Participant grid view~~ (like Zoom/Google Meet, host larger and centered)
+14. ~~Display names under participant tiles~~ (persisted in localStorage)
+15. ~~Screen wake lock during streaming~~ (Android FLAG_KEEP_SCREEN_ON fix)
 
 ### FUTURE FEATURES:
 2. Pre-record video with glasses + transcription + share
