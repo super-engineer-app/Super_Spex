@@ -111,25 +111,43 @@ export async function submitTaggingSession(
     return { success: false, error: error.message };
   }
 
-  // Build request payload
-  const payload: TaggingSessionRequest = {
-    user_id: getTaggingUserId(),
-    org_id: getTaggingOrgId(),
-    transcript: transcript.trim(),
-    images: images.map((img) => ({
-      base64: img.base64,
-      lat: img.lat,
-      long: img.long,
-    })),
-    local_date: getLocalDateString(),
-  };
+  // Build multipart form-data payload (backend uses Form() + File())
+  const userId = getTaggingUserId();
+  const orgId = getTaggingOrgId();
+  const trimmedTranscript = transcript.trim();
+  const localDate = getLocalDateString();
+
+  // Coordinates as JSON string: [{lat, long}, ...]
+  const coordinates = images.map((img) => ({
+    lat: img.lat,
+    long: img.long,
+  }));
+
+  const formData = new FormData();
+  formData.append('user_id', String(userId));
+  formData.append('org_id', String(orgId));
+  formData.append('transcript', trimmedTranscript);
+  formData.append('local_date', localDate);
+  formData.append('coordinates', JSON.stringify(coordinates));
+
+  // Convert base64 images to file blobs
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    const byteCharacters = atob(img.base64);
+    const byteArray = new Uint8Array(byteCharacters.length);
+    for (let j = 0; j < byteCharacters.length; j++) {
+      byteArray[j] = byteCharacters.charCodeAt(j);
+    }
+    const blob = new Blob([byteArray], { type: 'image/jpeg' });
+    formData.append('images', blob, `image_${i + 1}.jpg`);
+  }
 
   console.log('[TaggingAPI] Submitting tagging session:', {
-    user_id: payload.user_id,
-    org_id: payload.org_id,
-    transcript_length: payload.transcript.length,
-    image_count: payload.images.length,
-    local_date: payload.local_date,
+    user_id: userId,
+    org_id: orgId,
+    transcript_length: trimmedTranscript.length,
+    image_count: images.length,
+    local_date: localDate,
   });
 
   try {
@@ -137,10 +155,7 @@ export async function submitTaggingSession(
 
     const response = await fetch(TAGGING_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: formData,
     });
 
     if (!response.ok) {
