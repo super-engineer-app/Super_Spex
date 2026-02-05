@@ -13,7 +13,10 @@ import {
   CameraErrorEvent,
   CameraStateEvent,
   UiRefreshNeededEvent,
+  RecordingStateChangedEvent,
+  RecordingErrorEvent,
 } from '../index';
+import type { TranscriptionResponse } from '../index';
 
 /**
  * Subscription interface for event listeners.
@@ -141,6 +144,29 @@ export interface IXRGlassesService {
   onImageCaptured(callback: (event: ImageCapturedEvent) => void): Subscription;
   onCameraError(callback: (event: CameraErrorEvent) => void): Subscription;
   onCameraStateChanged(callback: (event: CameraStateEvent) => void): Subscription;
+
+  // ============================================================
+  // Video Recording
+  // ============================================================
+
+  /** Start video recording from specified camera source ("phone" or "glasses") */
+  startVideoRecording(cameraSource: string): Promise<boolean>;
+
+  /** Stop video recording */
+  stopVideoRecording(): Promise<boolean>;
+
+  /** Dismiss recording (delete file, reset state) */
+  dismissVideoRecording(): Promise<boolean>;
+
+  /** Get file path of last completed recording */
+  getRecordingFilePath(): Promise<string | null>;
+
+  /** Send recording audio to transcription backend */
+  sendRecordingForTranscription(language: string): Promise<TranscriptionResponse>;
+
+  // Video recording events
+  onRecordingStateChanged(callback: (event: RecordingStateChangedEvent) => void): Subscription;
+  onRecordingError(callback: (event: RecordingErrorEvent) => void): Subscription;
 
   // UI events
   onUiRefreshNeeded(callback: (event: UiRefreshNeededEvent) => void): Subscription;
@@ -297,6 +323,38 @@ class AndroidXRGlassesService implements IXRGlassesService {
     return { remove: () => subscription.remove() };
   }
 
+  // Video recording methods
+  async startVideoRecording(cameraSource: string): Promise<boolean> {
+    return XRGlassesNative.startVideoRecording(cameraSource);
+  }
+
+  async stopVideoRecording(): Promise<boolean> {
+    return XRGlassesNative.stopVideoRecording();
+  }
+
+  async dismissVideoRecording(): Promise<boolean> {
+    return XRGlassesNative.dismissVideoRecording();
+  }
+
+  async getRecordingFilePath(): Promise<string | null> {
+    return XRGlassesNative.getRecordingFilePath();
+  }
+
+  async sendRecordingForTranscription(language: string): Promise<TranscriptionResponse> {
+    return XRGlassesNative.sendRecordingForTranscription(language);
+  }
+
+  // Video recording event subscriptions
+  onRecordingStateChanged(callback: (event: RecordingStateChangedEvent) => void): Subscription {
+    const subscription = XRGlassesNative.addListener('onRecordingStateChanged', callback);
+    return { remove: () => subscription.remove() };
+  }
+
+  onRecordingError(callback: (event: RecordingErrorEvent) => void): Subscription {
+    const subscription = XRGlassesNative.addListener('onRecordingError', callback);
+    return { remove: () => subscription.remove() };
+  }
+
   // UI event subscriptions
   onUiRefreshNeeded(callback: (event: UiRefreshNeededEvent) => void): Subscription {
     const subscription = XRGlassesNative.addListener('onUiRefreshNeeded', callback);
@@ -437,6 +495,35 @@ class IOSXRGlassesService implements IXRGlassesService {
   }
 
   onCameraStateChanged(_callback: (event: CameraStateEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  // Video recording stubs for iOS
+  async startVideoRecording(_cameraSource: string): Promise<boolean> {
+    throw new Error('iOS video recording not yet implemented');
+  }
+
+  async stopVideoRecording(): Promise<boolean> {
+    throw new Error('iOS video recording not yet implemented');
+  }
+
+  async dismissVideoRecording(): Promise<boolean> {
+    return true;
+  }
+
+  async getRecordingFilePath(): Promise<string | null> {
+    return null;
+  }
+
+  async sendRecordingForTranscription(_language: string): Promise<TranscriptionResponse> {
+    throw new Error('iOS transcription not yet implemented');
+  }
+
+  onRecordingStateChanged(_callback: (event: RecordingStateChangedEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onRecordingError(_callback: (event: RecordingErrorEvent) => void): Subscription {
     return { remove: () => {} };
   }
 
@@ -740,6 +827,43 @@ class WebXRGlassesService implements IXRGlassesService {
         this.cameraStateCallbacks.delete(callback);
       },
     };
+  }
+
+  // Video recording stubs for web emulation
+  async startVideoRecording(_cameraSource: string): Promise<boolean> {
+    console.log('[WebXR] Video recording started (emulation)');
+    return true;
+  }
+
+  async stopVideoRecording(): Promise<boolean> {
+    console.log('[WebXR] Video recording stopped (emulation)');
+    return true;
+  }
+
+  async dismissVideoRecording(): Promise<boolean> {
+    console.log('[WebXR] Video recording dismissed (emulation)');
+    return true;
+  }
+
+  async getRecordingFilePath(): Promise<string | null> {
+    return null;
+  }
+
+  async sendRecordingForTranscription(_language: string): Promise<TranscriptionResponse> {
+    console.log('[WebXR] Transcription requested (emulation)');
+    return {
+      segments: [
+        { speaker: 'Speaker 0', text: 'Emulated transcription segment', start: 0, end: 1 },
+      ],
+    };
+  }
+
+  onRecordingStateChanged(_callback: (event: RecordingStateChangedEvent) => void): Subscription {
+    return { remove: () => {} };
+  }
+
+  onRecordingError(_callback: (event: RecordingErrorEvent) => void): Subscription {
+    return { remove: () => {} };
   }
 
   onUiRefreshNeeded(_callback: (event: UiRefreshNeededEvent) => void): Subscription {

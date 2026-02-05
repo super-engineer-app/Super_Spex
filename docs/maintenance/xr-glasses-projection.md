@@ -174,10 +174,10 @@ useEffect(() => {
 
 ## What NOT to Do
 
-1. **NEVER** call `ProjectedContext.createProjectedDeviceContext()` from the main process
+1. **NEVER** call `ProjectedContext.createProjectedDeviceContext()` from the main process **for display/projection purposes** (camera access via `SharedCameraProvider.kt` is fine and verified working)
 2. **NEVER** call `ProjectedActivityCompat.create()` with React Native's context
 3. **NEVER** remove the `android:process=":xr_process"` attribute from XR activities
-4. **NEVER** import/use XR SDK classes directly in `XRGlassesService.kt` or `XRGlassesModule.kt`
+4. **NEVER** import/use XR SDK classes directly in `XRGlassesService.kt` or `XRGlassesModule.kt` (use reflection instead, as `SharedCameraProvider.kt` does for camera access)
 
 ---
 
@@ -220,4 +220,3 @@ After any changes to the XR module:
 
 - [Android XR SDK Docs](https://developer.android.com/develop/xr/jetpack-xr-sdk)
 - `/docs/xr-glasses-resources.md` - API references and samples
-- `/docs/PROJECTION_FIX_ATTEMPTS.md` - Detailed log of fix attempts

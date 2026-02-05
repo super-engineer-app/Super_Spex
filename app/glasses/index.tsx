@@ -7,6 +7,7 @@ import { useGlassesCamera } from '../../src/hooks/useGlassesCamera';
 import { useRemoteView } from '../../src/hooks/useRemoteView';
 import { useParkingTimer } from '../../src/hooks/useParkingTimer';
 import { useTaggingSession } from '../../src/hooks/useTaggingSession';
+import { useVideoRecording } from '../../src/hooks/useVideoRecording';
 import { QualitySelector } from '../../src/components/QualitySelector';
 import { TimePicker } from '../../src/components/TimePicker';
 import { TaggingMode } from '../../src/components/TaggingMode';
@@ -98,8 +99,61 @@ export default function GlassesDashboard() {
     processSpeechResult,
   } = useTaggingSession();
 
+  // Video recording hook
+  const {
+    state: recordingState,
+    setCameraSource: setRecordingCameraSource,
+    startRecording,
+    stopRecording,
+    transcribe,
+    saveVideo,
+    downloadTranscript,
+    dismiss: dismissRecording,
+    isRecording,
+    canRecord,
+  } = useVideoRecording();
+
   // Track last processed transcript to avoid duplicates
   const lastProcessedTranscriptRef = useRef<string>('');
+
+  // Track if tagging was active before recording for auto-resume
+  const wasTaggingBeforeRecordingRef = useRef(false);
+
+  // Handle record press - auto-stops tagging if active
+  const handleRecordPress = useCallback(async () => {
+    if (isRecording) {
+      await stopRecording();
+      // Restore tagging if it was active before recording
+      if (wasTaggingBeforeRecordingRef.current) {
+        wasTaggingBeforeRecordingRef.current = false;
+        startTagging();
+      }
+    } else {
+      // Save tagging state and stop it
+      if (isTaggingActive) {
+        wasTaggingBeforeRecordingRef.current = true;
+        cancelTagging();
+      }
+      await startRecording();
+    }
+  }, [isRecording, stopRecording, startRecording, isTaggingActive, cancelTagging, startTagging]);
+
+  // Handle dismiss - restore tagging if needed
+  const handleDismissRecording = useCallback(() => {
+    dismissRecording();
+    if (wasTaggingBeforeRecordingRef.current) {
+      wasTaggingBeforeRecordingRef.current = false;
+      startTagging();
+    }
+  }, [dismissRecording, startTagging]);
+
+  // Format duration for display
+  const formatDuration = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   const [isSendingAudio, setIsSendingAudio] = useState(false);
   const [isSendingImage, setIsSendingImage] = useState(false);
@@ -107,14 +161,38 @@ export default function GlassesDashboard() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  // When refreshKey changes (after XR SDK corrupts RN UI), do a navigation refresh
-  // Skip if streaming is active to avoid losing stream state
+  // Track whether a UI refresh is pending but deferred due to active operations
+  const pendingRefreshRef = useRef(false);
+
+  // Check if any operation is active that would be disrupted by a page refresh
+  const hasActiveOperation = isStreaming || isRecording
+    || recordingState.recordingState === 'stopped'
+    || recordingState.transcriptionState === 'loading'
+    || isTaggingActive || isTaggingSaving;
+
+  // When refreshKey changes (after XR SDK corrupts RN UI), do a navigation refresh.
+  // Deferred if any operation (streaming, recording, tagging) is active.
   useEffect(() => {
-    if (refreshKey > initialRefreshKey.current && !isStreaming) {
-      console.log('[GlassesDashboard] UI refresh triggered, doing navigation refresh');
+    if (refreshKey > initialRefreshKey.current) {
+      if (hasActiveOperation) {
+        console.log('[GlassesDashboard] UI refresh deferred - operation in progress');
+        pendingRefreshRef.current = true;
+      } else {
+        console.log('[GlassesDashboard] UI refresh triggered, doing navigation refresh');
+        pendingRefreshRef.current = false;
+        router.replace('/glasses');
+      }
+    }
+  }, [refreshKey, router, hasActiveOperation]);
+
+  // Apply deferred refresh when all operations complete
+  useEffect(() => {
+    if (pendingRefreshRef.current && !hasActiveOperation) {
+      console.log('[GlassesDashboard] Applying deferred UI refresh');
+      pendingRefreshRef.current = false;
       router.replace('/glasses');
     }
-  }, [refreshKey, router, isStreaming]);
+  }, [hasActiveOperation, router]);
 
   // Copy URL to clipboard
   const handleCopyUrl = useCallback(async () => {
@@ -356,6 +434,166 @@ export default function GlassesDashboard() {
           ) : null}
 
           {cameraError ? <Text style={styles.error}>{cameraError}</Text> : null}
+        </View>
+
+        {/* Video Recording Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Video Recording</Text>
+
+          {/* Camera Source Toggle */}
+          {canRecord && (
+            <View style={styles.cameraSourceToggle}>
+              <Text style={styles.cameraSourceToggleLabel}>Camera:</Text>
+              <View style={styles.segmentedControl}>
+                <Pressable
+                  style={[
+                    styles.segmentButton,
+                    recordingState.cameraSource === 'phone' && styles.segmentButtonActive,
+                  ]}
+                  onPress={() => setRecordingCameraSource('phone')}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      recordingState.cameraSource === 'phone' && styles.segmentButtonTextActive,
+                    ]}
+                  >
+                    Phone
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.segmentButton,
+                    recordingState.cameraSource === 'glasses' && styles.segmentButtonActive,
+                  ]}
+                  onPress={() => setRecordingCameraSource('glasses')}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      recordingState.cameraSource === 'glasses' && styles.segmentButtonTextActive,
+                    ]}
+                  >
+                    Glasses
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Record / Stop Button */}
+          {(canRecord || isRecording) && (
+            <Pressable
+              style={[
+                styles.captureButton,
+                isRecording ? styles.recordButtonRecording : styles.recordButtonIdle,
+              ]}
+              onPress={handleRecordPress}
+            >
+              <Text style={styles.captureButtonText}>
+                {isRecording ? 'STOP' : 'RECORD'}
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Recording in progress */}
+          {isRecording && (
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>
+                Recording... {formatDuration(recordingState.durationMs)}
+              </Text>
+            </View>
+          )}
+
+          {/* Tagging disabled notice */}
+          {isRecording && (
+            <Text style={styles.mutualExclusionNotice}>
+              Tagging paused during recording
+            </Text>
+          )}
+
+          {/* After recording - actions */}
+          {recordingState.recordingState === 'stopped' && (
+            <View style={styles.recordingActions}>
+              <Text style={styles.recordingCompleteText}>
+                Recording complete ({formatDuration(recordingState.durationMs)})
+              </Text>
+
+              <View style={styles.recordingButtonRow}>
+                <Pressable style={styles.recordingActionButton} onPress={saveVideo}>
+                  <Text style={styles.recordingActionButtonText}>Save Video</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.recordingActionButton,
+                    styles.recordingActionButtonTranscribe,
+                    recordingState.transcriptionState === 'loading' && styles.sendButtonDisabled,
+                  ]}
+                  onPress={() => transcribe()}
+                  disabled={recordingState.transcriptionState === 'loading'}
+                >
+                  <Text style={styles.recordingActionButtonText}>
+                    {recordingState.transcriptionState === 'loading' ? 'Transcribing...' : 'Transcribe'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Pressable style={styles.recordingDiscardButton} onPress={handleDismissRecording}>
+                <Text style={styles.recordingDiscardButtonText}>Discard</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Transcription Result */}
+          {recordingState.transcriptionState === 'done' && recordingState.transcriptionResult && (
+            <>
+              <View style={styles.transcriptionResult}>
+                <Text style={styles.transcriptionTitle}>Transcription</Text>
+                <ScrollView style={styles.transcriptionScroll} nestedScrollEnabled>
+                  {recordingState.transcriptionResult.segments.map((seg, i) => (
+                    <View key={`seg-${i}`} style={styles.transcriptionSegment}>
+                      <Text style={styles.transcriptionSpeaker}>{seg.speaker}</Text>
+                      <Text style={styles.transcriptionText}>{seg.text}</Text>
+                      <Text style={styles.transcriptionTime}>
+                        {formatDuration(seg.start * 1000)} - {formatDuration(seg.end * 1000)}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.recordingActionButton,
+                  { marginTop: 12, opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={downloadTranscript}
+                android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
+              >
+                <Text style={styles.recordingActionButtonText}>Save Transcript</Text>
+              </Pressable>
+            </>
+          )}
+
+          {/* Transcription Error */}
+          {recordingState.transcriptionState === 'error' && (
+            <View style={styles.transcriptionError}>
+              <Text style={styles.error}>
+                {recordingState.transcriptionError ?? 'Transcription failed'}
+              </Text>
+              <Pressable
+                style={styles.recordingActionButton}
+                onPress={() => transcribe()}
+              >
+                <Text style={styles.recordingActionButtonText}>Retry</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Stopping indicator */}
+          {recordingState.recordingState === 'stopping' && (
+            <Text style={styles.loadingText}>Stopping recording...</Text>
+          )}
         </View>
 
         {/* Remote View Section */}
@@ -846,5 +1084,150 @@ const styles = StyleSheet.create({
   cancelTimerButtonText: {
     color: '#aaa',
     fontSize: 14,
+  },
+  // Video Recording styles
+  cameraSourceToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  cameraSourceToggleLabel: {
+    color: '#888',
+    fontSize: 14,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#444',
+    overflow: 'hidden',
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#333',
+  },
+  segmentButtonActive: {
+    backgroundColor: '#07f',
+  },
+  segmentButtonText: {
+    color: '#888',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  segmentButtonTextActive: {
+    color: '#fff',
+  },
+  recordButtonIdle: {
+    backgroundColor: '#c44',
+  },
+  recordButtonRecording: {
+    backgroundColor: '#a33',
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#f44',
+  },
+  recordingText: {
+    color: '#f88',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'monospace',
+  },
+  mutualExclusionNotice: {
+    color: '#888',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  recordingActions: {
+    marginTop: 12,
+  },
+  recordingCompleteText: {
+    color: '#4a4',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  recordingButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  recordingActionButton: {
+    flex: 1,
+    backgroundColor: '#2a5a2a',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  recordingActionButtonTranscribe: {
+    backgroundColor: '#2a3a7a',
+  },
+  recordingActionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recordingDiscardButton: {
+    backgroundColor: '#333',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  recordingDiscardButtonText: {
+    color: '#a88',
+    fontSize: 13,
+  },
+  transcriptionResult: {
+    backgroundColor: '#1a1a2a',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+  },
+  transcriptionTitle: {
+    color: '#8af',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  transcriptionScroll: {
+    maxHeight: 200,
+    marginBottom: 8,
+  },
+  transcriptionSegment: {
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a3a',
+  },
+  transcriptionSpeaker: {
+    color: '#8af',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  transcriptionText: {
+    color: '#fff',
+    fontSize: 14,
+    marginTop: 2,
+  },
+  transcriptionTime: {
+    color: '#666',
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: 'monospace',
+  },
+  transcriptionError: {
+    marginTop: 12,
   },
 });

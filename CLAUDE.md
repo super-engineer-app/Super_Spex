@@ -4,7 +4,6 @@
 
 ### Progress Tracking
 - **ALWAYS** use the TodoWrite tool to track tasks and progress
-- Update the status table in `XR_GLASSES_APP_PLAN.md` when completing milestones
 - Keep the user informed of what's being done
 
 ### Research Before Implementation
@@ -21,13 +20,12 @@
   1. What approach was tried
   2. Why it failed (error messages, root cause)
   3. What was learned
-- Add failed approaches to `XR_GLASSES_APP_PLAN.md` under "Research Findings" or "Notes"
+- Add failed approaches to the relevant `docs/maintenance/` file
 - This prevents repeating the same mistakes in future sessions
 
 ### Documentation Standards
 - **NEVER** exceed 2000 lines in any single documentation file
 - Keep `CLAUDE.md` focused on agent instructions only
-- Keep `XR_GLASSES_APP_PLAN.md` focused on project status and roadmap
 - Keep main docs concise, put details in `docs/maintenance/`
 
 ### Documentation Structure (Where to Find Info)
@@ -43,6 +41,7 @@ docs/maintenance/
 ├── xr-glasses-projection.md     # CRITICAL: How projection works, why separate process
 ├── speech-recognition.md        # Speech architecture, broadcast flow, errors
 ├── camera-capture.md            # Camera system, CameraX setup
+├── remote-view-streaming.md     # Agora streaming, viewer tracking, quality presets
 ├── emulator-testing.md          # Emulator setup, pairing, known issues
 └── build-deploy.md              # Build process, gradle, manifest config
 ```
@@ -52,6 +51,7 @@ docs/maintenance/
 - Phone UI corrupted → `maintenance/xr-glasses-projection.md`
 - Speech not working → `maintenance/speech-recognition.md`
 - Camera issues → `maintenance/camera-capture.md`
+- Streaming/remote view issues → `maintenance/remote-view-streaming.md`
 - Emulator problems → `maintenance/emulator-testing.md`
 - Build failures → `maintenance/build-deploy.md`
 
@@ -244,10 +244,30 @@ adb logcat | grep -iE "permission|denied"
 adb logcat | grep -iE "ErrorReporting|NativeErrorHandler"
 ```
 
+### Local Backend (Transcription & AI Services)
+
+The SuperSpexWins FastAPI backend runs locally during development. It provides the `/transcribe-dia` endpoint (and other AI services).
+
+**Setup:**
+```bash
+cd ~/coding/backend-with-testing-frontend/SuperSpexWins
+./setup.sh
+# Runs on http://0.0.0.0:8000
+```
+
+**Configuration:**
+- Set `TRANSCRIPTION_API_URL` in `.env` to reach the local backend from the emulator/phone
+- Android emulator: use `http://10.0.2.2:8000` (maps to host localhost)
+- Physical phone on same network: use `http://<YOUR_LAN_IP>:8000`
+- The Kotlin code reads this from BuildConfig; if not set, transcription will fail with a clear error
+
+**Important:** The Cloudflare Worker (`agora-token.spex-remote.workers.dev`) does NOT proxy transcription requests. The `/transcribe-dia` endpoint lives on the local FastAPI backend, not the Worker.
+
 ### Useful URLs
 - Token Server: `https://agora-token.spex-remote.workers.dev/`
 - Web Viewer: `https://spex-viewer.pages.dev/view/{channelId}`
 - Web Viewer Source: `~/coding/spex-web-viewer/`
+- Local Backend: `http://0.0.0.0:8000` (transcription, tagging, AI services)
 
 ### Official Documentation
 - Android XR SDK: https://developer.android.com/develop/xr/jetpack-xr-sdk
@@ -255,6 +275,15 @@ adb logcat | grep -iE "ErrorReporting|NativeErrorHandler"
 - Agora RTC Android: https://docs.agora.io/en/video-calling/get-started/get-started-sdk
 - Agora Audio Routing: https://docs.agora.io/en/video-calling/advanced-features/set-audio-route
 
-### Current Known Issues (2026-02-02)
+### Current Known Issues (2026-02-05)
 1. **Emulator audio limitation**: Audio routes to SPEAKERPHONE, not Bluetooth glasses
 2. **Emulation mode streaming broken**: No video/audio on real phone - needs debugging
+
+### Resolved Issues (2026-02-05)
+1. **Transcription "Missing channel parameter"**: The app was sending transcription requests to the Cloudflare Worker (`agora-token.spex-remote.workers.dev`) which doesn't handle `/transcribe-dia`. Fixed by adding `TRANSCRIPTION_API_URL` env var + BuildConfig field to point to the local FastAPI backend.
+2. **UI refresh killing recording**: The 2s post-connection `onUiRefreshNeeded` event triggered `router.replace('/glasses')` during active recording. Fixed by deferring the refresh until all operations (recording, streaming, tagging) complete.
+3. **Save Transcript button unresponsive**: The `Pressable` had no visual feedback, and `expo-file-system` v19 deprecated `writeAsStringAsync`. Migrated to `expo-file-system/next` (`File`/`Paths` API). Transcript now shares via native Android share sheet.
+
+### Important API Notes
+- **expo-file-system v19+**: Use `import { File, Paths } from 'expo-file-system/next'` — the old `FileSystem.writeAsStringAsync` / `FileSystem.cacheDirectory` API is deprecated and will throw at runtime.
+- **Cloudflare Worker routes**: Only handles `/token`, `/ws/`, `/heartbeat`, `/leave`, `/viewers`. Any other path falls through to the token handler which requires a `channel` param. Transcription goes to the local backend, NOT the Worker.

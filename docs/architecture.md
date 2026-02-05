@@ -159,7 +159,7 @@ Main Process (on phone)               Cloud                    Browser
 | **superspex-backend** | `~/coding/superspex-backend` | AI backend (Fly.dev) |
 
 **Web Viewer Deployment:**
-- Viewer: `https://spex-viewer.spex-remote.workers.dev/view/{channelId}`
+- Viewer: `https://spex-viewer.pages.dev/view/{channelId}`
 - Token server: `https://agora-token.spex-remote.workers.dev/`
 
 ---
