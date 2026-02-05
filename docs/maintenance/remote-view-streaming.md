@@ -59,7 +59,7 @@ Demo mode allows testing Remote View streaming without real XR glasses by using 
 
 1. **Activation**: User taps "Demo Mode" on home screen, setting `emulationMode = true` in `XRGlassesService`
 
-2. **Camera Selection** (`StreamingCameraManager.kt:139-149`):
+2. **Camera Selection** (`SharedCameraProvider.kt:getCameraContext()`):
    ```kotlin
    if (isEmulationMode) {
        cameraSource = "PHONE CAMERA (Demo Mode)"
@@ -68,7 +68,7 @@ Demo mode allows testing Remote View streaming without real XR glasses by using 
    // Otherwise use ProjectedContext.createProjectedDeviceContext() for glasses camera
    ```
 
-3. **Stream Initialization Order** (`XRGlassesService.kt:1219-1236`):
+3. **Stream Initialization Order** (`XRGlassesService.kt:startRemoteView()`):
    - Agora stream starts FIRST (before camera)
    - This prevents race condition where frames were dropped before session was ready
    - Camera starts AFTER Agora session is established
@@ -197,9 +197,9 @@ Key considerations:
 
 | Preset | Resolution | FPS | Bitrate |
 |--------|------------|-----|---------|
-| LOW_LATENCY | 480×640 | 15 | 400 kbps |
-| BALANCED | 720×1280 | 15 | 800 kbps |
-| HIGH_QUALITY | 720×1280 | 30 | 1200 kbps |
+| LOW_LATENCY | 640×480 | 10 | 300 kbps |
+| BALANCED | 640×480 | 15 | 500 kbps |
+| HIGH_QUALITY | 640×480 | 30 | 800 kbps |
 
 ## Troubleshooting
 

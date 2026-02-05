@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.RingtoneManager
 import android.media.ToneGenerator
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,6 +15,8 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.camera.video.Recorder
+import androidx.camera.video.VideoCapture
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import expo.modules.xrglasses.stream.AgoraStreamManager
@@ -22,6 +25,10 @@ import expo.modules.xrglasses.stream.StreamSession
 import expo.modules.xrglasses.stream.ViewerInfo
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.io.File
+import java.io.OutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Engagement mode state representing visuals and audio status.
@@ -141,6 +148,13 @@ class XRGlassesService(
     private var streamingLifecycleOwner: LifecycleOwner? = null
     private var currentStreamQuality: StreamQuality = StreamQuality.BALANCED
     private var currentStreamingCameraSource: String = "unknown"
+
+    // Video Recording
+    private var videoRecordingManager: VideoRecordingManager? = null
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var wasStreamingBeforeRecording: Boolean = false
+    private var wasTaggingBeforeRecording: Boolean = false
+    private var recordingCameraSource: String = "phone"
 
     // Agora App ID - loaded from BuildConfig (set via .env file)
     private val AGORA_APP_ID: String by lazy {
@@ -1364,6 +1378,326 @@ class XRGlassesService(
     }
 
     // ============================================================
+    // Video Recording (mutually exclusive with streaming + tagging)
+    // ============================================================
+
+    /**
+     * Start video recording from the specified camera source.
+     *
+     * Mutual exclusion:
+     * - Pauses Agora frame pushing (streaming) if active
+     * - Pauses speech recognition (tagging) if active
+     * - Releases ImageAnalysis to free CameraX use case slot
+     * - Acquires VideoCapture use case
+     *
+     * @param cameraSource "phone" or "glasses"
+     */
+    fun startVideoRecording(cameraSource: String) {
+        Log.d(TAG, "Starting video recording (source: $cameraSource)")
+
+        recordingCameraSource = cameraSource
+
+        // Save current states for restoration after recording
+        wasStreamingBeforeRecording = isStreamingActive
+        wasTaggingBeforeRecording = isListening
+
+        // 1. Stop Agora frame pushing if active
+        if (isStreamingActive) {
+            Log.d(TAG, "Pausing streaming for recording")
+            streamingCameraManager?.stopCapture()
+            // Note: We don't stop Agora session itself, just frame pushing
+        }
+
+        // 2. Stop speech recognition if active
+        if (isListening) {
+            Log.d(TAG, "Pausing speech recognition for recording")
+            stopSpeechRecognition()
+        }
+
+        // 3. Initialize VideoRecordingManager if needed
+        if (videoRecordingManager == null) {
+            videoRecordingManager = VideoRecordingManager(context)
+        }
+
+        val manager = videoRecordingManager ?: run {
+            Log.e(TAG, "Failed to create VideoRecordingManager")
+            module.emitEvent("onRecordingError", mapOf(
+                "message" to "Failed to initialize recording",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
+        // 4. Get lifecycle owner
+        val lifecycleOwner = streamingLifecycleOwner
+        if (lifecycleOwner == null) {
+            Log.e(TAG, "No lifecycle owner for video recording")
+            module.emitEvent("onRecordingError", mapOf(
+                "message" to "Recording not properly initialized - no lifecycle owner",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            return
+        }
+
+        // 5. Determine emulation mode based on camera source
+        val useEmulationMode = cameraSource == "phone" || emulationMode
+
+        // 6. Acquire VideoCapture via SharedCameraProvider
+        val vc = SharedCameraProvider.getInstance(context).acquireVideoCapture(
+            lifecycleOwner = lifecycleOwner,
+            videoRecordingManager = manager,
+            emulationMode = useEmulationMode
+        )
+
+        if (vc == null) {
+            Log.e(TAG, "Failed to acquire VideoCapture")
+            module.emitEvent("onRecordingError", mapOf(
+                "message" to "Failed to initialize camera for recording",
+                "timestamp" to System.currentTimeMillis()
+            ))
+            restoreAfterRecording()
+            return
+        }
+
+        videoCapture = vc
+
+        // 7. Start recording with audio
+        manager.startRecording(vc, audioEnabled = true) { event ->
+            when (event) {
+                is RecordingEvent.Started -> {
+                    Log.d(TAG, "Recording started successfully")
+                    module.emitEvent("onRecordingStateChanged", mapOf(
+                        "state" to "recording",
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                }
+                is RecordingEvent.Stopped -> {
+                    Log.d(TAG, "Recording stopped: uri=${event.uri}, duration=${event.durationMs}ms")
+                    module.emitEvent("onRecordingStateChanged", mapOf(
+                        "state" to "stopped",
+                        "durationMs" to event.durationMs,
+                        "fileUri" to event.uri.toString(),
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                }
+                is RecordingEvent.Error -> {
+                    Log.e(TAG, "Recording error: ${event.message}")
+                    module.emitEvent("onRecordingError", mapOf(
+                        "message" to event.message,
+                        "timestamp" to System.currentTimeMillis()
+                    ))
+                    // Restore state on error
+                    releaseVideoCapture()
+                    restoreAfterRecording()
+                }
+            }
+        }
+
+        // Keep screen on during recording
+        setScreenOn(true)
+    }
+
+    /**
+     * Stop video recording.
+     * The finalize event will trigger state restoration.
+     */
+    fun stopVideoRecording() {
+        Log.d(TAG, "Stopping video recording")
+
+        val manager = videoRecordingManager
+        if (manager == null || manager.getState() != RecordingState.RECORDING) {
+            Log.w(TAG, "No active recording to stop (state: ${manager?.getState()})")
+            return
+        }
+
+        module.emitEvent("onRecordingStateChanged", mapOf(
+            "state" to "stopping",
+            "timestamp" to System.currentTimeMillis()
+        ))
+
+        manager.stopRecording()
+
+        // Release VideoCapture use case (allows ImageAnalysis to resume)
+        releaseVideoCapture()
+
+        // Restore streaming and tagging after recording
+        restoreAfterRecording()
+
+        // Allow screen to sleep again
+        setScreenOn(false)
+    }
+
+    /**
+     * Dismiss the recording (delete file, reset state).
+     */
+    fun dismissVideoRecording() {
+        Log.d(TAG, "Dismissing video recording")
+
+        videoRecordingManager?.dismiss()
+
+        module.emitEvent("onRecordingStateChanged", mapOf(
+            "state" to "idle",
+            "timestamp" to System.currentTimeMillis()
+        ))
+    }
+
+    /**
+     * Get the file path of the last completed recording.
+     */
+    fun getRecordingFilePath(): String? {
+        return videoRecordingManager?.getOutputFilePath()
+    }
+
+    /**
+     * Send the recording's audio to the transcription backend.
+     * Performs the HTTP request in Kotlin to avoid transferring large files over the JS bridge.
+     *
+     * @param language Language code for transcription (e.g., "en")
+     * @return Map with transcription results
+     */
+    suspend fun sendRecordingForTranscription(language: String): Map<String, Any> = withContext(Dispatchers.IO) {
+        // Use the WebM/Opus audio file (required by the transcription endpoint)
+        val audioPath = videoRecordingManager?.getAudioFilePath()
+            ?: throw Exception("No audio recording available for transcription")
+
+        val file = File(audioPath)
+        if (!file.exists()) {
+            throw Exception("Audio recording file not found: $audioPath")
+        }
+
+        Log.d(TAG, "Sending audio for transcription: ${file.name} (${file.length()} bytes), language=$language")
+
+        // Get the transcription endpoint URL from BuildConfig
+        val baseUrl = try {
+            val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+            val field = buildConfigClass.getField("TRANSCRIPTION_API_URL")
+            val value = field.get(null) as? String
+            if (value.isNullOrBlank()) {
+                throw IllegalStateException("TRANSCRIPTION_API_URL is not configured in .env")
+            }
+            value
+        } catch (e: Exception) {
+            Log.e(TAG, "TRANSCRIPTION_API_URL not configured: ${e.message}")
+            throw Exception("Transcription API URL not configured. Set TRANSCRIPTION_API_URL in .env")
+        }
+
+        val url = URL("$baseUrl/transcribe-dia")
+        val boundary = "----SpexBoundary${System.currentTimeMillis()}"
+
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            connection.doOutput = true
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 120_000 // Transcription can take time
+
+            val outputStream: OutputStream = connection.outputStream
+
+            // Write user_id field (required by backend)
+            outputStream.write("--$boundary\r\n".toByteArray())
+            outputStream.write("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".toByteArray())
+            outputStream.write("mobile-app\r\n".toByteArray())
+
+            // Write language field
+            outputStream.write("--$boundary\r\n".toByteArray())
+            outputStream.write("Content-Disposition: form-data; name=\"language\"\r\n\r\n".toByteArray())
+            outputStream.write("$language\r\n".toByteArray())
+
+            // Write file field
+            outputStream.write("--$boundary\r\n".toByteArray())
+            outputStream.write("Content-Disposition: form-data; name=\"audio\"; filename=\"${file.name}\"\r\n".toByteArray())
+            outputStream.write("Content-Type: audio/webm\r\n\r\n".toByteArray())
+
+            file.inputStream().use { inputStream ->
+                inputStream.copyTo(outputStream)
+            }
+
+            outputStream.write("\r\n--$boundary--\r\n".toByteArray())
+            outputStream.flush()
+            outputStream.close()
+
+            val responseCode = connection.responseCode
+            Log.d(TAG, "Transcription response code: $responseCode")
+
+            if (responseCode != 200) {
+                val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                throw Exception("Transcription failed (HTTP $responseCode): $errorBody")
+            }
+
+            val responseBody = connection.inputStream.bufferedReader().readText()
+            Log.d(TAG, "Transcription response: ${responseBody.take(200)}...")
+
+            // Parse JSON response manually to avoid adding a JSON library dependency
+            // The response format is: { "segments": [{ "speaker": "...", "text": "...", "start": 0.0, "end": 1.0 }] }
+            parseTranscriptionResponse(responseBody)
+
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Parse the transcription JSON response into a Map structure.
+     * Uses basic string parsing to avoid adding org.json dependency.
+     */
+    private fun parseTranscriptionResponse(json: String): Map<String, Any> {
+        try {
+            val jsonObj = org.json.JSONObject(json)
+            val segmentsArray = jsonObj.optJSONArray("segments") ?: return mapOf("segments" to emptyList<Map<String, Any>>())
+
+            val segments = mutableListOf<Map<String, Any>>()
+            for (i in 0 until segmentsArray.length()) {
+                val segment = segmentsArray.getJSONObject(i)
+                segments.add(mapOf(
+                    "speaker" to (segment.optString("speaker", "Unknown")),
+                    "text" to (segment.optString("text", "")),
+                    "start" to segment.optDouble("start", 0.0),
+                    "end" to segment.optDouble("end", 0.0)
+                ))
+            }
+
+            return mapOf("segments" to segments)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse transcription response: ${e.message}", e)
+            throw Exception("Failed to parse transcription response: ${e.message}")
+        }
+    }
+
+    /**
+     * Release the VideoCapture use case from SharedCameraProvider.
+     */
+    private fun releaseVideoCapture() {
+        if (videoCapture != null) {
+            SharedCameraProvider.getInstance(context).releaseVideoCapture()
+            videoCapture = null
+        }
+    }
+
+    /**
+     * Restore streaming and tagging state after recording ends.
+     */
+    private fun restoreAfterRecording() {
+        // Restore streaming if it was active
+        if (wasStreamingBeforeRecording) {
+            Log.d(TAG, "Restoring streaming after recording")
+            val lifecycleOwner = streamingLifecycleOwner
+            if (lifecycleOwner != null) {
+                streamingCameraManager?.startCapture(lifecycleOwner, currentStreamQuality, emulationMode)
+                isStreamingActive = true
+            }
+            wasStreamingBeforeRecording = false
+        }
+
+        // Restore tagging if it was active
+        if (wasTaggingBeforeRecording) {
+            Log.d(TAG, "Restoring speech recognition after recording")
+            startSpeechRecognition(true)
+            wasTaggingBeforeRecording = false
+        }
+    }
+
+    // ============================================================
     // Parking Timer Implementation
     // Uses coroutine delay() which suspends efficiently without blocking
     // Similar to Linux sleep/wait - no CPU waste, just scheduling
@@ -1588,6 +1922,11 @@ class XRGlassesService(
         speechRecognizer?.destroy()
         speechRecognizer = null
         isListening = false
+
+        // Cleanup video recording
+        videoRecordingManager?.release()
+        videoRecordingManager = null
+        releaseVideoCapture()
 
         // Cleanup camera (image capture)
         releaseCamera()

@@ -16,6 +16,7 @@
 | `modules/xr-glasses/android/.../stream/AgoraStreamManager.kt` | Agora RTC engine wrapper |
 | `modules/xr-glasses/android/.../stream/StreamQuality.kt` | Quality presets enum |
 | `modules/xr-glasses/android/.../stream/StreamSession.kt` | Session/viewer data classes |
+| `modules/xr-glasses/android/.../VideoRecordingManager.kt` | CameraX video recording + audio extraction |
 
 **:xr_process (phone process, displays to glasses):**
 | File | Purpose |
@@ -33,7 +34,9 @@
 | `src/hooks/useSpeechRecognition.ts` | Speech recognition hook |
 | `src/hooks/useGlassesCamera.ts` | Camera capture hook |
 | `src/hooks/useRemoteView.ts` | Remote view streaming hook |
+| `src/hooks/useVideoRecording.ts` | Video recording + transcription hook |
 | `src/services/backendApi.ts` | AI backend integration |
+| `src/services/transcriptionApi.ts` | Transcription types & formatting |
 | `src/components/QualitySelector.tsx` | Stream quality UI component |
 | `app/index.tsx` | Home/connection screen |
 | `app/glasses/index.tsx` | Glasses dashboard UI |
@@ -53,11 +56,11 @@ android/app/build/outputs/apk/release/app-release.apk
 # List emulators
 ~/Android/Sdk/platform-tools/adb devices -l
 
-# Install on phone emulator
-~/Android/Sdk/platform-tools/adb -s emulator-5554 install -r android/app/build/outputs/apk/release/app-release.apk
+# Install on phone emulator (phone is usually 5556, glasses is 5554)
+~/Android/Sdk/platform-tools/adb -s emulator-5556 install -r android/app/build/outputs/apk/release/app-release.apk
 
 # Watch XR logs
-~/Android/Sdk/platform-tools/adb -s emulator-5554 logcat | grep -iE "XRGlassesService|GlassesActivity|ProjectionLauncher"
+~/Android/Sdk/platform-tools/adb -s emulator-5556 logcat | grep -iE "XRGlassesService|GlassesActivity|ProjectionLauncher"
 ```
 
 ---
@@ -83,7 +86,8 @@ For detailed troubleshooting, see the maintenance docs:
 |------------|----------|-------------|
 | **spex** (this repo) | `~/coding/spex` | Main React Native app + native modules |
 | **spex-web-viewer** | `~/coding/spex-web-viewer` | Cloudflare Workers (web viewer + token server) |
-| **superspex-backend** | `~/coding/superspex-backend` | AI backend (Fly.dev) |
+| **SuperSpexWins** | `~/coding/backend-with-testing-frontend/SuperSpexWins` | FastAPI backend (transcription, tagging, AI) — runs locally during dev |
+| **cloudflare-workers** | `~/coding/spex/cloudflare-workers` | Agora token server + viewer presence (NOT transcription) |
 
 ---
 

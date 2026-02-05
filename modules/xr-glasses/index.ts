@@ -106,6 +106,25 @@ interface XRGlassesNativeModule extends NativeModule {
   isRemoteViewActive(): Promise<boolean>;
 
   // ============================================================
+  // Video Recording
+  // ============================================================
+
+  /** Start video recording from the specified camera source */
+  startVideoRecording(cameraSource: string): Promise<boolean>;
+
+  /** Stop video recording */
+  stopVideoRecording(): Promise<boolean>;
+
+  /** Dismiss recording (delete file, reset state) */
+  dismissVideoRecording(): Promise<boolean>;
+
+  /** Get file path of last completed recording */
+  getRecordingFilePath(): Promise<string | null>;
+
+  /** Send recording audio to transcription backend */
+  sendRecordingForTranscription(language: string): Promise<TranscriptionResponse>;
+
+  // ============================================================
   // Parking Timer (efficient coroutine-based, no CPU waste)
   // ============================================================
 
@@ -227,6 +246,40 @@ export type NativeErrorEvent = {
 };
 
 // ============================================================
+// Video Recording Types
+// ============================================================
+
+/** Possible recording states */
+export type RecordingState = 'idle' | 'recording' | 'stopping' | 'stopped';
+
+/** Event emitted when recording state changes */
+export type RecordingStateChangedEvent = {
+  state: RecordingState;
+  durationMs?: number;
+  fileUri?: string;
+  timestamp: number;
+};
+
+/** Event emitted on recording error */
+export type RecordingErrorEvent = {
+  message: string;
+  timestamp: number;
+};
+
+/** Transcription segment from speaker-diarized transcription */
+export interface TranscriptionSegment {
+  speaker: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
+/** Response from transcription backend */
+export interface TranscriptionResponse {
+  segments: TranscriptionSegment[];
+}
+
+// ============================================================
 // Parking Timer Types
 // ============================================================
 
@@ -274,3 +327,16 @@ export type UiRefreshNeededEvent = {
 // Re-export the service module
 export { createXRGlassesService, getXRGlassesService } from './src/XRGlassesModule';
 export type { IXRGlassesService, DeviceCapabilities, EngagementMode } from './src/XRGlassesModule';
+
+// Re-export video recording event listener helpers
+export function addRecordingStateChangedListener(
+  callback: (event: RecordingStateChangedEvent) => void
+) {
+  return XRGlassesNative.addListener('onRecordingStateChanged', callback);
+}
+
+export function addRecordingErrorListener(
+  callback: (event: RecordingErrorEvent) => void
+) {
+  return XRGlassesNative.addListener('onRecordingError', callback);
+}

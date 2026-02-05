@@ -9,6 +9,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.Recorder
+import androidx.camera.video.VideoCapture
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.atomic.AtomicInteger
@@ -59,10 +61,12 @@ class SharedCameraProvider private constructor(private val context: Context) {
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var imageCapture: ImageCapture? = null
+    private var videoCapture: VideoCapture<Recorder>? = null
 
     // Reference counts for each use case
     private val analysisRefCount = AtomicInteger(0)
     private val captureRefCount = AtomicInteger(0)
+    private val videoCaptureRefCount = AtomicInteger(0)
 
     // Current configuration
     private var currentLifecycleOwner: LifecycleOwner? = null
@@ -226,6 +230,55 @@ class SharedCameraProvider private constructor(private val context: Context) {
     }
 
     /**
+     * Acquire VideoCapture use case for video recording.
+     * Increments reference count and binds if this is the first consumer.
+     *
+     * IMPORTANT: VideoCapture and ImageAnalysis are mutually exclusive.
+     * When VideoCapture is active, ImageAnalysis is temporarily excluded from binding.
+     * ImageAnalysis resumes when VideoCapture is released.
+     *
+     * @param lifecycleOwner Lifecycle owner for camera binding
+     * @param videoRecordingManager Manager that builds the VideoCapture use case
+     * @param emulationMode If true, uses phone camera instead of glasses
+     * @return The VideoCapture use case, or null if initialization failed
+     */
+    fun acquireVideoCapture(
+        lifecycleOwner: LifecycleOwner,
+        videoRecordingManager: VideoRecordingManager,
+        emulationMode: Boolean
+    ): VideoCapture<Recorder>? {
+        val count = videoCaptureRefCount.incrementAndGet()
+        Log.d(TAG, "acquireVideoCapture: refCount=$count")
+
+        this.isEmulationMode = emulationMode
+
+        if (count == 1 || videoCapture == null) {
+            Log.d(TAG, "First VideoCapture consumer, creating use case")
+            videoCapture = videoRecordingManager.buildVideoCapture()
+            initAndBind(lifecycleOwner, emulationMode)
+        }
+
+        return videoCapture
+    }
+
+    /**
+     * Release VideoCapture use case.
+     * Decrements reference count and unbinds if no consumers remain.
+     * When released, ImageAnalysis will be re-included in binding.
+     */
+    fun releaseVideoCapture() {
+        val count = videoCaptureRefCount.decrementAndGet()
+        Log.d(TAG, "releaseVideoCapture: refCount=$count")
+
+        if (count <= 0) {
+            videoCaptureRefCount.set(0)
+            videoCapture = null
+            Log.d(TAG, "VideoCapture released, rebinding remaining use cases (ImageAnalysis may resume)")
+            rebindUseCases()
+        }
+    }
+
+    /**
      * Get the current ImageCapture instance (if any).
      * Used by consumers that need to take pictures.
      */
@@ -235,7 +288,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
      * Check if camera is ready (provider initialized and use cases bound).
      */
     fun isCameraReady(): Boolean {
-        return cameraProvider != null && (imageAnalysis != null || imageCapture != null)
+        return cameraProvider != null && (imageAnalysis != null || imageCapture != null || videoCapture != null)
     }
 
     /**
@@ -339,9 +392,17 @@ class SharedCameraProvider private constructor(private val context: Context) {
         }
 
         // Collect active use cases
+        // MUTUAL EXCLUSION: When VideoCapture is active, exclude ImageAnalysis
+        // CameraX has a 3-use-case limit and VideoCapture + ImageAnalysis cannot coexist reliably
+        val isVideoCaptureActive = videoCapture != null
         val useCases = mutableListOf<androidx.camera.core.UseCase>()
-        imageAnalysis?.let { useCases.add(it) }
+        if (!isVideoCaptureActive) {
+            imageAnalysis?.let { useCases.add(it) }
+        } else {
+            Log.d(TAG, "VideoCapture active - excluding ImageAnalysis from binding")
+        }
         imageCapture?.let { useCases.add(it) }
+        videoCapture?.let { useCases.add(it) }
 
         if (useCases.isEmpty()) {
             Log.d(TAG, "No active use cases, unbinding all")
@@ -374,8 +435,9 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
             Log.d(TAG, "========================================")
             Log.d(TAG, ">>> CAMERA BOUND: ${useCases.size} use cases")
-            Log.d(TAG, ">>>   ImageAnalysis: ${imageAnalysis != null}")
+            Log.d(TAG, ">>>   ImageAnalysis: ${imageAnalysis != null && !isVideoCaptureActive}")
             Log.d(TAG, ">>>   ImageCapture: ${imageCapture != null}")
+            Log.d(TAG, ">>>   VideoCapture: ${videoCapture != null}")
             Log.d(TAG, ">>>   Source: $cameraSource")
             Log.d(TAG, "========================================")
 
@@ -400,11 +462,13 @@ class SharedCameraProvider private constructor(private val context: Context) {
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
         imageCapture = null
+        videoCapture = null
         cameraProvider = null
         currentLifecycleOwner = null
         currentCameraContext = null
         analysisRefCount.set(0)
         captureRefCount.set(0)
+        videoCaptureRefCount.set(0)
         cameraSource = "unknown"
     }
 }

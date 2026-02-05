@@ -36,3 +36,14 @@ export type {
   SubmitTaggingSessionResult,
   LocationPermissionStatus,
 } from './taggingApi';
+
+// Transcription API
+export {
+  formatTranscriptAsText,
+  isValidTranscriptionResult,
+} from './transcriptionApi';
+
+export type {
+  TranscriptionSegment,
+  TranscriptionResult,
+} from './transcriptionApi';

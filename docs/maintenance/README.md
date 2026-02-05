@@ -57,7 +57,10 @@ See [xr-glasses-projection.md](xr-glasses-projection.md) for full details.
 | Connect fails | Pairing lost | Re-pair in Glasses companion app |
 | Build fails | Stale cache | Run `./gradlew clean` |
 | Glasses show UI after disconnect | Close broadcast not received | Check `CLOSE_GLASSES` broadcast in GlassesActivity |
-| UI corrupted on first cold start | XR permission overlay | `onUiRefreshNeeded` event triggers re-render |
+| UI corrupted on first cold start | XR permission overlay | `onUiRefreshNeeded` event triggers re-render (deferred during active operations) |
+| Transcription "Missing channel parameter" | Request sent to Cloudflare Worker instead of backend | Set `TRANSCRIPTION_API_URL` in `.env` (emulator: `http://10.0.2.2:8000`) |
+| Save Transcript fails | `expo-file-system` v19 deprecated old API | Use `File`/`Paths` from `expo-file-system/next` |
+| Recording killed by UI refresh | `onUiRefreshNeeded` fires during recording | Refresh is auto-deferred while recording/streaming/tagging is active |
 
 ## Adding New Maintenance Docs
 

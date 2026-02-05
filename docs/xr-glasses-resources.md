@@ -173,8 +173,8 @@ dependencies {
 - This simulates user interaction that wakes the display
 
 ### Emulator Ports
-- Phone emulator: Usually `emulator-5554`
-- Glasses emulator: Usually `emulator-5556`
+- Glasses emulator: Usually `emulator-5554` (started first)
+- Phone emulator: Usually `emulator-5556` (started second)
 
 ### ADB Commands
 ```bash
@@ -182,13 +182,13 @@ dependencies {
 adb devices -l
 
 # Install on phone
-adb -s emulator-5554 install -r app-release.apk
+adb -s emulator-5556 install -r app-release.apk
 
 # Watch logs
-adb -s emulator-5554 logcat | grep XRGlassesService
+adb -s emulator-5556 logcat | grep XRGlassesService
 
 # Check displays on phone (Display 7 is glasses)
-adb -s emulator-5554 shell dumpsys display | grep mDisplayId
+adb -s emulator-5556 shell dumpsys display | grep mDisplayId
 ```
 
 ---

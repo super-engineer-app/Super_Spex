@@ -46,6 +46,9 @@ class XRGlassesModule : Module() {
             "onStreamError",         // Streaming error
             "onViewerUpdate",        // Viewer count/info changed
             "onStreamCameraSourceChanged",  // Camera source changed (phone vs glasses)
+            // Video recording events
+            "onRecordingStateChanged", // Recording state: idle, recording, stopping, stopped
+            "onRecordingError",        // Recording error
             // Parking timer events
             "onParkingTimerStarted",   // Timer started
             "onParkingTimerWarning",   // 5 minute warning
@@ -354,6 +357,73 @@ class XRGlassesModule : Module() {
         AsyncFunction("isRemoteViewActive") { promise: Promise ->
             val active = glassesService?.isRemoteViewActive() ?: false
             promise.resolve(active)
+        }
+
+        // ============================================================
+        // Video Recording Functions
+        // CameraX VideoCapture with mutual exclusion vs streaming/tagging
+        // ============================================================
+
+        // Start video recording from specified camera source
+        AsyncFunction("startVideoRecording") { cameraSource: String, promise: Promise ->
+            scope.launch {
+                try {
+                    val activity = appContext.currentActivity
+                    if (activity is LifecycleOwner) {
+                        glassesService?.setStreamingLifecycleOwner(activity)
+                        glassesService?.setCurrentActivity(activity)
+                    } else {
+                        promise.reject(CodedException("NO_LIFECYCLE_OWNER", "Activity is not a LifecycleOwner", null))
+                        return@launch
+                    }
+                    glassesService?.startVideoRecording(cameraSource)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("RECORDING_START_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Stop video recording
+        AsyncFunction("stopVideoRecording") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.stopVideoRecording()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("RECORDING_STOP_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Dismiss recording (delete file, reset state)
+        AsyncFunction("dismissVideoRecording") { promise: Promise ->
+            scope.launch {
+                try {
+                    glassesService?.dismissVideoRecording()
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("RECORDING_DISMISS_FAILED", e.message, e))
+                }
+            }
+        }
+
+        // Get file path of last completed recording
+        AsyncFunction("getRecordingFilePath") { promise: Promise ->
+            val path = glassesService?.getRecordingFilePath()
+            promise.resolve(path)
+        }
+
+        // Send recording to transcription backend
+        AsyncFunction("sendRecordingForTranscription") { language: String, promise: Promise ->
+            scope.launch {
+                try {
+                    val result = glassesService?.sendRecordingForTranscription(language)
+                    promise.resolve(result)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("TRANSCRIPTION_FAILED", e.message, e))
+                }
+            }
         }
 
         // ============================================================
