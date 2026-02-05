@@ -18,3 +18,12 @@ export type { CameraState, UseGlassesCameraReturn } from './useGlassesCamera';
 
 export { useParkingTimer, TIMER_PRESETS } from './useParkingTimer';
 export type { ParkingTimerHookState, UseParkingTimerReturn } from './useParkingTimer';
+
+export { useVideoRecording } from './useVideoRecording';
+export type { UseVideoRecordingReturn } from './useVideoRecording';
+
+export { useRemoteView, QUALITY_OPTIONS } from './useRemoteView';
+export type { RemoteViewState, UseRemoteViewReturn } from './useRemoteView';
+
+export { useTaggingSession } from './useTaggingSession';
+export type { UseTaggingSessionReturn } from './useTaggingSession';

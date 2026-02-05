@@ -9,6 +9,9 @@
 
 import { Platform } from 'react-native';
 import { XRGlassesNative, NativeErrorEvent } from '../../modules/xr-glasses';
+import logger from '../utils/logger';
+
+const TAG = 'ErrorReporting';
 
 // Type declaration for React Native's ErrorUtils global
 declare const ErrorUtils: {
@@ -56,7 +59,7 @@ export async function sendErrorToDiscord(
   context: ErrorContext
 ): Promise<void> {
   if (!DISCORD_WEBHOOK_URL) {
-    console.warn('[ErrorReporting] Discord webhook URL not configured');
+    logger.warn(TAG, 'Discord webhook URL not configured');
     return;
   }
 
@@ -127,11 +130,11 @@ export async function sendErrorToDiscord(
     });
 
     if (!response.ok) {
-      console.error('[ErrorReporting] Failed to send to Discord:', response.status);
+      logger.error(TAG, 'Failed to send to Discord:', response.status);
     }
   } catch (e) {
     // Don't throw - we don't want error reporting to cause more errors
-    console.error('[ErrorReporting] Failed to send to Discord:', e);
+    logger.error(TAG, 'Failed to send to Discord:', e);
   }
 }
 
@@ -159,18 +162,18 @@ let originalErrorHandler: ((error: Error, isFatal?: boolean) => void) | null = n
  */
 export function initializeErrorReporting(): void {
   if (!DISCORD_WEBHOOK_URL) {
-    console.warn('[ErrorReporting] Discord webhook URL not configured. Set EXPO_PUBLIC_DISCORD_WEBHOOK_URL in .env');
+    logger.warn(TAG, 'Discord webhook URL not configured. Set EXPO_PUBLIC_DISCORD_WEBHOOK_URL in .env');
     return;
   }
 
-  console.log('[ErrorReporting] Initializing error handlers...');
+  logger.debug(TAG, 'Initializing error handlers...');
 
   // 1. Handle uncaught JS errors
   if (ErrorUtils) {
     originalErrorHandler = ErrorUtils.getGlobalHandler();
 
     ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
-      console.log('[ErrorReporting] Caught JS error:', error.message, 'Fatal:', isFatal);
+      logger.debug(TAG, 'Caught JS error:', error.message, 'Fatal:', isFatal);
 
       sendErrorToDiscord(error, {
         severity: isFatal ? 'critical' : 'error',
@@ -191,7 +194,7 @@ export function initializeErrorReporting(): void {
   promiseRejectionTracking.enable({
     allRejections: true,
     onUnhandled: (id: number, error: Error) => {
-      console.log('[ErrorReporting] Unhandled promise rejection:', error?.message);
+      logger.debug(TAG, 'Unhandled promise rejection:', error?.message);
 
       sendErrorToDiscord(error || new Error('Unknown promise rejection'), {
         severity: 'error',
@@ -208,7 +211,7 @@ export function initializeErrorReporting(): void {
   if (Platform.OS === 'android') {
     try {
       XRGlassesNative.addListener('onNativeError', (event: NativeErrorEvent) => {
-        console.log('[ErrorReporting] Native error:', event.message, 'Fatal:', event.isFatal);
+        logger.debug(TAG, 'Native error:', event.message, 'Fatal:', event.isFatal);
 
         sendErrorToDiscord(new Error(event.message), {
           severity: event.isFatal ? 'critical' : 'error',
@@ -223,11 +226,11 @@ export function initializeErrorReporting(): void {
         });
       });
     } catch (e) {
-      console.warn('[ErrorReporting] Failed to subscribe to native errors:', e);
+      logger.warn(TAG, 'Failed to subscribe to native errors:', e);
     }
   }
 
-  console.log('[ErrorReporting] Error handlers initialized');
+  logger.debug(TAG, 'Error handlers initialized');
 }
 
 /**

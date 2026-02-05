@@ -24,6 +24,9 @@ import {
   removeStartKeyword,
   removeEndKeyword,
 } from '../types/tagging';
+import logger from '../utils/logger';
+
+const TAG = 'useTaggingSession';
 
 /**
  * Return type for useTaggingSession hook.
@@ -148,7 +151,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
   useEffect(() => {
     requestLocationPermission().then(({ granted }) => {
       if (!granted) {
-        console.warn('[useTaggingSession] Location permission not granted - images will have 0,0 coordinates');
+        logger.warn(TAG, 'Location permission not granted - images will have 0,0 coordinates');
       }
     });
   }, []);
@@ -159,7 +162,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       // Add the captured image to the session
       createTaggedImage(glassesLastImage, 'glasses').then((taggedImage) => {
         setTaggingImages((prev) => [...prev, taggedImage]);
-        console.log('[useTaggingSession] Added glasses image, total:', taggingImages.length + 1);
+        logger.debug(TAG, 'Added glasses image, total:', taggingImages.length + 1);
       });
     }
   }, [glassesLastImage]);
@@ -168,7 +171,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
    * Start tagging mode.
    */
   const startTagging = useCallback(() => {
-    console.log('[useTaggingSession] Starting tagging mode');
+    logger.debug(TAG, 'Starting tagging mode');
     setIsTaggingActive(true);
     setTaggingTranscript('');
     setTaggingImages([]);
@@ -180,7 +183,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
    * Cancel tagging without saving.
    */
   const cancelTagging = useCallback(() => {
-    console.log('[useTaggingSession] Cancelling tagging mode');
+    logger.debug(TAG, 'Cancelling tagging mode');
     setIsTaggingActive(false);
     setTaggingTranscript('');
     setTaggingImages([]);
@@ -244,7 +247,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       return;
     }
 
-    console.log('[useTaggingSession] Saving tagging session...');
+    logger.debug(TAG, 'Saving tagging session...');
     setIsSaving(true);
     setError(null);
     setStatusMessage('Saving...');
@@ -254,11 +257,11 @@ export function useTaggingSession(): UseTaggingSessionReturn {
         setStatusMessage(status.content);
       },
       onComplete: (message: string) => {
-        console.log('[useTaggingSession] Save complete:', message);
+        logger.debug(TAG, 'Save complete:', message);
         setStatusMessage(message);
       },
       onError: (err: Error) => {
-        console.error('[useTaggingSession] Save error:', err.message);
+        logger.error(TAG, 'Save error:', err.message);
         setError(err.message);
       },
     });
@@ -296,11 +299,11 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 
     try {
       if (!isGlassesCameraReady) {
-        console.log('[useTaggingSession] Initializing glasses camera...');
+        logger.debug(TAG, 'Initializing glasses camera...');
         await initGlassesCamera(false);
       }
 
-      console.log('[useTaggingSession] Capturing from glasses...');
+      logger.debug(TAG, 'Capturing from glasses...');
       await captureGlassesImage();
       // The useEffect above will handle adding the image when glassesLastImage updates
     } catch (err) {
@@ -325,7 +328,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
         return;
       }
 
-      console.log('[useTaggingSession] Opening phone camera...');
+      logger.debug(TAG, 'Opening phone camera...');
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: 'images',
         base64: true,
@@ -336,7 +339,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       if (!result.canceled && result.assets[0]?.base64) {
         const taggedImage = await createTaggedImage(result.assets[0].base64, 'phone');
         setTaggingImages((prev) => [...prev, taggedImage]);
-        console.log('[useTaggingSession] Added phone camera image');
+        logger.debug(TAG, 'Added phone camera image');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to capture from phone';
@@ -360,7 +363,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
         return;
       }
 
-      console.log('[useTaggingSession] Opening gallery...');
+      logger.debug(TAG, 'Opening gallery...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
         base64: true,
@@ -378,7 +381,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
           }
         }
         setTaggingImages((prev) => [...prev, ...newImages]);
-        console.log('[useTaggingSession] Added', newImages.length, 'gallery images');
+        logger.debug(TAG, 'Added', newImages.length, 'gallery images');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to pick from gallery';
@@ -404,7 +407,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       // Not in tagging mode - check for start keywords
       const startKeyword = detectTaggingStartKeyword(text);
       if (startKeyword) {
-        console.log('[useTaggingSession] Detected start keyword:', startKeyword);
+        logger.debug(TAG, 'Detected start keyword:', startKeyword);
         startTagging();
 
         // Add the remaining text after the keyword
@@ -417,7 +420,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       // In tagging mode - check for end keywords
       const endKeyword = detectTaggingEndKeyword(text);
       if (endKeyword) {
-        console.log('[useTaggingSession] Detected end keyword:', endKeyword);
+        logger.debug(TAG, 'Detected end keyword:', endKeyword);
 
         // Add the text before the keyword
         const beforeKeyword = removeEndKeyword(text, endKeyword);

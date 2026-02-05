@@ -5,6 +5,9 @@ import {
   DeviceCapabilities,
   EngagementMode,
 } from '../../modules/xr-glasses';
+import logger from '../utils/logger';
+
+const TAG = 'useXRGlasses';
 
 /**
  * State interface for the XR Glasses hook.
@@ -131,7 +134,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
       }));
 
     } catch (e) {
-      setError(e as Error);
+      setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
       setLoading(false);
     }
@@ -180,7 +183,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
     // Subscribe to UI refresh hints (after XR permission flow on cold start)
     const uiRefreshSub = service.onUiRefreshNeeded(async (event) => {
       if (mounted) {
-        console.log('[useXRGlasses] UI refresh needed:', event.reason);
+        logger.debug(TAG, 'UI refresh needed:', event.reason);
         // Increment refreshKey to force full component remount
         // This is necessary because XR SDK's RequestPermissionsOnHostActivity overlay
         // corrupts React Native's native text rendering, and state updates alone
@@ -199,10 +202,10 @@ export function useXRGlasses(): UseXRGlassesReturn {
               capabilities,
               refreshKey: prev.refreshKey + 1, // Force remount of components using this key
             }));
-            console.log('[useXRGlasses] Incremented refreshKey to force UI remount');
+            logger.debug(TAG, 'Incremented refreshKey to force UI remount');
           }
         } catch (err) {
-          console.warn('[useXRGlasses] Failed to refresh state:', err);
+          logger.warn(TAG, 'Failed to refresh state:', err);
         }
       }
     });
@@ -236,7 +239,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
         engagementMode: mode,
       }));
     } catch (e) {
-      setError(e as Error);
+      setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
       setLoading(false);
     }
@@ -258,7 +261,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
         engagementMode: { visualsOn: false, audioOn: false },
       }));
     } catch (e) {
-      setError(e as Error);
+      setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, []);
 
@@ -273,7 +276,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
     try {
       await service.keepScreenOn(enabled);
     } catch (e) {
-      setError(e as Error);
+      setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, []);
 
@@ -301,7 +304,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
         isProjectedDevice: isProjected,
       }));
     } catch (e) {
-      setError(e as Error);
+      setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, []);
 
@@ -316,7 +319,7 @@ export function useXRGlasses(): UseXRGlassesReturn {
     try {
       await service.simulateInputEvent(action);
     } catch (e) {
-      setError(e as Error);
+      setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, []);
 

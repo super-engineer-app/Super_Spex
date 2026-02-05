@@ -223,12 +223,10 @@ class AndroidXRGlassesService implements IXRGlassesService {
   }
 
   async setEmulationMode(enabled: boolean): Promise<boolean> {
-    // @ts-ignore - setEmulationMode may not be in the base type definition
     return XRGlassesNative.setEmulationMode(enabled);
   }
 
   async simulateInputEvent(action: string): Promise<boolean> {
-    // @ts-ignore - simulateInputEvent may not be in the base type definition
     return XRGlassesNative.simulateInputEvent(action);
   }
 
@@ -288,22 +286,18 @@ class AndroidXRGlassesService implements IXRGlassesService {
 
   // Camera capture methods
   async initializeCamera(lowPowerMode: boolean = false): Promise<boolean> {
-    // @ts-ignore - initializeCamera may not be in the base type definition
     return XRGlassesNative.initializeCamera(lowPowerMode);
   }
 
   async captureImage(): Promise<boolean> {
-    // @ts-ignore - captureImage may not be in the base type definition
     return XRGlassesNative.captureImage();
   }
 
   async releaseCamera(): Promise<boolean> {
-    // @ts-ignore - releaseCamera may not be in the base type definition
     return XRGlassesNative.releaseCamera();
   }
 
   async isCameraReady(): Promise<boolean> {
-    // @ts-ignore - isCameraReady may not be in the base type definition
     return XRGlassesNative.isCameraReady();
   }
 

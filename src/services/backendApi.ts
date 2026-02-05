@@ -5,9 +5,13 @@
  * and handles streaming responses.
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system/next';
+import logger from '../utils/logger';
+import type { ReactNativeFile } from '../types/reactNativeFile';
 
-const BACKEND_URL = 'https://REDACTED_BACKEND_URL';
+const TAG = 'BackendAPI';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://REDACTED_BACKEND_URL';
 const GENERATE_ENDPOINT = `${BACKEND_URL}/generate_temp`;
 
 // Generate a random UUID for the session
@@ -24,11 +28,9 @@ function generateUUID(): string {
  */
 async function saveBase64ToTempFile(base64: string): Promise<string> {
   const filename = `capture_${Date.now()}.jpg`;
-  const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-  await FileSystem.writeAsStringAsync(fileUri, base64, {
-    encoding: 'base64',
-  });
-  return fileUri;
+  const file = new File(Paths.cache, filename);
+  file.base64 = base64;
+  return file.uri;
 }
 
 /**
@@ -36,9 +38,10 @@ async function saveBase64ToTempFile(base64: string): Promise<string> {
  */
 async function deleteTempFile(fileUri: string): Promise<void> {
   try {
-    await FileSystem.deleteAsync(fileUri, { idempotent: true });
+    const file = new File(fileUri);
+    file.delete();
   } catch (e) {
-    console.warn('[BackendAPI] Failed to delete temp file:', e);
+    logger.warn(TAG, 'Failed to delete temp file:', e);
   }
 }
 
@@ -52,7 +55,7 @@ let currentConversationId: string | null = null;
 export function getSessionUserId(): string {
   if (!sessionUserId) {
     sessionUserId = generateUUID();
-    console.log('[BackendAPI] Created session user ID:', sessionUserId);
+    logger.debug(TAG, 'Created session user ID:', sessionUserId);
   }
   return sessionUserId;
 }
@@ -69,7 +72,7 @@ export function getConversationId(): string | null {
  */
 export function setConversationId(id: string | null): void {
   currentConversationId = id;
-  console.log('[BackendAPI] Conversation ID set to:', id);
+  logger.debug(TAG, 'Conversation ID set to:', id);
 }
 
 /**
@@ -78,7 +81,7 @@ export function setConversationId(id: string | null): void {
 export function resetSession(): void {
   sessionUserId = generateUUID();
   currentConversationId = null;
-  console.log('[BackendAPI] Session reset, new user ID:', sessionUserId);
+  logger.debug(TAG, 'Session reset, new user ID:', sessionUserId);
 }
 
 
@@ -131,14 +134,14 @@ export async function sendToBackend(options: SendToBackendOptions): Promise<Back
         uri: tempFileUri,
         type: 'image/jpeg',
         name: 'capture.jpg',
-      } as any);
+      } as ReactNativeFile as unknown as Blob);
     }
 
-    console.log('[BackendAPI] Sending request to:', GENERATE_ENDPOINT);
-    console.log('[BackendAPI] user_id:', userId);
-    console.log('[BackendAPI] conversation_id:', currentConversationId);
-    console.log('[BackendAPI] has text:', !!text);
-    console.log('[BackendAPI] has image:', !!imageBase64);
+    logger.debug(TAG, 'Sending request to:', GENERATE_ENDPOINT);
+    logger.debug(TAG, 'user_id:', userId);
+    logger.debug(TAG, 'conversation_id:', currentConversationId);
+    logger.debug(TAG, 'has text:', !!text);
+    logger.debug(TAG, 'has image:', !!imageBase64);
 
     const response = await fetch(GENERATE_ENDPOINT, {
       method: 'POST',
@@ -152,7 +155,7 @@ export async function sendToBackend(options: SendToBackendOptions): Promise<Back
 
     // Get full response (React Native doesn't support streaming)
     const responseText = await response.text();
-    console.log('[BackendAPI] Raw response:', responseText.substring(0, 500));
+    logger.debug(TAG, 'Raw response:', responseText.substring(0, 500));
 
     let fullResponse = '';
     let newConversationId: string | null = null;
@@ -210,7 +213,7 @@ export async function sendToBackend(options: SendToBackendOptions): Promise<Back
       fullResponse = responseText;
     }
 
-    console.log('[BackendAPI] Response complete, length:', fullResponse.length);
+    logger.debug(TAG, 'Response complete, length:', fullResponse.length);
     onChunk?.(fullResponse);
     onComplete?.(fullResponse, newConversationId);
 
@@ -232,7 +235,7 @@ export async function sendToBackend(options: SendToBackendOptions): Promise<Back
     }
 
     const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[BackendAPI] Error:', err.message);
+    logger.error(TAG, 'Error:', err.message);
     onError?.(err);
     return { success: false, error: err.message };
   }

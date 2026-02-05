@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getXRGlassesService } from '../../modules/xr-glasses';
 import type { ImageCapturedEvent, CameraErrorEvent, CameraStateEvent } from '../../modules/xr-glasses';
+import logger from '../utils/logger';
+
+const TAG = 'useGlassesCamera';
 
 /**
  * Camera state interface.
@@ -168,7 +171,7 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 
     // Auto-reinitialize camera if it was previously initialized but is no longer ready
     if (!isReady && wasInitializedRef.current) {
-      console.log('[useGlassesCamera] Camera not ready, auto-reinitializing...');
+      logger.debug(TAG, 'Camera not ready, auto-reinitializing...');
       setError(null);
       try {
         const service = getXRGlassesService();

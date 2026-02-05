@@ -9,6 +9,9 @@ import {
   StreamCameraSourceChangedEvent,
   StreamQuality,
 } from '../../modules/xr-glasses';
+import logger from '../utils/logger';
+
+const TAG = 'RemoteView';
 
 // WebSocket URL for real-time channel updates
 const WS_BASE_URL = 'wss://REDACTED_TOKEN_SERVER/ws';
@@ -137,7 +140,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       'onStreamStarted',
       (event: StreamStartedEvent) => {
         if (mounted) {
-          console.log('[RemoteView] Stream started:', event.viewerUrl);
+          logger.debug(TAG, 'Stream started:', event.viewerUrl);
           setState(prev => ({
             ...prev,
             isStreaming: true,
@@ -155,7 +158,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       'onStreamStopped',
       (_event: StreamStoppedEvent) => {
         if (mounted) {
-          console.log('[RemoteView] Stream stopped');
+          logger.debug(TAG, 'Stream stopped');
           setState(prev => ({
             ...prev,
             isStreaming: false,
@@ -175,7 +178,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       'onStreamError',
       (event: StreamErrorEvent) => {
         if (mounted) {
-          console.error('[RemoteView] Stream error:', event.message);
+          logger.error(TAG, 'Stream error:', event.message);
           setState(prev => ({
             ...prev,
             error: event.message,
@@ -190,7 +193,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       'onViewerUpdate',
       (event: ViewerUpdateEvent) => {
         if (mounted) {
-          console.log('[RemoteView] Viewer update:', event.viewerCount);
+          logger.debug(TAG, 'Viewer update:', event.viewerCount);
           setState(prev => ({
             ...prev,
             viewerCount: event.viewerCount,
@@ -204,7 +207,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       'onStreamCameraSourceChanged',
       (event: StreamCameraSourceChangedEvent) => {
         if (mounted) {
-          console.log('[RemoteView] Camera source changed:', event.cameraSource, 'demoMode:', event.isDemoMode);
+          logger.debug(TAG, 'Camera source changed:', event.cameraSource, 'demoMode:', event.isDemoMode);
           setState(prev => ({
             ...prev,
             cameraSource: event.cameraSource,
@@ -219,7 +222,7 @@ export function useRemoteView(): UseRemoteViewReturn {
       if (mounted && active) {
         setState(prev => ({ ...prev, isStreaming: active }));
       }
-    }).catch(console.error);
+    }).catch((e: unknown) => logger.error(TAG, 'Failed to check initial streaming state:', e));
 
     return () => {
       mounted = false;
@@ -250,19 +253,19 @@ export function useRemoteView(): UseRemoteViewReturn {
     if (state.isStreaming && state.channelId) {
       const connectWebSocket = () => {
         const wsUrl = `${WS_BASE_URL}/${state.channelId}?role=host&name=Broadcaster`;
-        console.log('[RemoteView] Opening WebSocket:', wsUrl);
+        logger.debug(TAG, 'Opening WebSocket:', wsUrl);
 
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log('[RemoteView] WebSocket connected');
+          logger.debug(TAG, 'WebSocket connected');
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('[RemoteView] WebSocket message:', data.type);
+            logger.debug(TAG, 'WebSocket message:', data.type);
 
             if (data.type === 'connected' || data.type === 'viewer_count') {
               setState(prev => ({
@@ -271,16 +274,16 @@ export function useRemoteView(): UseRemoteViewReturn {
               }));
             }
           } catch (error) {
-            console.warn('[RemoteView] Failed to parse WebSocket message:', error);
+            logger.warn(TAG, 'Failed to parse WebSocket message:', error);
           }
         };
 
         ws.onerror = (error) => {
-          console.warn('[RemoteView] WebSocket error:', error);
+          logger.warn(TAG, 'WebSocket error:', error);
         };
 
         ws.onclose = () => {
-          console.log('[RemoteView] WebSocket closed');
+          logger.debug(TAG, 'WebSocket closed');
           // Reconnect after 3 seconds if still streaming
           if (state.isStreaming && state.channelId) {
             reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
@@ -308,12 +311,12 @@ export function useRemoteView(): UseRemoteViewReturn {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      console.log('[RemoteView] Starting stream with quality:', state.selectedQuality);
+      logger.debug(TAG, 'Starting stream with quality:', state.selectedQuality);
       await XRGlassesNative.startRemoteView(state.selectedQuality);
       // State will be updated via onStreamStarted event
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to start stream';
-      console.error('[RemoteView] Start failed:', error);
+      logger.error(TAG, 'Start failed:', error);
       setState(prev => ({ ...prev, error, loading: false }));
     }
   }, [state.selectedQuality]);
@@ -323,12 +326,12 @@ export function useRemoteView(): UseRemoteViewReturn {
     setState(prev => ({ ...prev, loading: true }));
 
     try {
-      console.log('[RemoteView] Stopping stream');
+      logger.debug(TAG, 'Stopping stream');
       await XRGlassesNative.stopRemoteView();
       // State will be updated via onStreamStopped event
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to stop stream';
-      console.error('[RemoteView] Stop failed:', error);
+      logger.error(TAG, 'Stop failed:', error);
       setState(prev => ({ ...prev, error, loading: false }));
     }
   }, []);
@@ -340,7 +343,7 @@ export function useRemoteView(): UseRemoteViewReturn {
     // If currently streaming, update quality on the fly
     if (state.isStreaming) {
       XRGlassesNative.setRemoteViewQuality(quality).catch(e => {
-        console.error('[RemoteView] Failed to update quality:', e);
+        logger.error(TAG, 'Failed to update quality:', e);
       });
     }
   }, [state.isStreaming]);
@@ -348,7 +351,7 @@ export function useRemoteView(): UseRemoteViewReturn {
   // Share link
   const shareLink = useCallback(async () => {
     if (!state.viewerUrl) {
-      console.warn('[RemoteView] No viewer URL to share');
+      logger.warn(TAG, 'No viewer URL to share');
       return;
     }
 
@@ -359,10 +362,10 @@ export function useRemoteView(): UseRemoteViewReturn {
       });
 
       if (result.action === Share.sharedAction) {
-        console.log('[RemoteView] Link shared successfully');
+        logger.debug(TAG, 'Link shared successfully');
       }
     } catch (e) {
-      console.error('[RemoteView] Share failed:', e);
+      logger.error(TAG, 'Share failed:', e);
     }
   }, [state.viewerUrl]);
 
