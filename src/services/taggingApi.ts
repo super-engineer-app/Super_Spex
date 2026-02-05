@@ -130,16 +130,15 @@ export async function submitTaggingSession(
   formData.append('local_date', localDate);
   formData.append('coordinates', JSON.stringify(coordinates));
 
-  // Convert base64 images to file blobs
+  // Attach images as file uploads using React Native's FormData pattern
+  // RN doesn't support Blob - use {uri, type, name} objects with data URIs
   for (let i = 0; i < images.length; i++) {
     const img = images[i];
-    const byteCharacters = atob(img.base64);
-    const byteArray = new Uint8Array(byteCharacters.length);
-    for (let j = 0; j < byteCharacters.length; j++) {
-      byteArray[j] = byteCharacters.charCodeAt(j);
-    }
-    const blob = new Blob([byteArray], { type: 'image/jpeg' });
-    formData.append('images', blob, `image_${i + 1}.jpg`);
+    formData.append('images', {
+      uri: `data:image/jpeg;base64,${img.base64}`,
+      type: 'image/jpeg',
+      name: `image_${i + 1}.jpg`,
+    } as unknown as Blob);
   }
 
   console.log('[TaggingAPI] Submitting tagging session:', {
