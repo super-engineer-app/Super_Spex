@@ -57,6 +57,8 @@ export interface UseTaggingSessionReturn {
   pickFromGallery: () => Promise<void>;
   /** Remove an image from the session */
   removeImage: (index: number) => void;
+  /** Replace the entire transcript (for manual editing) */
+  editTranscript: (text: string) => void;
   /** Process speech result - detects keywords and handles transcript */
   processSpeechResult: (text: string) => void;
   /** Whether glasses camera is ready */
@@ -206,6 +208,14 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       }
       return trimmedText;
     });
+  }, []);
+
+  /**
+   * Replace the entire transcript (for manual text editing).
+   */
+  const editTranscript = useCallback((text: string) => {
+    if (!isTaggingActiveRef.current) return;
+    setTaggingTranscript(text);
   }, []);
 
   /**
@@ -437,6 +447,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
     cancelTagging,
     saveTaggingSession,
     addTranscript,
+    editTranscript,
     captureFromGlasses,
     captureFromPhone,
     pickFromGallery,

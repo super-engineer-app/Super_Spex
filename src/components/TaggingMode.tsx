@@ -9,6 +9,7 @@ import React from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   Pressable,
   ScrollView,
@@ -48,6 +49,8 @@ interface TaggingModeProps {
   onPickFromGallery: () => void;
   /** Remove an image */
   onRemoveImage: (index: number) => void;
+  /** Edit the transcript text */
+  onEditTranscript: (text: string) => void;
 }
 
 /**
@@ -69,6 +72,7 @@ export function TaggingMode({
   onCaptureFromPhone,
   onPickFromGallery,
   onRemoveImage,
+  onEditTranscript,
 }: TaggingModeProps): React.ReactElement {
   // Not in tagging mode - show start button
   if (!isActive) {
@@ -104,11 +108,15 @@ export function TaggingMode({
       {/* Transcript */}
       <View style={styles.transcriptBox}>
         <Text style={styles.transcriptLabel}>Transcript:</Text>
-        {transcript ? (
-          <Text style={styles.transcriptText}>{transcript}</Text>
-        ) : (
-          <Text style={styles.transcriptPlaceholder}>Speak to add notes...</Text>
-        )}
+        <TextInput
+          style={styles.transcriptText}
+          value={transcript}
+          onChangeText={onEditTranscript}
+          placeholder="Speak or type to add notes..."
+          placeholderTextColor="#666"
+          multiline
+          textAlignVertical="top"
+        />
       </View>
 
       {/* Images */}
@@ -282,11 +290,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     lineHeight: 22,
-  },
-  transcriptPlaceholder: {
-    color: '#666',
-    fontSize: 14,
-    fontStyle: 'italic',
   },
   imagesSection: {
     marginBottom: 12,
