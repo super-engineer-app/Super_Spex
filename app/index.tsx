@@ -2,6 +2,9 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useXRGlasses } from '../src/hooks/useXRGlasses';
+import logger from '../src/utils/logger';
+
+const TAG = 'HomeScreen';
 
 /**
  * Home Screen - Simplified
@@ -27,7 +30,7 @@ export default function HomeScreen() {
       await connect();
       router.push('/glasses');
     } catch (error) {
-      console.error('Connection failed:', error);
+      logger.error(TAG, 'Connection failed:', error);
     }
   };
 
@@ -38,7 +41,7 @@ export default function HomeScreen() {
       await connect();
       router.push('/glasses');
     } catch (error) {
-      console.error('Demo mode connection failed:', error);
+      logger.error(TAG, 'Demo mode connection failed:', error);
     }
   };
 

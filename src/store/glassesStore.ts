@@ -104,7 +104,7 @@ const initialState: GlassesState = {
  * Generate a unique ID for events.
  */
 const generateId = (): string =>
-  `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
 /**
  * Zustand store for XR Glasses state management.

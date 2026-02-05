@@ -4,6 +4,9 @@ import { useEffect } from 'react';
 import { useColorScheme, View, StyleSheet, Platform, PermissionsAndroid, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initializeErrorReporting } from '../src/services';
+import logger from '../src/utils/logger';
+
+const TAG = 'RootLayout';
 
 /**
  * Request all necessary permissions for the XR Glasses app.
@@ -32,7 +35,7 @@ async function requestAllPermissions() {
     const results = await PermissionsAndroid.requestMultiple(permissions);
 
     // Log results for debugging
-    console.log('Permission results:', results);
+    logger.debug(TAG, 'Permission results:', results);
 
     // Check if any critical permissions were denied
     const deniedPermissions = Object.entries(results)
@@ -40,10 +43,10 @@ async function requestAllPermissions() {
       .map(([permission]) => permission.split('.').pop());
 
     if (deniedPermissions.length > 0) {
-      console.log('Some permissions were denied:', deniedPermissions);
+      logger.debug(TAG, 'Some permissions were denied:', deniedPermissions);
     }
   } catch (error) {
-    console.error('Error requesting permissions:', error);
+    logger.error(TAG, 'Error requesting permissions:', error);
   }
 }
 

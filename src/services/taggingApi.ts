@@ -11,10 +11,14 @@ import type {
   TaggingStatusEvent,
   TaggedImage,
 } from '../types/tagging';
+import logger from '../utils/logger';
+import type { ReactNativeFile } from '../types/reactNativeFile';
+
+const TAG = 'TaggingAPI';
 
 // For Android emulator: 10.0.2.2 maps to host machine's localhost
 // For real device on same network: use host machine's local IP (e.g., 192.168.x.x)
-const BACKEND_URL = 'http://10.0.2.2:8000';
+const BACKEND_URL = process.env.EXPO_PUBLIC_TAGGING_API_URL || 'http://10.0.2.2:8000';
 const TAGGING_ENDPOINT = `${BACKEND_URL}/tagging-sessions`;
 
 // DEV MODE: Fixed IDs for testing with local backend
@@ -28,7 +32,7 @@ const DEV_ORG_ID = 1;
  * TODO: Replace with proper authentication.
  */
 export function getTaggingUserId(): number {
-  console.log('[TaggingAPI] Using dev user_id:', DEV_USER_ID);
+  logger.debug(TAG, 'Using dev user_id:', DEV_USER_ID);
   return DEV_USER_ID;
 }
 
@@ -38,7 +42,7 @@ export function getTaggingUserId(): number {
  * TODO: Replace with proper authentication.
  */
 export function getTaggingOrgId(): number {
-  console.log('[TaggingAPI] Using dev org_id:', DEV_ORG_ID);
+  logger.debug(TAG, 'Using dev org_id:', DEV_ORG_ID);
   return DEV_ORG_ID;
 }
 
@@ -46,7 +50,7 @@ export function getTaggingOrgId(): number {
  * Reset session (no-op in dev mode with fixed IDs).
  */
 export function resetTaggingSession(): void {
-  console.log('[TaggingAPI] Session reset (no-op in dev mode)');
+  logger.debug(TAG, 'Session reset (no-op in dev mode)');
 }
 
 /**
@@ -138,10 +142,10 @@ export async function submitTaggingSession(
       uri: `data:image/jpeg;base64,${img.base64}`,
       type: 'image/jpeg',
       name: `image_${i + 1}.jpg`,
-    } as unknown as Blob);
+    } as ReactNativeFile as unknown as Blob);
   }
 
-  console.log('[TaggingAPI] Submitting tagging session:', {
+  logger.debug(TAG, 'Submitting tagging session:', {
     user_id: userId,
     org_id: orgId,
     transcript_length: trimmedTranscript.length,
@@ -164,7 +168,7 @@ export async function submitTaggingSession(
 
     // Parse SSE response
     const responseText = await response.text();
-    console.log('[TaggingAPI] Raw response:', responseText.substring(0, 500));
+    logger.debug(TAG, 'Raw response:', responseText.substring(0, 500));
 
     let finalMessage = '';
     let hasError = false;
@@ -186,7 +190,7 @@ export async function submitTaggingSession(
           }
         } catch {
           // Not JSON, ignore
-          console.log('[TaggingAPI] Non-JSON SSE line:', data);
+          logger.debug(TAG, 'Non-JSON SSE line:', data);
         }
       }
     }
@@ -198,12 +202,12 @@ export async function submitTaggingSession(
     }
 
     const successMessage = finalMessage || 'Tagging session saved successfully';
-    console.log('[TaggingAPI] Success:', successMessage);
+    logger.debug(TAG, 'Success:', successMessage);
     onComplete?.(successMessage);
     return { success: true, message: successMessage };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error('[TaggingAPI] Error:', error.message);
+    logger.error(TAG, 'Error:', error.message);
     onError?.(error);
     return { success: false, error: error.message };
   }
@@ -229,7 +233,7 @@ export async function requestLocationPermission(): Promise<LocationPermissionSta
       canAskAgain,
     };
   } catch (error) {
-    console.error('[TaggingAPI] Location permission error:', error);
+    logger.error(TAG, 'Location permission error:', error);
     return { granted: false, canAskAgain: false };
   }
 }
@@ -242,7 +246,7 @@ export async function getCurrentLocation(): Promise<{ lat: number; long: number 
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
     if (status !== 'granted') {
-      console.warn('[TaggingAPI] Location permission not granted');
+      logger.warn(TAG, 'Location permission not granted');
       return null;
     }
 
@@ -255,7 +259,7 @@ export async function getCurrentLocation(): Promise<{ lat: number; long: number 
       long: location.coords.longitude,
     };
   } catch (error) {
-    console.error('[TaggingAPI] Get location error:', error);
+    logger.error(TAG, 'Get location error:', error);
     return null;
   }
 }

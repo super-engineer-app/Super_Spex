@@ -14,6 +14,9 @@ import { TaggingMode } from '../../src/components/TaggingMode';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { sendText, sendImage } from '../../src/services';
+import logger from '../../src/utils/logger';
+
+const TAG = 'GlassesDashboard';
 
 /**
  * Simplified Glasses Dashboard
@@ -175,10 +178,10 @@ export default function GlassesDashboard() {
   useEffect(() => {
     if (refreshKey > initialRefreshKey.current) {
       if (hasActiveOperation) {
-        console.log('[GlassesDashboard] UI refresh deferred - operation in progress');
+        logger.debug(TAG, 'UI refresh deferred - operation in progress');
         pendingRefreshRef.current = true;
       } else {
-        console.log('[GlassesDashboard] UI refresh triggered, doing navigation refresh');
+        logger.debug(TAG, 'UI refresh triggered, doing navigation refresh');
         pendingRefreshRef.current = false;
         router.replace('/glasses');
       }
@@ -188,7 +191,7 @@ export default function GlassesDashboard() {
   // Apply deferred refresh when all operations complete
   useEffect(() => {
     if (pendingRefreshRef.current && !hasActiveOperation) {
-      console.log('[GlassesDashboard] Applying deferred UI refresh');
+      logger.debug(TAG, 'Applying deferred UI refresh');
       pendingRefreshRef.current = false;
       router.replace('/glasses');
     }
@@ -202,7 +205,7 @@ export default function GlassesDashboard() {
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     } catch (error) {
-      console.error('Failed to copy URL:', error);
+      logger.error(TAG, 'Failed to copy URL:', error);
     }
   }, [viewerUrl]);
 
@@ -253,20 +256,20 @@ export default function GlassesDashboard() {
     setAiResponse('');
     setAiError(null);
     try {
-      console.log('Sending transcript to AI:', transcript);
+      logger.debug(TAG, 'Sending transcript to AI:', transcript);
       await sendText(transcript, {
         onChunk: (chunk) => {
           setAiResponse(prev => prev + chunk);
         },
         onComplete: (fullResponse) => {
-          console.log('AI response complete:', fullResponse.length, 'chars');
+          logger.debug(TAG, 'AI response complete:', fullResponse.length, 'chars');
         },
         onError: (error) => {
           setAiError(error.message);
         },
       });
     } catch (error) {
-      console.error('Error:', error);
+      logger.error(TAG, 'Error:', error);
       setAiError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsSendingAudio(false);
@@ -280,20 +283,20 @@ export default function GlassesDashboard() {
     setAiResponse('');
     setAiError(null);
     try {
-      console.log('Sending image to AI:', lastImageSize);
+      logger.debug(TAG, 'Sending image to AI:', lastImageSize);
       await sendImage(lastImage, {
         onChunk: (chunk) => {
           setAiResponse(prev => prev + chunk);
         },
         onComplete: (fullResponse) => {
-          console.log('AI response complete:', fullResponse.length, 'chars');
+          logger.debug(TAG, 'AI response complete:', fullResponse.length, 'chars');
         },
         onError: (error) => {
           setAiError(error.message);
         },
       });
     } catch (error) {
-      console.error('Error:', error);
+      logger.error(TAG, 'Error:', error);
       setAiError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsSendingImage(false);

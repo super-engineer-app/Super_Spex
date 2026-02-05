@@ -29,6 +29,9 @@ import {
   isValidTranscriptionResult,
 } from '../services/transcriptionApi';
 import type { TranscriptionResult, TranscriptionSegment } from '../services/transcriptionApi';
+import logger from '../utils/logger';
+
+const TAG = 'useVideoRecording';
 
 type CameraSource = 'phone' | 'glasses';
 
@@ -118,7 +121,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 
     const errorSub = service.onRecordingError((event: RecordingErrorEvent) => {
       if (!mountedRef.current) return;
-      console.error('[useVideoRecording] Recording error:', event.message);
+      logger.error(TAG, 'Recording error:', event.message);
       stopDurationTimer();
       setState((prev) => ({
         ...prev,
@@ -152,7 +155,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
       startDurationTimer();
       await serviceRef.current.startVideoRecording(state.cameraSource);
     } catch (error) {
-      console.error('[useVideoRecording] Failed to start recording:', error);
+      logger.error(TAG, 'Failed to start recording:', error);
       stopDurationTimer();
       setState((prev) => ({ ...prev, recordingState: 'idle' }));
     }
@@ -162,7 +165,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
     try {
       await serviceRef.current.stopVideoRecording();
     } catch (error) {
-      console.error('[useVideoRecording] Failed to stop recording:', error);
+      logger.error(TAG, 'Failed to stop recording:', error);
     }
   }, []);
 
@@ -194,7 +197,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
     } catch (error) {
       if (!mountedRef.current) return;
       const message = error instanceof Error ? error.message : 'Transcription failed';
-      console.error('[useVideoRecording] Transcription error:', message);
+      logger.error(TAG, 'Transcription error:', message);
       setState((prev) => ({
         ...prev,
         transcriptionState: 'error',
@@ -206,7 +209,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
   const saveVideo = useCallback(async () => {
     const filePath = await serviceRef.current.getRecordingFilePath();
     if (!filePath) {
-      console.warn('[useVideoRecording] No recording file to save');
+      logger.warn(TAG, 'No recording file to save');
       return;
     }
 
@@ -218,10 +221,10 @@ export function useVideoRecording(): UseVideoRecordingReturn {
           dialogTitle: 'Save Recording',
         });
       } else {
-        console.warn('[useVideoRecording] Sharing not available on this device');
+        logger.warn(TAG, 'Sharing not available on this device');
       }
     } catch (error) {
-      console.error('[useVideoRecording] Failed to save video:', error);
+      logger.error(TAG, 'Failed to save video:', error);
     }
   }, []);
 
@@ -250,7 +253,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
         Alert.alert('Copied', 'Sharing unavailable — transcript copied to clipboard.');
       }
     } catch (error) {
-      console.error('[useVideoRecording] Failed to share transcript:', error);
+      logger.error(TAG, 'Failed to share transcript:', error);
       Alert.alert('Error', 'Failed to share transcript.');
     }
   }, [state.transcriptionResult]);
@@ -259,7 +262,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
     try {
       await serviceRef.current.dismissVideoRecording();
     } catch (error) {
-      console.error('[useVideoRecording] Failed to dismiss recording:', error);
+      logger.error(TAG, 'Failed to dismiss recording:', error);
     }
     setState(INITIAL_STATE);
   }, []);

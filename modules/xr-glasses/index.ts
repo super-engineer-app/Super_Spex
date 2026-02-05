@@ -46,6 +46,12 @@ interface XRGlassesNativeModule extends NativeModule {
     hasAudioOutput: boolean;
   }>;
 
+  /** Enable/disable emulation mode for testing without glasses */
+  setEmulationMode(enabled: boolean): Promise<boolean>;
+
+  /** Simulate an input event (emulation mode only) */
+  simulateInputEvent(action: string): Promise<boolean>;
+
   // ============================================================
   // Speech Recognition (runs on glasses via GlassesActivity)
   // ============================================================

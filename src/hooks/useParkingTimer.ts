@@ -7,6 +7,9 @@ import {
   ParkingTimerExpiredEvent,
   ParkingTimerCancelledEvent,
 } from '../../modules/xr-glasses';
+import logger from '../utils/logger';
+
+const TAG = 'ParkingTimer';
 
 /**
  * Extended parking timer state for the hook.
@@ -178,7 +181,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
       'onParkingTimerStarted',
       (event: ParkingTimerStartedEvent) => {
         if (mounted) {
-          console.log('[ParkingTimer] Started:', event.durationMinutes, 'min');
+          logger.debug(TAG, 'Started:', event.durationMinutes, 'min');
           setState(prev => ({
             ...prev,
             isActive: true,
@@ -199,7 +202,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
       'onParkingTimerWarning',
       (event: ParkingTimerWarningEvent) => {
         if (mounted) {
-          console.log('[ParkingTimer] Warning! Remaining:', event.remainingMinutes, 'min');
+          logger.debug(TAG, 'Warning! Remaining:', event.remainingMinutes, 'min');
           setState(prev => ({
             ...prev,
             warningShown: true,
@@ -214,7 +217,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
       'onParkingTimerExpired',
       (_event: ParkingTimerExpiredEvent) => {
         if (mounted) {
-          console.log('[ParkingTimer] EXPIRED!');
+          logger.debug(TAG, 'EXPIRED!');
           setState(prev => ({
             ...prev,
             isActive: false,
@@ -230,7 +233,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
       'onParkingTimerCancelled',
       (_event: ParkingTimerCancelledEvent) => {
         if (mounted) {
-          console.log('[ParkingTimer] Cancelled');
+          logger.debug(TAG, 'Cancelled');
           setState(prev => ({
             ...prev,
             isActive: false,
@@ -259,7 +262,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
           }));
         }
       })
-      .catch(console.error);
+      .catch((e: unknown) => logger.error(TAG, 'Failed to get timer state:', e));
 
     return () => {
       mounted = false;
@@ -275,12 +278,12 @@ export function useParkingTimer(): UseParkingTimerReturn {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      console.log('[ParkingTimer] Starting timer for', durationMinutes, 'minutes');
+      logger.debug(TAG, 'Starting timer for', durationMinutes, 'minutes');
       await XRGlassesNative.startParkingTimer(durationMinutes);
       // State will be updated via onParkingTimerStarted event
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to start timer';
-      console.error('[ParkingTimer] Start failed:', error);
+      logger.error(TAG, 'Start failed:', error);
       setState(prev => ({ ...prev, error, loading: false }));
     }
   }, []);
@@ -290,12 +293,12 @@ export function useParkingTimer(): UseParkingTimerReturn {
     setState(prev => ({ ...prev, loading: true }));
 
     try {
-      console.log('[ParkingTimer] Cancelling timer');
+      logger.debug(TAG, 'Cancelling timer');
       await XRGlassesNative.cancelParkingTimer();
       // State will be updated via onParkingTimerCancelled event
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to cancel timer';
-      console.error('[ParkingTimer] Cancel failed:', error);
+      logger.error(TAG, 'Cancel failed:', error);
       setState(prev => ({ ...prev, error, loading: false }));
     }
   }, []);
@@ -303,12 +306,12 @@ export function useParkingTimer(): UseParkingTimerReturn {
   // Stop alarm
   const stopAlarm = useCallback(async () => {
     try {
-      console.log('[ParkingTimer] Stopping alarm');
+      logger.debug(TAG, 'Stopping alarm');
       await XRGlassesNative.stopParkingAlarm();
       setState(prev => ({ ...prev, expired: false }));
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to stop alarm';
-      console.error('[ParkingTimer] Stop alarm failed:', error);
+      logger.error(TAG, 'Stop alarm failed:', error);
       setState(prev => ({ ...prev, error }));
     }
   }, []);
