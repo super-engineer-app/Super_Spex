@@ -94,6 +94,7 @@ export default function GlassesDashboard() {
     captureFromPhone,
     pickFromGallery,
     removeImage: removeTaggingImage,
+    editTranscript,
     processSpeechResult,
   } = useTaggingSession();
 
@@ -309,6 +310,7 @@ export default function GlassesDashboard() {
           onCaptureFromPhone={captureFromPhone}
           onPickFromGallery={pickFromGallery}
           onRemoveImage={removeTaggingImage}
+          onEditTranscript={editTranscript}
         />
 
         {/* Image Section */}
