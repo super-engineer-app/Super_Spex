@@ -1,21 +1,3 @@
-### PENDING:
-5. verify all css code to make sure it is safe and doesnt bug.
-4. Legacy imports cleanup
-
-### DONE:
-2. ~~every participant in the channel should be able to mute/unmute~~ (implemented in web viewer)
-3. ~~every participant should be able to turn their camera on and off.~~ (implemented in web viewer)
-5. Remove 'any' keyword usage
-6. Scan for unsafe language features
-7. Glasses camera dimensions/quality options
-8. Scan for legacy code to modernize
-9. Video streaming optimization
-10. Switch tagging API to HTTPS (remove cleartext HTTP workaround)
-12. ~~Lobby/landing page before joining channel~~ (camera/mic setup, name entry, permissions)
-13. ~~Participant grid view~~ (like Zoom/Google Meet, host larger and centered)
-14. ~~Display names under participant tiles~~ (persisted in localStorage)
-15. ~~Screen wake lock during streaming~~ (Android FLAG_KEEP_SCREEN_ON fix)
-
-### FUTURE FEATURES:
-2. Pre-record video with glasses + transcription + share
-3. Text chat between host and viewers (WebSocket infrastructure ready)
+the next big goal is to port the "demo" version of the spex app to 1. web 2. ios 
+we must make sure the demo version of the app runs everywhere - on android (the only place it runs right now), ios , and web.
+the demo version only features hardware apis like camera, microphone, etc. so it is not based of the android xr and can be cross platform.

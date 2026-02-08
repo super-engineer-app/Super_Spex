@@ -1,289 +1,92 @@
-# Claude Code Instructions
+# SPEX - Claude Code Instructions
 
-## Agent Behavior Rules
+## What This Is
 
-### Progress Tracking
-- **ALWAYS** use the TodoWrite tool to track tasks and progress
-- Keep the user informed of what's being done
+React Native (Expo) app for Android that communicates with AI glasses via the Jetpack XR SDK. The phone is the hub; glasses are the display.
 
-### Research Before Implementation
-- **ALWAYS** conduct extensive research of official documentation before:
-  - Implementing any new feature
-  - Making adjustments to existing code
-  - Integrating new libraries or APIs
-- Use WebFetch/WebSearch to read official docs, not just Stack Overflow or tutorials
-- Document key findings from official docs in the relevant `docs/` file
-- If official docs contradict existing code patterns, flag this to the user
+## Critical Architecture Rules
 
-### Failure Handling
-- If an approach fails **more than 2 iterations**, STOP and document:
-  1. What approach was tried
-  2. Why it failed (error messages, root cause)
-  3. What was learned
-- Add failed approaches to the relevant `docs/maintenance/` file
-- This prevents repeating the same mistakes in future sessions
-
-### Documentation Standards
-- **NEVER** exceed 2000 lines in any single documentation file
-- Keep `CLAUDE.md` focused on agent instructions only
-- Keep main docs concise, put details in `docs/maintenance/`
-
-### Documentation Structure (Where to Find Info)
-
-**Always check these first:**
-1. `docs/architecture.md` - High-level system design, process separation, file structure
-2. `docs/reference.md` - Key files list, quick commands
-
-**For deeper understanding or troubleshooting:**
+**1. All XR features MUST be native Kotlin modules.**
+The Jetpack XR SDK is Android-native and cannot be called from JavaScript.
 ```
-docs/maintenance/
-├── README.md                    # Quick troubleshooting matrix, start here
-├── xr-glasses-projection.md     # CRITICAL: How projection works, why separate process
-├── speech-recognition.md        # Speech architecture, broadcast flow, errors
-├── camera-capture.md            # Camera system, CameraX setup
-├── remote-view-streaming.md     # Agora streaming, viewer tracking, quality presets
-├── emulator-testing.md          # Emulator setup, pairing, known issues
-└── build-deploy.md              # Build process, gradle, manifest config
+React Native (TypeScript) → Expo Native Module (Kotlin) → Jetpack XR SDK → AI Glasses
 ```
-
-**When to check maintenance docs:**
-- Something is broken → Start with `maintenance/README.md` troubleshooting matrix
-- Phone UI corrupted → `maintenance/xr-glasses-projection.md`
-- Speech not working → `maintenance/speech-recognition.md`
-- Camera issues → `maintenance/camera-capture.md`
-- Streaming/remote view issues → `maintenance/remote-view-streaming.md`
-- Emulator problems → `maintenance/emulator-testing.md`
-- Build failures → `maintenance/build-deploy.md`
-
-**Other docs:**
-- `docs/xr-glasses-resources.md` - Official Android XR SDK links and samples
-
-### Code Quality Standards
-Write code that is:
-- **Efficient**: No unnecessary operations, optimal algorithms
-- **Well-structured**: Clear separation of concerns, logical organization
-- **Well-designed**: Follow established patterns (SOLID, DRY, KISS)
-- **Scalable**: Code should handle growth without major refactoring
-- **Maintainable**: Self-documenting, clear naming, minimal complexity
-
-Avoid:
-- unsafe language features such as "any"
-- any potential runtime unsafety
-- any type unsafe features
-- any potential race conditions 
-- any potential memory/resource leaks
-- Over-engineering or premature optimization
-- Magic numbers/strings - use constants
-- Deep nesting - extract to functions
-- Large files - split into modules
-- Duplicated code - extract to shared utilities
-
-### Type Safety & Runtime Error Prevention
-**NEVER** use language features that may cause runtime errors:
-- **TypeScript**: Never use `any` type - use proper types, `unknown`, or generics instead
-- **TypeScript**: Avoid type assertions (`as`) unless absolutely necessary with a comment explaining why
-- **TypeScript**: Enable strict mode and address all type errors
-- **Kotlin**: Avoid `!!` (non-null assertion) - use safe calls `?.` or `?:` instead
-- **Kotlin**: Use sealed classes for exhaustive when expressions
-- **Both**: Avoid race conditions - use proper synchronization/mutex/atomic operations
-- **Both**: Handle all error cases explicitly - no silent failures
-
-### Error Reporting
-The app uses Discord webhook for error reporting (configured via `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` in `.env`):
-- JS uncaught exceptions → Discord with stack trace
-- Unhandled promise rejections → Discord with context
-- Native Kotlin crashes → Discord via broadcast receiver
-- Manual error reporting: `reportError(error, 'warning', { context: 'value' })`
-
----
-
-## Project Overview
-
-XR Glasses React Native app for Android. Phone app that communicates with XR glasses via Jetpack XR APIs.
-
-### Critical Architecture Constraint
-
-**All Android XR features MUST be implemented in native Kotlin modules.**
-
-The Jetpack XR SDK (`androidx.xr.projected`, `SpeechRecognizer`, etc.) is Android-native and cannot be accessed directly from React Native/JavaScript.
-
-```
-React Native (TypeScript)  →  Expo Native Module (Kotlin)  →  Jetpack XR SDK  →  AI Glasses
-```
-
-- XR logic goes in: `modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/`
+- XR code lives in: `modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/`
 - React Native receives data via events emitted from Kotlin
-- Never try to import Jetpack XR classes in TypeScript
+- Never import Jetpack XR classes in TypeScript
 
-## Build Instructions
+**2. XR activities MUST run in a separate Android process (`:xr_process`).**
+The XR SDK corrupts React Native rendering if they share a process. This is non-negotiable.
+- `ProjectionLauncherActivity` and `GlassesActivity` → `:xr_process`
+- `XRGlassesService`, `XRGlassesModule`, camera managers, Agora → main process
+- IPC uses broadcasts with `setPackage(packageName)`
+- `SharedCameraProvider` (main process) is the `ProjectedContext` camera accessor — both `GlassesCameraManager` (image capture) and `StreamingCameraManager` (video streaming) delegate to it
+- Read `docs/maintenance/xr-glasses-projection.md` before touching ANY projection code
 
-**ALWAYS follow these steps when building the Android app:**
+## Code Standards
 
-1. Set Android SDK path:
-   ```bash
-   export ANDROID_HOME=~/Android/Sdk
-   ```
+**Quality over speed.** Never take shortcuts that sacrifice correctness, safety, or maintainability. When facing a design choice with trade-offs, ask the user before proceeding.
 
-2. Clean the build cache first:
-   ```bash
-   cd android && ./gradlew clean
-   ```
+**Strict type & runtime safety:**
+- **TypeScript**: Never use `any` — use proper types, `unknown`, or generics. Avoid `as` assertions unless necessary with a comment.
+- **Kotlin**: Never use `!!` — use `?.` or `?:`. Use sealed classes for exhaustive `when`.
+- **Both**: No race conditions (use synchronization/mutex/atomic). Handle all errors explicitly. No silent failures, no resource leaks.
 
-3. Build **RELEASE** APK (not debug):
-   ```bash
-   ./gradlew assembleRelease
-   ```
+**Clear, self-documenting code:** Use descriptive names for variables, functions, and types. Code should read without needing comments. Keep files focused and modular — split when responsibilities diverge.
 
-4. The APK will be at:
-   ```
-   android/app/build/outputs/apk/release/app-release.apk
-   ```
+Before deploying, trace through the complete code path from user action to network response. Verify every API call exists, every type is correct, and test with `npx tsc --noEmit`. Only deploy after zero type errors.
 
-5. Install the APK to the phone:
-   ```bash
-   # List devices to find the phone (not glasses emulator)
-   ~/Android/Sdk/platform-tools/adb devices -l
+When fixing React Native issues, never use web-only APIs (Blob, FormData with Blob, etc.). Always use RN-specific patterns like `{uri, type, name}` for FormData file uploads.
+Never modify working code paths to debug an issue without confirming the code path is actually broken. If the user says something is already working, stop and revert immediately.
+This project uses TypeScript as the primary language. Always write new code in TypeScript. When touching existing JS files, migrate them to TS if scope allows.
+Always run a build (`npx tsc --noEmit` or the project's build command) after making changes to catch type errors before deploying or committing.
 
-   # Install to phone (use the phone device, not glasses)
-   ~/Android/Sdk/platform-tools/adb -s <phone-device> install -r android/app/build/outputs/apk/release/app-release.apk
-   ```
+## Research Before Implementation
 
-**Important:**
-- NEVER build debug APK - it requires Metro bundler running
-- ALWAYS clean before building to ensure JS changes are included
-- ALWAYS install the APK after building using `adb install -r`
-- Install to the **phone** device, not the glasses emulator (glasses shows as `sdk_glasses_x86_64`)
+- Read official documentation (via WebFetch/WebSearch) before implementing new features or integrating libraries
+- If official docs contradict existing code patterns, flag it to the user
+- On any significant design choice, verify the approach with the user first
 
-## Testing with Android Studio Emulators
-
-### Prerequisites
-- **Android Studio Panda Canary 2** (or newer Canary build)
-- XR tools require Canary channel, not stable Android Studio
-
-### Emulator Setup
-
-**1. AI Glasses Emulator:**
-- Create AVD: Select "AI Glasses" device type
-- System Image: `android-36/ai-glasses/x86_64`
-- This is the glasses device
-
-**2. Phone Emulator (CRITICAL - must use CANARY image):**
-- Create AVD: Select any phone (e.g., Pixel 9a)
-- **API Level: Select "API CANARY Preview"** (NOT android-36!)
-- System Image: `Google Play Intel x86_64 Atom System Image` (CANARY)
-- The CANARY image includes the Glasses companion app
-
-**Why CANARY?** Regular phone images don't have the XR companion service. Only CANARY Preview images include the Glasses companion app needed to pair with AI glasses.
-
-### Pairing Emulators
-
-1. Start AI Glasses emulator first (usually emulator-5554)
-2. Start Phone emulator (usually emulator-5556)
-3. On phone, open the **Glasses** app (pre-installed on CANARY image)
-4. Follow pairing prompts - accept "Glasses" and "Glasses Core" associations
-5. Emulators stay paired across restarts
-
-### Installing and Testing the App
+## Build & Deploy
 
 ```bash
-# List connected emulators
-~/Android/Sdk/platform-tools/adb devices -l
-
-# Install on phone emulator (replace 5556 with actual port)
-~/Android/Sdk/platform-tools/adb -s emulator-5556 install -r android/app/build/outputs/apk/release/app-release.apk
-
-# Watch logs
-~/Android/Sdk/platform-tools/adb -s emulator-5556 logcat | grep XRGlassesService
+export ANDROID_HOME=~/Android/Sdk
+cd android && ./gradlew clean && ./gradlew assembleRelease
 ```
+- **Always** build release (never debug — it requires Metro bundler)
+- **Always** clean before building to include JS changes
+- APK: `android/app/build/outputs/apk/release/app-release.apk`
+- Install to **phone** device (not glasses emulator `sdk_glasses_x86_64`):
+  ```bash
+  ~/Android/Sdk/platform-tools/adb -s <phone-device> install -r android/app/build/outputs/apk/release/app-release.apk
+  ```
 
-### Testing Flow
+## Documentation (Progressive Disclosure)
 
-1. Open app on phone emulator
-2. Tap "Connect" (not emulation mode)
-3. App should auto-navigate to Glasses Dashboard
-4. Check logs for "Real XR connection established!"
+Read these when relevant — don't load them all upfront:
 
-### Emulation Mode (no emulators needed)
-For quick UI testing without emulators:
-1. Open app
-2. Tap "Enable Emulation Mode"
-3. Tap "Connect"
-4. All features work with simulated data
+| When | Read |
+|------|------|
+| System overview | `docs/architecture.md` |
+| Key files & commands | `docs/reference.md` |
+| Something broken | `docs/maintenance/README.md` (troubleshooting matrix) |
+| XR/projection code | `docs/maintenance/xr-glasses-projection.md` |
+| Speech issues | `docs/maintenance/speech-recognition.md` |
+| Camera issues | `docs/maintenance/camera-capture.md` |
+| Streaming issues | `docs/maintenance/remote-view-streaming.md` |
+| Emulator setup | `docs/maintenance/emulator-testing.md` |
+| Build failures | `docs/maintenance/build-deploy.md` |
+| Android XR SDK links | `docs/xr-glasses-resources.md` |
 
-## Progress & Documentation
+## Key Services
 
-**Project Status:** See the docs and architecture for current status, next steps, and milestones.
+| Service | URL / Location |
+|---------|---------------|
+| Agora token server | `https://REDACTED_TOKEN_SERVER/` (handles `/token`, `/ws/`, `/heartbeat`, `/leave`, `/viewers` only) |
+| Web viewer | `https://REDACTED_VIEWER_URL/view/{channelId}` |
+| Local backend | `http://0.0.0.0:8000` — transcription (`/transcribe-dia`), tagging, AI. NOT on the Cloudflare Worker. |
+| Backend source | `~/coding/backend-with-testing-frontend/SuperSpexWins` |
+| Web viewer source | `~/coding/spex-web-viewer/` |
 
-**Understanding the Codebase:**
-1. Start with `docs/architecture.md` for system overview
-2. Check `docs/reference.md` for key files and commands
-3. For troubleshooting, see `docs/maintenance/README.md`
-
-**Before Making Changes:**
-- Read relevant maintenance doc if modifying a specific module
-- Check `docs/maintenance/xr-glasses-projection.md` before touching ANY XR/projection code
-- The separate process architecture is CRITICAL - don't break it!
-
-## Debugging Resources
-
-### Key Log Commands
-```bash
-# Streaming debug (Agora + Camera)
-adb logcat | grep -iE "AgoraStreamManager|StreamingCameraManager|XRGlassesService"
-
-# Frame push monitoring
-adb logcat | grep "pushed"
-
-# Audio route monitoring
-adb logcat | grep "AUDIO ROUTE"
-
-# Permission issues
-adb logcat | grep -iE "permission|denied"
-
-# Error reporting
-adb logcat | grep -iE "ErrorReporting|NativeErrorHandler"
-```
-
-### Local Backend (Transcription & AI Services)
-
-The SuperSpexWins FastAPI backend runs locally during development. It provides the `/transcribe-dia` endpoint (and other AI services).
-
-**Setup:**
-```bash
-cd ~/coding/backend-with-testing-frontend/SuperSpexWins
-./setup.sh
-# Runs on http://0.0.0.0:8000
-```
-
-**Configuration:**
-- Set `TRANSCRIPTION_API_URL` in `.env` to reach the local backend from the emulator/phone
-- Android emulator: use `http://10.0.2.2:8000` (maps to host localhost)
-- Physical phone on same network: use `http://<YOUR_LAN_IP>:8000`
-- The Kotlin code reads this from BuildConfig; if not set, transcription will fail with a clear error
-
-**Important:** The Cloudflare Worker (`REDACTED_TOKEN_SERVER`) does NOT proxy transcription requests. The `/transcribe-dia` endpoint lives on the local FastAPI backend, not the Worker.
-
-### Useful URLs
-- Token Server: `https://REDACTED_TOKEN_SERVER/`
-- Web Viewer: `https://REDACTED_VIEWER_URL/view/{channelId}`
-- Web Viewer Source: `~/coding/spex-web-viewer/`
-- Local Backend: `http://0.0.0.0:8000` (transcription, tagging, AI services)
-
-### Official Documentation
-- Android XR SDK: https://developer.android.com/develop/xr/jetpack-xr-sdk
-- ProjectedContext for hardware: https://developer.android.com/develop/xr/jetpack-xr-sdk/access-hardware-projected-context
-- Agora RTC Android: https://docs.agora.io/en/video-calling/get-started/get-started-sdk
-- Agora Audio Routing: https://docs.agora.io/en/video-calling/advanced-features/set-audio-route
-
-### Current Known Issues (2026-02-05)
-1. **Emulator audio limitation**: Audio routes to SPEAKERPHONE, not Bluetooth glasses
-2. **Emulation mode streaming broken**: No video/audio on real phone - needs debugging
-
-### Resolved Issues (2026-02-05)
-1. **Transcription "Missing channel parameter"**: The app was sending transcription requests to the Cloudflare Worker (`REDACTED_TOKEN_SERVER`) which doesn't handle `/transcribe-dia`. Fixed by adding `TRANSCRIPTION_API_URL` env var + BuildConfig field to point to the local FastAPI backend.
-2. **UI refresh killing recording**: The 2s post-connection `onUiRefreshNeeded` event triggered `router.replace('/glasses')` during active recording. Fixed by deferring the refresh until all operations (recording, streaming, tagging) complete.
-3. **Save Transcript button unresponsive**: The `Pressable` had no visual feedback, and `expo-file-system` v19 deprecated `writeAsStringAsync`. Migrated to `expo-file-system/next` (`File`/`Paths` API). Transcript now shares via native Android share sheet.
-
-### Important API Notes
-- **expo-file-system v19+**: Use `import { File, Paths } from 'expo-file-system/next'` — the old `FileSystem.writeAsStringAsync` / `FileSystem.cacheDirectory` API is deprecated and will throw at runtime.
-- **Cloudflare Worker routes**: Only handles `/token`, `/ws/`, `/heartbeat`, `/leave`, `/viewers`. Any other path falls through to the token handler which requires a `channel` param. Transcription goes to the local backend, NOT the Worker.
+## API Gotchas
+- **Error reporting**: Discord webhook via `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` in `.env`. Use `reportError(error, 'warning', { context })` for manual reports.

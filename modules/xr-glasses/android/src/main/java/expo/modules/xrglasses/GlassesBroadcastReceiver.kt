@@ -25,6 +25,12 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
          * Set by XRGlassesModule during initialization.
          */
         var moduleCallback: ((eventName: String, data: Map<String, Any?>) -> Unit)? = null
+
+        /**
+         * Callback to forward speech events to XRGlassesService for glasses-first ASR routing.
+         * Set by XRGlassesModule during initialization.
+         */
+        var serviceCallback: ((eventName: String, data: Map<String, Any?>) -> Unit)? = null
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -69,11 +75,13 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.e(TAG, "Speech error: $message (code: $code)")
 
-                callback("onSpeechError", mapOf(
+                val data = mapOf<String, Any?>(
                     "code" to code,
                     "message" to message,
                     "timestamp" to System.currentTimeMillis()
-                ))
+                )
+                callback("onSpeechError", data)
+                serviceCallback?.invoke("onSpeechError", data)
             }
 
             GlassesActivity.ACTION_SPEECH_STATE -> {
@@ -81,10 +89,12 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.d(TAG, "Speech state changed: isListening=$isListening")
 
-                callback("onSpeechStateChanged", mapOf(
+                val data = mapOf<String, Any?>(
                     "isListening" to isListening,
                     "timestamp" to System.currentTimeMillis()
-                ))
+                )
+                callback("onSpeechStateChanged", data)
+                serviceCallback?.invoke("onSpeechStateChanged", data)
             }
 
             NativeErrorHandler.ACTION_NATIVE_ERROR -> {

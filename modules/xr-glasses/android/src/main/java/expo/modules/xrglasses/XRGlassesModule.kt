@@ -74,6 +74,11 @@ class XRGlassesModule : Module() {
                 this@XRGlassesModule.sendEvent(eventName, data)
             }
 
+            // Register service callback for glasses-first ASR routing
+            GlassesBroadcastReceiver.serviceCallback = { eventName, data ->
+                glassesService?.handleGlassesSpeechEvent(eventName, data)
+            }
+
             // Register broadcast receiver for native errors
             errorReceiver = GlassesBroadcastReceiver()
             val errorFilter = IntentFilter(NativeErrorHandler.ACTION_NATIVE_ERROR)
@@ -490,8 +495,9 @@ class XRGlassesModule : Module() {
         OnDestroy {
             scope.cancel()
             glassesService?.cleanup()
-            // Clear the broadcast receiver callback
+            // Clear the broadcast receiver callbacks
             GlassesBroadcastReceiver.moduleCallback = null
+            GlassesBroadcastReceiver.serviceCallback = null
             // Unregister error receiver
             errorReceiver?.let {
                 try {
