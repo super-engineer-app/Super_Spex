@@ -5,7 +5,6 @@
  * Shows transcript, captured images, and action buttons.
  */
 
-import React from 'react';
 import {
   View,
   Text,
@@ -73,7 +72,7 @@ export function TaggingMode({
   onPickFromGallery,
   onRemoveImage,
   onEditTranscript,
-}: TaggingModeProps): React.ReactElement {
+}: TaggingModeProps) {
   // Not in tagging mode - show start button
   if (!isActive) {
     return (

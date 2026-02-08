@@ -14,8 +14,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useGlassesCamera } from './useGlassesCamera';
 import {
   submitTaggingSession,
-  createTaggedImage,
+  createTaggedImageSync,
   requestLocationPermission,
+  getCachedLocation,
+  refreshLocationCache,
 } from '../services/taggingApi';
 import type { TaggedImage, TaggingStatusEvent } from '../types/tagging';
 import {
@@ -159,24 +161,36 @@ export function useTaggingSession(): UseTaggingSessionReturn {
   // Handle glasses camera capture result
   useEffect(() => {
     if (glassesLastImage && isTaggingActiveRef.current) {
-      // Add the captured image to the session
-      createTaggedImage(glassesLastImage, 'glasses').then((taggedImage) => {
-        setTaggingImages((prev) => [...prev, taggedImage]);
-        logger.debug(TAG, 'Added glasses image, total:', taggingImages.length + 1);
-      });
+      // Add the captured image instantly using global cached location (no GPS delay)
+      const taggedImage = createTaggedImageSync(glassesLastImage, 'glasses', getCachedLocation());
+      setTaggingImages((prev) => [...prev, taggedImage]);
+      logger.debug(TAG, 'Added glasses image, total:', taggingImages.length + 1);
     }
   }, [glassesLastImage]);
 
   /**
    * Start tagging mode.
+   * Uses globally pre-cached GPS location for instant image capture.
    */
   const startTagging = useCallback(() => {
-    logger.debug(TAG, 'Starting tagging mode');
-    setIsTaggingActive(true);
-    setTaggingTranscript('');
-    setTaggingImages([]);
-    setError(null);
-    setStatusMessage(null);
+    try {
+      const cachedLocation = getCachedLocation();
+      logger.debug(TAG, 'Tagging session started', cachedLocation ? `GPS: ${cachedLocation.lat}, ${cachedLocation.long}` : 'GPS not ready');
+
+      setIsTaggingActive(true);
+      setTaggingTranscript('');
+      setTaggingImages([]);
+      setError(null);
+      setStatusMessage(null);
+
+      // Refresh location cache in background (non-blocking)
+      // This ensures fresh coordinates without blocking the UI
+      refreshLocationCache().catch((err) => {
+        logger.error(TAG, 'Failed to refresh location cache:', err);
+      });
+    } catch (err) {
+      logger.error(TAG, 'Error in startTagging:', err);
+    }
   }, []);
 
   /**
@@ -337,9 +351,11 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       });
 
       if (!result.canceled && result.assets[0]?.base64) {
-        const taggedImage = await createTaggedImage(result.assets[0].base64, 'phone');
+        // Use global cached location (instant, no GPS delay)
+        const taggedImage = createTaggedImageSync(result.assets[0].base64, 'phone', getCachedLocation());
         setTaggingImages((prev) => [...prev, taggedImage]);
-        logger.debug(TAG, 'Added phone camera image');
+        logger.debug(TAG, `=== PHONE IMAGE CAPTURED ===`);
+        logger.debug(TAG, `  Using cached location: lat=${taggedImage.lat}, long=${taggedImage.long}`);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to capture from phone';
@@ -373,15 +389,16 @@ export function useTaggingSession(): UseTaggingSessionReturn {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        const newImages: TaggedImage[] = [];
-        for (const asset of result.assets) {
-          if (asset.base64) {
-            const taggedImage = await createTaggedImage(asset.base64, 'gallery');
-            newImages.push(taggedImage);
-          }
-        }
+        // Use global cached location for all images (instant, no GPS delay)
+        const cachedLocation = getCachedLocation();
+        const newImages: TaggedImage[] = result.assets
+          .filter((asset) => asset.base64)
+          .map((asset) => createTaggedImageSync(asset.base64!, 'gallery', cachedLocation));
         setTaggingImages((prev) => [...prev, ...newImages]);
-        logger.debug(TAG, 'Added', newImages.length, 'gallery images');
+        logger.debug(TAG, `=== GALLERY IMAGES ADDED: ${newImages.length} ===`);
+        if (newImages.length > 0) {
+          logger.debug(TAG, `  Using cached location: lat=${newImages[0].lat}, long=${newImages[0].long}`);
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to pick from gallery';

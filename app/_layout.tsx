@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useColorScheme, View, StyleSheet, Platform, PermissionsAndroid, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initializeErrorReporting } from '../src/services';
+import { prefetchLocation } from '../src/services/taggingApi';
 import logger from '../src/utils/logger';
 
 const TAG = 'RootLayout';
@@ -59,10 +60,19 @@ async function requestAllPermissions() {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
-  // Initialize error reporting and request permissions on app launch
+  // Initialize error reporting, request permissions, and pre-fetch GPS on app launch
   useEffect(() => {
     initializeErrorReporting();
-    requestAllPermissions();
+    requestAllPermissions().then(() => {
+      // Pre-fetch GPS location after permissions are granted
+      // This warms up the GPS cache so tagging mode images have instant coordinates
+      logger.debug(TAG, 'Pre-fetching GPS location for tagging...');
+      prefetchLocation().catch((err) => {
+        logger.error(TAG, 'Failed to pre-fetch GPS location:', err);
+      });
+    }).catch((err) => {
+      logger.error(TAG, 'Failed to request permissions:', err);
+    });
   }, []);
 
   return (

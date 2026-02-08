@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { StreamQuality } from '../../modules/xr-glasses';
 import { QUALITY_OPTIONS } from '../hooks/useRemoteView';

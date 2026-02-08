@@ -265,7 +265,122 @@ export async function getCurrentLocation(): Promise<{ lat: number; long: number 
 }
 
 /**
+ * Cached location coordinates.
+ */
+export interface CachedLocation {
+  lat: number;
+  long: number;
+}
+
+// ============================================================
+// Global GPS Cache - Pre-fetched on app startup for instant access
+// ============================================================
+
+let globalCachedLocation: CachedLocation | null = null;
+let globalLocationFetchPromise: Promise<CachedLocation | null> | null = null;
+let lastFetchTime = 0;
+const LOCATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Pre-fetch GPS location on app startup.
+ * Call this early (e.g., in _layout.tsx) to warm up the GPS cache.
+ * Subsequent calls within 5 minutes will use the cached value.
+ */
+export async function prefetchLocation(): Promise<CachedLocation | null> {
+  const now = Date.now();
+
+  // If we have a recent cached location, return it
+  if (globalCachedLocation && (now - lastFetchTime) < LOCATION_CACHE_MAX_AGE_MS) {
+    logger.debug(TAG, 'Using existing cached GPS location');
+    return globalCachedLocation;
+  }
+
+  // If a fetch is already in progress, wait for it
+  if (globalLocationFetchPromise) {
+    logger.debug(TAG, 'GPS fetch already in progress, waiting...');
+    return globalLocationFetchPromise;
+  }
+
+  // Start a new fetch
+  logger.debug(TAG, '=== PRE-FETCHING GPS LOCATION ===');
+  const startTime = Date.now();
+
+  globalLocationFetchPromise = getCurrentLocation().then((location) => {
+    const elapsed = Date.now() - startTime;
+    globalCachedLocation = location;
+    lastFetchTime = Date.now();
+    globalLocationFetchPromise = null;
+
+    if (location) {
+      logger.debug(TAG, `GPS cached (${elapsed}ms): ${location.lat}, ${location.long}`);
+    } else {
+      logger.debug(TAG, `GPS unavailable (${elapsed}ms)`);
+    }
+
+    return location;
+  }).catch((error) => {
+    logger.error(TAG, 'GPS pre-fetch error:', error);
+    globalLocationFetchPromise = null;
+    return null;
+  });
+
+  return globalLocationFetchPromise;
+}
+
+/**
+ * Get the globally cached GPS location (instant, no waiting).
+ * Returns null if not yet fetched or unavailable.
+ */
+export function getCachedLocation(): CachedLocation | null {
+  return globalCachedLocation;
+}
+
+/**
+ * Refresh the global GPS cache.
+ * Use this when starting a tagging session to ensure fresh coordinates.
+ */
+export async function refreshLocationCache(): Promise<CachedLocation | null> {
+  // Force a refresh by clearing the cache
+  const now = Date.now();
+
+  // Only force refresh if cache is older than 1 minute
+  if (globalCachedLocation && (now - lastFetchTime) < 60 * 1000) {
+    logger.debug(TAG, 'GPS cache is fresh (< 1 min), skipping refresh');
+    return globalCachedLocation;
+  }
+
+  // Clear and re-fetch
+  globalCachedLocation = null;
+  return prefetchLocation();
+}
+
+/**
+ * Create a tagged image with provided GPS coordinates (instant, no GPS lookup).
+ *
+ * @param base64 - Base64-encoded image data
+ * @param source - Source of the image (glasses, phone, gallery)
+ * @param cachedLocation - Pre-fetched GPS coordinates (or null for 0,0)
+ * @returns TaggedImage with GPS coordinates
+ */
+export function createTaggedImageSync(
+  base64: string,
+  source: 'glasses' | 'phone' | 'gallery',
+  cachedLocation: CachedLocation | null
+): TaggedImage {
+  return {
+    base64,
+    lat: cachedLocation?.lat ?? 0,
+    long: cachedLocation?.long ?? 0,
+    capturedAt: Date.now(),
+    source,
+  };
+}
+
+/**
  * Create a tagged image with current GPS coordinates.
+ *
+ * @deprecated Use createTaggedImageSync with a pre-fetched location for better performance.
+ * This function blocks on GPS lookup which can take 10+ seconds.
  *
  * @param base64 - Base64-encoded image data
  * @param source - Source of the image (glasses, phone, gallery)
