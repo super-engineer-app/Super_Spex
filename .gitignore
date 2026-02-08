@@ -17,7 +17,6 @@ expo-env.d.ts
 *.ipa
 
 
-*.png
 # Kotlin
 .kotlin/
 
@@ -133,8 +132,10 @@ vendor/bundle/
 biome.json
 biome-test.ts
 
-# Images
-*.png
+# Images (stray screenshots / copies — keep assets/)
+image.png
+image-*.png
+*copy*.png
 
 # Cloudflare Workers
 .wrangler/

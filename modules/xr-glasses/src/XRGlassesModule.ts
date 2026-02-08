@@ -1,32 +1,33 @@
 import { Platform } from "react-native";
-import type { ParkingTimerState, TranscriptionResponse } from "../index";
-import {
-	type CameraErrorEvent,
-	type CameraStateEvent,
-	type ConnectionStateEvent,
-	type DeviceStateEvent,
-	type EngagementModeEvent,
-	type ImageCapturedEvent,
-	type InputEvent,
-	type ParkingTimerCancelledEvent,
-	type ParkingTimerExpiredEvent,
-	type ParkingTimerStartedEvent,
-	type ParkingTimerWarningEvent,
-	type PartialResultEvent,
-	type RecordingErrorEvent,
-	type RecordingStateChangedEvent,
-	type SpeechErrorEvent,
-	type SpeechResultEvent,
-	type SpeechStateEvent,
-	type StreamCameraSourceChangedEvent,
-	type StreamErrorEvent,
-	type StreamQuality,
-	type StreamStartedEvent,
-	type StreamStoppedEvent,
-	type UiRefreshNeededEvent,
-	type ViewerUpdateEvent,
-	XRGlassesNative,
-} from "../index";
+import { XRGlassesNative } from "../index";
+import type {
+	CameraErrorEvent,
+	CameraStateEvent,
+	ConnectionStateEvent,
+	DeviceStateEvent,
+	EngagementModeEvent,
+	ImageCapturedEvent,
+	InputEvent,
+	ParkingTimerCancelledEvent,
+	ParkingTimerExpiredEvent,
+	ParkingTimerStartedEvent,
+	ParkingTimerState,
+	ParkingTimerWarningEvent,
+	PartialResultEvent,
+	RecordingErrorEvent,
+	RecordingStateChangedEvent,
+	SpeechErrorEvent,
+	SpeechResultEvent,
+	SpeechStateEvent,
+	StreamCameraSourceChangedEvent,
+	StreamErrorEvent,
+	StreamQuality,
+	StreamStartedEvent,
+	StreamStoppedEvent,
+	TranscriptionResponse,
+	UiRefreshNeededEvent,
+	ViewerUpdateEvent,
+} from "../types";
 
 /**
  * Subscription interface for event listeners.
@@ -891,6 +892,13 @@ class IOSXRGlassesService implements IXRGlassesService {
  * Web stub implementation for development.
  */
 class WebXRGlassesService implements IXRGlassesService {
+	/** Emit an event to all callbacks in a Set (avoids forEach return-value lint issue) */
+	private emit<T>(callbacks: Set<(event: T) => void>, event: T): void {
+		for (const cb of callbacks) {
+			cb(event);
+		}
+	}
+
 	private emulationEnabled = false;
 	private connected = false;
 	private engagementMode: EngagementMode = { visualsOn: false, audioOn: false };
@@ -910,7 +918,6 @@ class WebXRGlassesService implements IXRGlassesService {
 		new Set();
 	private speechStateCallbacks: Set<(event: SpeechStateEvent) => void> =
 		new Set();
-	private isListening = false;
 
 	async initialize(): Promise<void> {
 		console.log("[WebXR] Initialized in web mode - using emulation");
@@ -932,15 +939,15 @@ class WebXRGlassesService implements IXRGlassesService {
 		await new Promise((resolve) => setTimeout(resolve, 500));
 		this.connected = true;
 		this.engagementMode = { visualsOn: true, audioOn: true };
-		this.connectionCallbacks.forEach((cb) => cb({ connected: true }));
-		this.engagementCallbacks.forEach((cb) => cb(this.engagementMode));
+		this.emit(this.connectionCallbacks, { connected: true });
+		this.emit(this.engagementCallbacks, this.engagementMode);
 		return true;
 	}
 
 	async disconnect(): Promise<boolean> {
 		this.connected = false;
 		this.engagementMode = { visualsOn: false, audioOn: false };
-		this.connectionCallbacks.forEach((cb) => cb({ connected: false }));
+		this.emit(this.connectionCallbacks, { connected: false });
 		return true;
 	}
 
@@ -972,28 +979,28 @@ class WebXRGlassesService implements IXRGlassesService {
 
 	async setEmulationMode(enabled: boolean): Promise<boolean> {
 		this.emulationEnabled = enabled;
-		this.deviceStateCallbacks.forEach((cb) =>
-			cb({ state: enabled ? "ACTIVE" : "INACTIVE" }),
-		);
+		this.emit(this.deviceStateCallbacks, {
+			state: enabled ? "ACTIVE" : "INACTIVE",
+		});
 		return true;
 	}
 
 	async simulateInputEvent(action: string): Promise<boolean> {
 		const event: InputEvent = { action, timestamp: Date.now() };
-		this.inputCallbacks.forEach((cb) => cb(event));
+		this.emit(this.inputCallbacks, event);
 
 		if (action === "TOGGLE_VISUALS") {
 			this.engagementMode = {
 				...this.engagementMode,
 				visualsOn: !this.engagementMode.visualsOn,
 			};
-			this.engagementCallbacks.forEach((cb) => cb(this.engagementMode));
+			this.emit(this.engagementCallbacks, this.engagementMode);
 		} else if (action === "TOGGLE_AUDIO") {
 			this.engagementMode = {
 				...this.engagementMode,
 				audioOn: !this.engagementMode.audioOn,
 			};
-			this.engagementCallbacks.forEach((cb) => cb(this.engagementMode));
+			this.emit(this.engagementCallbacks, this.engagementMode);
 		}
 		return true;
 	}
@@ -1045,25 +1052,19 @@ class WebXRGlassesService implements IXRGlassesService {
 		console.log("[WebXR] Speech recognition started (emulation)", {
 			continuous,
 		});
-		this.isListening = true;
-		this.speechStateCallbacks.forEach((cb) =>
-			cb({
-				isListening: true,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.speechStateCallbacks, {
+			isListening: true,
+			timestamp: Date.now(),
+		});
 		return true;
 	}
 
 	async stopSpeechRecognition(): Promise<boolean> {
 		console.log("[WebXR] Speech recognition stopped (emulation)");
-		this.isListening = false;
-		this.speechStateCallbacks.forEach((cb) =>
-			cb({
-				isListening: false,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.speechStateCallbacks, {
+			isListening: false,
+			timestamp: Date.now(),
+		});
 		return true;
 	}
 
@@ -1071,32 +1072,21 @@ class WebXRGlassesService implements IXRGlassesService {
 		return true; // Always available in emulation
 	}
 
-	/**
-	 * Simulate a speech result for testing.
-	 * Call this from dev tools or test code to simulate voice input.
-	 */
 	simulateSpeechResult(text: string, confidence: number = 0.95): void {
-		this.speechResultCallbacks.forEach((cb) =>
-			cb({
-				text,
-				confidence,
-				isFinal: true,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.speechResultCallbacks, {
+			text,
+			confidence,
+			isFinal: true,
+			timestamp: Date.now(),
+		});
 	}
 
-	/**
-	 * Simulate a partial speech result for testing.
-	 */
 	simulatePartialResult(text: string): void {
-		this.partialResultCallbacks.forEach((cb) =>
-			cb({
-				text,
-				isFinal: false,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.partialResultCallbacks, {
+			text,
+			isFinal: false,
+			timestamp: Date.now(),
+		});
 	}
 
 	onSpeechResult(callback: (event: SpeechResultEvent) => void): Subscription {
@@ -1149,41 +1139,34 @@ class WebXRGlassesService implements IXRGlassesService {
 	async initializeCamera(_lowPowerMode?: boolean): Promise<boolean> {
 		console.log("[WebXR] Camera initialized (emulation)");
 		this.cameraReady = true;
-		this.cameraStateCallbacks.forEach((cb) =>
-			cb({
-				isReady: true,
-				isEmulated: true,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.cameraStateCallbacks, {
+			isReady: true,
+			isEmulated: true,
+			timestamp: Date.now(),
+		});
 		return true;
 	}
 
 	async captureImage(): Promise<boolean> {
 		console.log("[WebXR] Capturing image (emulation)");
-		// Simulate capture with a placeholder
-		this.imageCapturedCallbacks.forEach((cb) =>
-			cb({
-				imageBase64: "", // Empty for emulation
-				width: 640,
-				height: 480,
-				isEmulated: true,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.imageCapturedCallbacks, {
+			imageBase64: "",
+			width: 640,
+			height: 480,
+			isEmulated: true,
+			timestamp: Date.now(),
+		});
 		return true;
 	}
 
 	async releaseCamera(): Promise<boolean> {
 		console.log("[WebXR] Camera released (emulation)");
 		this.cameraReady = false;
-		this.cameraStateCallbacks.forEach((cb) =>
-			cb({
-				isReady: false,
-				isEmulated: true,
-				timestamp: Date.now(),
-			}),
-		);
+		this.emit(this.cameraStateCallbacks, {
+			isReady: false,
+			isEmulated: true,
+			timestamp: Date.now(),
+		});
 		return true;
 	}
 

@@ -301,6 +301,29 @@ export function useRemoteView(): UseRemoteViewReturn {
 			return;
 		}
 		try {
+			if (Platform.OS === "web") {
+				// navigator.clipboard requires secure context (HTTPS);
+				// fall back to textarea + execCommand for HTTP localhost
+				if (navigator.clipboard?.writeText) {
+					try {
+						await navigator.clipboard.writeText(state.viewerUrl);
+						logger.debug(TAG, "Link copied to clipboard (web)");
+						return;
+					} catch {
+						// Clipboard API failed (insecure context) — fall through
+					}
+				}
+				const textarea = document.createElement("textarea");
+				textarea.value = state.viewerUrl;
+				textarea.style.position = "fixed";
+				textarea.style.opacity = "0";
+				document.body.appendChild(textarea);
+				textarea.select();
+				document.execCommand("copy");
+				document.body.removeChild(textarea);
+				logger.debug(TAG, "Link copied to clipboard (web fallback)");
+				return;
+			}
 			const result = await Share.share({
 				message: state.viewerUrl,
 				url: Platform.OS === "ios" ? state.viewerUrl : undefined,

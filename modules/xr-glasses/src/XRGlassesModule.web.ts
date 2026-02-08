@@ -172,6 +172,13 @@ class WebXRGlassesService {
 	private continuousMode = false;
 	private shouldRestart = false;
 
+	// Network speech fallback (for browsers without Web Speech API, e.g. Firefox)
+	private networkSpeechStream: MediaStream | null = null;
+	private networkSpeechRecorder: MediaRecorder | null = null;
+	private networkSpeechActive = false;
+	private useNetworkFallback = false;
+	private networkSpeechTimeout: ReturnType<typeof setTimeout> | null = null;
+
 	// Camera state
 	private cameraStream: MediaStream | null = null;
 	private videoElement: HTMLVideoElement | null = null;
@@ -182,6 +189,26 @@ class WebXRGlassesService {
 	private recordingChunks: Blob[] = [];
 	private lastRecordingBlob: Blob | null = null;
 	private lastRecordingUrl: string | null = null;
+
+	// Remote View / Agora streaming state
+	// Using `unknown` for Agora SDK types to avoid static import (dynamic import at runtime)
+	private agoraClient: unknown = null;
+	private agoraLocalAudioTrack: unknown = null;
+	private agoraLocalVideoTrack: unknown = null;
+	private remoteViewActive = false;
+	private remoteViewChannelId: string | null = null;
+	private remoteViewQuality: StreamQuality = "balanced";
+	private streamStartedCallbacks = new Set<
+		(event: StreamStartedEvent) => void
+	>();
+	private streamStoppedCallbacks = new Set<
+		(event: StreamStoppedEvent) => void
+	>();
+	private streamErrorCallbacks = new Set<(event: StreamErrorEvent) => void>();
+	private viewerUpdateCallbacks = new Set<(event: ViewerUpdateEvent) => void>();
+	private streamCameraSourceCallbacks = new Set<
+		(event: StreamCameraSourceChangedEvent) => void
+	>();
 
 	// Parking timer state
 	private parkingTimerWarningTimeout: ReturnType<typeof setTimeout> | null =
@@ -336,13 +363,14 @@ class WebXRGlassesService {
 				? window.SpeechRecognition || window.webkitSpeechRecognition
 				: undefined;
 
+		console.log("[WebXR] startSpeechRecognition:", {
+			continuous,
+			hasSpeechAPI: !!SpeechRecognitionClass,
+		});
+
 		if (!SpeechRecognitionClass) {
-			emit(this.speechErrorCallbacks, {
-				code: -1,
-				message: "Web Speech API not supported in this browser",
-				timestamp: Date.now(),
-			});
-			return false;
+			// Fall back to network-based speech recognition (Firefox, etc.)
+			return this.startNetworkSpeechRecognition(continuous);
 		}
 
 		this.continuousMode = continuous;
@@ -354,6 +382,7 @@ class WebXRGlassesService {
 		recognition.lang = "en-US";
 
 		recognition.onstart = () => {
+			console.log("[WebXR] Speech recognition started");
 			emit(this.speechStateCallbacks, {
 				isListening: true,
 				timestamp: Date.now(),
@@ -361,6 +390,10 @@ class WebXRGlassesService {
 		};
 
 		recognition.onresult = (event: SpeechRecognitionEvent) => {
+			console.log(
+				"[WebXR] Speech result event, results:",
+				event.results.length,
+			);
 			for (let i = event.resultIndex; i < event.results.length; i++) {
 				const result = event.results[i];
 				const transcript = result[0].transcript;
@@ -384,6 +417,11 @@ class WebXRGlassesService {
 		};
 
 		recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+			console.log(
+				"[WebXR] Speech recognition error:",
+				event.error,
+				event.message,
+			);
 			// "no-speech" and "aborted" are normal — don't treat as errors
 			if (event.error === "no-speech" || event.error === "aborted") {
 				return;
@@ -416,6 +454,10 @@ class WebXRGlassesService {
 	}
 
 	async stopSpeechRecognition(): Promise<boolean> {
+		if (this.useNetworkFallback) {
+			this.stopNetworkSpeechRecognition();
+			return true;
+		}
 		this.shouldRestart = false;
 		if (this.recognition) {
 			this.recognition.stop();
@@ -429,9 +471,15 @@ class WebXRGlassesService {
 	}
 
 	async isSpeechRecognitionAvailable(): Promise<boolean> {
+		if (typeof window === "undefined") return false;
+		// Web Speech API available (Chrome, Edge, Safari)
+		if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+			return true;
+		}
+		// Network fallback available (Firefox, etc.) — needs mic + MediaRecorder
 		return (
-			typeof window !== "undefined" &&
-			!!(window.SpeechRecognition || window.webkitSpeechRecognition)
+			!!navigator.mediaDevices?.getUserMedia &&
+			typeof MediaRecorder !== "undefined"
 		);
 	}
 
@@ -471,6 +519,144 @@ class WebXRGlassesService {
 				this.speechStateCallbacks.delete(callback);
 			},
 		};
+	}
+
+	// ============================================================
+	// Network Speech Fallback — MediaRecorder + /transcribe-dia
+	// ============================================================
+
+	private async startNetworkSpeechRecognition(
+		continuous: boolean,
+	): Promise<boolean> {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: true,
+			});
+			this.networkSpeechStream = stream;
+			this.networkSpeechActive = true;
+			this.useNetworkFallback = true;
+
+			emit(this.speechStateCallbacks, {
+				isListening: true,
+				timestamp: Date.now(),
+			});
+
+			this.runNetworkSpeechCycle(stream, continuous);
+			return true;
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "Microphone access denied";
+			emit(this.speechErrorCallbacks, {
+				code: -1,
+				message,
+				timestamp: Date.now(),
+			});
+			return false;
+		}
+	}
+
+	private runNetworkSpeechCycle(stream: MediaStream, continuous: boolean) {
+		if (!this.networkSpeechActive) return;
+
+		const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+			? "audio/webm;codecs=opus"
+			: "audio/webm";
+
+		const recorder = new MediaRecorder(stream, { mimeType });
+		this.networkSpeechRecorder = recorder;
+		const chunks: Blob[] = [];
+
+		recorder.ondataavailable = (event) => {
+			if (event.data.size > 0) {
+				chunks.push(event.data);
+			}
+		};
+
+		recorder.onstop = () => {
+			// Guard: don't process or restart if we've been stopped
+			if (!this.networkSpeechActive) return;
+
+			if (chunks.length > 0) {
+				const blob = new Blob(chunks, { type: mimeType });
+				this.sendAudioChunkForTranscription(blob);
+			}
+
+			// Start next cycle if still active and continuous
+			if (this.networkSpeechActive && continuous) {
+				this.runNetworkSpeechCycle(stream, continuous);
+			}
+		};
+
+		recorder.start();
+
+		// Stop after 3 seconds to send the chunk
+		this.networkSpeechTimeout = setTimeout(() => {
+			if (this.networkSpeechActive && recorder.state === "recording") {
+				recorder.stop();
+			}
+		}, 3000);
+	}
+
+	private async sendAudioChunkForTranscription(blob: Blob): Promise<void> {
+		try {
+			const formData = new FormData();
+			formData.append("audio", blob, "chunk.webm");
+			formData.append("user_id", "web-user");
+			formData.append("language", "en");
+
+			const response = await fetch(`${BACKEND_URL}/transcribe-dia`, {
+				method: "POST",
+				body: formData,
+			});
+
+			if (!response.ok) return;
+
+			const result: { segments?: Array<{ text: string }> } =
+				await response.json();
+			if (result.segments && result.segments.length > 0) {
+				const text = result.segments.map((s) => s.text).join(" ");
+				if (text.trim()) {
+					emit(this.speechResultCallbacks, {
+						text: text.trim(),
+						confidence: 0.8,
+						isFinal: true,
+						timestamp: Date.now(),
+					});
+				}
+			}
+		} catch {
+			// Network errors are non-fatal — skip this chunk silently
+		}
+	}
+
+	private stopNetworkSpeechRecognition(): void {
+		this.networkSpeechActive = false;
+		this.useNetworkFallback = false;
+
+		if (this.networkSpeechTimeout) {
+			clearTimeout(this.networkSpeechTimeout);
+			this.networkSpeechTimeout = null;
+		}
+
+		if (
+			this.networkSpeechRecorder &&
+			this.networkSpeechRecorder.state === "recording"
+		) {
+			this.networkSpeechRecorder.stop();
+		}
+		this.networkSpeechRecorder = null;
+
+		if (this.networkSpeechStream) {
+			for (const track of this.networkSpeechStream.getTracks()) {
+				track.stop();
+			}
+			this.networkSpeechStream = null;
+		}
+
+		emit(this.speechStateCallbacks, {
+			isListening: false,
+			timestamp: Date.now(),
+		});
 	}
 
 	// ============================================================
@@ -753,49 +939,225 @@ class WebXRGlassesService {
 	}
 
 	// ============================================================
-	// Remote View — Stub (not applicable on web)
+	// Remote View — Agora Web SDK
 	// ============================================================
 
-	async startRemoteView(_quality: StreamQuality): Promise<boolean> {
-		return false;
+	private getAgoraQualityConfig(quality: StreamQuality): {
+		width: number;
+		height: number;
+		frameRate: number;
+	} {
+		switch (quality) {
+			case "low_latency":
+				return { width: 640, height: 480, frameRate: 15 };
+			case "high_quality":
+				return { width: 1280, height: 720, frameRate: 30 };
+			case "balanced":
+			default:
+				return { width: 1280, height: 720, frameRate: 15 };
+		}
+	}
+
+	async startRemoteView(quality: StreamQuality): Promise<boolean> {
+		try {
+			const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
+
+			const appId = process.env.EXPO_PUBLIC_AGORA_APP_ID;
+			const tokenServerUrl = process.env.EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL;
+			const viewerUrlBase = process.env.EXPO_PUBLIC_SPEX_VIEWER_URL_BASE;
+
+			if (!appId || !tokenServerUrl || !viewerUrlBase) {
+				throw new Error("Agora environment variables not configured");
+			}
+
+			this.remoteViewQuality = quality;
+			const channelId = `web-${Date.now().toString(36)}`;
+			this.remoteViewChannelId = channelId;
+
+			// Create client in live mode as host
+			const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+			await client.setClientRole("host");
+			this.agoraClient = client;
+
+			// Fetch token
+			const tokenUrl = `${tokenServerUrl}token?channel=${channelId}&role=publisher`;
+			const tokenResponse = await fetch(tokenUrl);
+			if (!tokenResponse.ok) {
+				throw new Error(`Token fetch failed: ${tokenResponse.status}`);
+			}
+			const tokenData: { token: string } = await tokenResponse.json();
+
+			// Create media tracks
+			const qConfig = this.getAgoraQualityConfig(quality);
+			const [audioTrack, videoTrack] = await Promise.all([
+				AgoraRTC.createMicrophoneAudioTrack(),
+				AgoraRTC.createCameraVideoTrack({
+					encoderConfig: {
+						width: qConfig.width,
+						height: qConfig.height,
+						frameRate: qConfig.frameRate,
+					},
+				}),
+			]);
+
+			this.agoraLocalAudioTrack = audioTrack;
+			this.agoraLocalVideoTrack = videoTrack;
+
+			// Listen for viewer join/leave
+			client.on("user-joined", () => {
+				const count = client.remoteUsers.length;
+				emit(this.viewerUpdateCallbacks, {
+					viewerCount: count,
+					viewerUid: null,
+					viewerName: null,
+					viewerSpeaking: false,
+					timestamp: Date.now(),
+				});
+			});
+
+			client.on("user-left", () => {
+				const count = client.remoteUsers.length;
+				emit(this.viewerUpdateCallbacks, {
+					viewerCount: count,
+					viewerUid: null,
+					viewerName: null,
+					viewerSpeaking: false,
+					timestamp: Date.now(),
+				});
+			});
+
+			// Join channel and publish
+			await client.join(appId, channelId, tokenData.token);
+			await client.publish([audioTrack, videoTrack]);
+
+			this.remoteViewActive = true;
+
+			const viewerUrl = `${viewerUrlBase}${channelId}`;
+			emit(this.streamStartedCallbacks, {
+				channelId,
+				viewerUrl,
+				quality,
+				timestamp: Date.now(),
+			});
+
+			emit(this.streamCameraSourceCallbacks, {
+				cameraSource: "web_camera",
+				isEmulationMode: false,
+				isDemoMode: false,
+				timestamp: Date.now(),
+			});
+
+			return true;
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "Failed to start stream";
+			emit(this.streamErrorCallbacks, { message, timestamp: Date.now() });
+			await this.cleanupAgoraResources();
+			return false;
+		}
 	}
 
 	async stopRemoteView(): Promise<boolean> {
-		return false;
+		await this.cleanupAgoraResources();
+		this.remoteViewActive = false;
+		this.remoteViewChannelId = null;
+		emit(this.streamStoppedCallbacks, { timestamp: Date.now() });
+		return true;
 	}
 
-	async setRemoteViewQuality(_quality: StreamQuality): Promise<boolean> {
+	async setRemoteViewQuality(quality: StreamQuality): Promise<boolean> {
+		this.remoteViewQuality = quality;
+		if (this.agoraLocalVideoTrack) {
+			try {
+				const qConfig = this.getAgoraQualityConfig(quality);
+				// The Agora SDK videoTrack has setEncoderConfiguration
+				const videoTrack = this.agoraLocalVideoTrack as {
+					setEncoderConfiguration: (config: {
+						width: number;
+						height: number;
+						frameRate: number;
+					}) => Promise<void>;
+				};
+				await videoTrack.setEncoderConfiguration(qConfig);
+				return true;
+			} catch {
+				return false;
+			}
+		}
 		return false;
 	}
 
 	async isRemoteViewActive(): Promise<boolean> {
-		return false;
+		return this.remoteViewActive;
 	}
 
-	onStreamStarted(
-		_callback: (event: StreamStartedEvent) => void,
-	): Subscription {
-		return { remove: () => {} };
+	private async cleanupAgoraResources(): Promise<void> {
+		if (this.agoraLocalAudioTrack) {
+			const track = this.agoraLocalAudioTrack as { close: () => void };
+			track.close();
+			this.agoraLocalAudioTrack = null;
+		}
+		if (this.agoraLocalVideoTrack) {
+			const track = this.agoraLocalVideoTrack as { close: () => void };
+			track.close();
+			this.agoraLocalVideoTrack = null;
+		}
+		if (this.agoraClient) {
+			const client = this.agoraClient as { leave: () => Promise<void> };
+			try {
+				await client.leave();
+			} catch {
+				// Ignore leave errors during cleanup
+			}
+			this.agoraClient = null;
+		}
 	}
 
-	onStreamStopped(
-		_callback: (event: StreamStoppedEvent) => void,
-	): Subscription {
-		return { remove: () => {} };
+	onStreamStarted(callback: (event: StreamStartedEvent) => void): Subscription {
+		this.streamStartedCallbacks.add(callback);
+		return {
+			remove: () => {
+				this.streamStartedCallbacks.delete(callback);
+			},
+		};
 	}
 
-	onStreamError(_callback: (event: StreamErrorEvent) => void): Subscription {
-		return { remove: () => {} };
+	onStreamStopped(callback: (event: StreamStoppedEvent) => void): Subscription {
+		this.streamStoppedCallbacks.add(callback);
+		return {
+			remove: () => {
+				this.streamStoppedCallbacks.delete(callback);
+			},
+		};
 	}
 
-	onViewerUpdate(_callback: (event: ViewerUpdateEvent) => void): Subscription {
-		return { remove: () => {} };
+	onStreamError(callback: (event: StreamErrorEvent) => void): Subscription {
+		this.streamErrorCallbacks.add(callback);
+		return {
+			remove: () => {
+				this.streamErrorCallbacks.delete(callback);
+			},
+		};
+	}
+
+	onViewerUpdate(callback: (event: ViewerUpdateEvent) => void): Subscription {
+		this.viewerUpdateCallbacks.add(callback);
+		return {
+			remove: () => {
+				this.viewerUpdateCallbacks.delete(callback);
+			},
+		};
 	}
 
 	onStreamCameraSourceChanged(
-		_callback: (event: StreamCameraSourceChangedEvent) => void,
+		callback: (event: StreamCameraSourceChangedEvent) => void,
 	): Subscription {
-		return { remove: () => {} };
+		this.streamCameraSourceCallbacks.add(callback);
+		return {
+			remove: () => {
+				this.streamCameraSourceCallbacks.delete(callback);
+			},
+		};
 	}
 
 	// ============================================================
