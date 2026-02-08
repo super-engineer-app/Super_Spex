@@ -7,21 +7,21 @@
  */
 
 const logger = {
-  debug(tag: string, ...args: unknown[]): void {
-    if (__DEV__) {
-      console.log(`[${tag}]`, ...args);
-    }
-  },
+	debug(tag: string, ...args: unknown[]): void {
+		if (__DEV__) {
+			console.log(`[${tag}]`, ...args);
+		}
+	},
 
-  warn(tag: string, ...args: unknown[]): void {
-    if (__DEV__) {
-      console.warn(`[${tag}]`, ...args);
-    }
-  },
+	warn(tag: string, ...args: unknown[]): void {
+		if (__DEV__) {
+			console.warn(`[${tag}]`, ...args);
+		}
+	},
 
-  error(tag: string, ...args: unknown[]): void {
-    console.error(`[${tag}]`, ...args);
-  },
+	error(tag: string, ...args: unknown[]): void {
+		console.error(`[${tag}]`, ...args);
+	},
 };
 
 export default logger;

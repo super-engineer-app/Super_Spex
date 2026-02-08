@@ -1,54 +1,54 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getXRGlassesService,
-  IXRGlassesService,
-  DeviceCapabilities,
-  EngagementMode,
-} from '../../modules/xr-glasses';
-import logger from '../utils/logger';
+	type DeviceCapabilities,
+	type EngagementMode,
+	getXRGlassesService,
+	type IXRGlassesService,
+} from "../../modules/xr-glasses";
+import logger from "../utils/logger";
 
-const TAG = 'useXRGlasses';
+const TAG = "useXRGlasses";
 
 /**
  * State interface for the XR Glasses hook.
  */
 export interface GlassesState {
-  /** Whether the service has been initialized */
-  initialized: boolean;
-  /** Whether glasses are currently connected */
-  connected: boolean;
-  /** Whether running in a projected device context */
-  isProjectedDevice: boolean;
-  /** Current engagement mode (visuals/audio state) */
-  engagementMode: EngagementMode;
-  /** Device capabilities */
-  capabilities: DeviceCapabilities | null;
-  /** Whether emulation mode is enabled */
-  emulationMode: boolean;
-  /** Key that changes when UI needs full remount (after XR SDK corrupts RN views) */
-  refreshKey: number;
+	/** Whether the service has been initialized */
+	initialized: boolean;
+	/** Whether glasses are currently connected */
+	connected: boolean;
+	/** Whether running in a projected device context */
+	isProjectedDevice: boolean;
+	/** Current engagement mode (visuals/audio state) */
+	engagementMode: EngagementMode;
+	/** Device capabilities */
+	capabilities: DeviceCapabilities | null;
+	/** Whether emulation mode is enabled */
+	emulationMode: boolean;
+	/** Key that changes when UI needs full remount (after XR SDK corrupts RN views) */
+	refreshKey: number;
 }
 
 /**
  * Return type for the useXRGlasses hook.
  */
 export interface UseXRGlassesReturn extends GlassesState {
-  /** Whether an operation is in progress */
-  loading: boolean;
-  /** Last error that occurred */
-  error: Error | null;
-  /** Connect to glasses */
-  connect: () => Promise<void>;
-  /** Disconnect from glasses */
-  disconnect: () => Promise<void>;
-  /** Set keep screen on */
-  keepScreenOn: (enabled: boolean) => Promise<void>;
-  /** Enable/disable emulation mode */
-  setEmulationMode: (enabled: boolean) => Promise<void>;
-  /** Simulate an input event (emulation mode only) */
-  simulateInputEvent: (action: string) => Promise<void>;
-  /** Reinitialize the service */
-  reinitialize: () => Promise<void>;
+	/** Whether an operation is in progress */
+	loading: boolean;
+	/** Last error that occurred */
+	error: Error | null;
+	/** Connect to glasses */
+	connect: () => Promise<void>;
+	/** Disconnect from glasses */
+	disconnect: () => Promise<void>;
+	/** Set keep screen on */
+	keepScreenOn: (enabled: boolean) => Promise<void>;
+	/** Enable/disable emulation mode */
+	setEmulationMode: (enabled: boolean) => Promise<void>;
+	/** Simulate an input event (emulation mode only) */
+	simulateInputEvent: (action: string) => Promise<void>;
+	/** Reinitialize the service */
+	reinitialize: () => Promise<void>;
 }
 
 /**
@@ -84,268 +84,269 @@ export interface UseXRGlassesReturn extends GlassesState {
  * ```
  */
 export function useXRGlasses(): UseXRGlassesReturn {
-  const serviceRef = useRef<IXRGlassesService | null>(null);
+	const serviceRef = useRef<IXRGlassesService | null>(null);
 
-  const [state, setState] = useState<GlassesState>({
-    initialized: false,
-    connected: false,
-    isProjectedDevice: false,
-    engagementMode: { visualsOn: false, audioOn: false },
-    capabilities: null,
-    emulationMode: false,
-    refreshKey: 0,
-  });
+	const [state, setState] = useState<GlassesState>({
+		initialized: false,
+		connected: false,
+		isProjectedDevice: false,
+		engagementMode: { visualsOn: false, audioOn: false },
+		capabilities: null,
+		emulationMode: false,
+		refreshKey: 0,
+	});
 
-  const [error, setError] = useState<Error | null>(null);
-  const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<Error | null>(null);
+	const [loading, setLoading] = useState(true);
 
-  // Initialize the service
-  const initialize = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+	// Initialize the service
+	const initialize = useCallback(async () => {
+		try {
+			setLoading(true);
+			setError(null);
 
-      const service = getXRGlassesService();
-      serviceRef.current = service;
+			const service = getXRGlassesService();
+			serviceRef.current = service;
 
-      await service.initialize();
+			await service.initialize();
 
-      // Fetch initial state in parallel
-      const [isProjected, isConnected, capabilities] = await Promise.all([
-        service.isProjectedDevice(),
-        service.isGlassesConnected(),
-        service.getDeviceCapabilities(),
-      ]);
+			// Fetch initial state in parallel
+			const [isProjected, isConnected, capabilities] = await Promise.all([
+				service.isProjectedDevice(),
+				service.isGlassesConnected(),
+				service.getDeviceCapabilities(),
+			]);
 
-      // Get engagement mode if connected
-      let engagementMode: EngagementMode = { visualsOn: false, audioOn: false };
-      if (isConnected) {
-        engagementMode = await service.getEngagementMode();
-      }
+			// Get engagement mode if connected
+			let engagementMode: EngagementMode = { visualsOn: false, audioOn: false };
+			if (isConnected) {
+				engagementMode = await service.getEngagementMode();
+			}
 
-      setState(prev => ({
-        ...prev,
-        initialized: true,
-        isProjectedDevice: isProjected,
-        connected: isConnected,
-        capabilities,
-        engagementMode,
-        emulationMode: capabilities.isEmulated ?? false,
-      }));
+			setState((prev) => ({
+				...prev,
+				initialized: true,
+				isProjectedDevice: isProjected,
+				connected: isConnected,
+				capabilities,
+				engagementMode,
+				emulationMode: capabilities.isEmulated ?? false,
+			}));
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)));
+		} finally {
+			setLoading(false);
+		}
+	}, []);
 
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+	// Initialize on mount and set up event listeners
+	useEffect(() => {
+		let mounted = true;
 
-  // Initialize on mount and set up event listeners
-  useEffect(() => {
-    let mounted = true;
+		initialize();
 
-    initialize();
+		const service = getXRGlassesService();
 
-    const service = getXRGlassesService();
+		// Subscribe to connection state changes
+		const connectionSub = service.onConnectionStateChanged((event) => {
+			if (mounted) {
+				setState((prev) => ({ ...prev, connected: event.connected }));
+			}
+		});
 
-    // Subscribe to connection state changes
-    const connectionSub = service.onConnectionStateChanged((event) => {
-      if (mounted) {
-        setState(prev => ({ ...prev, connected: event.connected }));
-      }
-    });
+		// Subscribe to engagement mode changes
+		const engagementSub = service.onEngagementModeChanged((event) => {
+			if (mounted) {
+				setState((prev) => ({
+					...prev,
+					engagementMode: {
+						visualsOn: event.visualsOn,
+						audioOn: event.audioOn,
+					},
+				}));
+			}
+		});
 
-    // Subscribe to engagement mode changes
-    const engagementSub = service.onEngagementModeChanged((event) => {
-      if (mounted) {
-        setState(prev => ({
-          ...prev,
-          engagementMode: {
-            visualsOn: event.visualsOn,
-            audioOn: event.audioOn,
-          },
-        }));
-      }
-    });
+		// Subscribe to device state changes
+		const deviceStateSub = service.onDeviceStateChanged((event) => {
+			if (mounted) {
+				// Handle emulation mode state changes
+				if (event.state === "ACTIVE") {
+					setState((prev) => ({ ...prev, emulationMode: true }));
+				} else if (event.state === "INACTIVE") {
+					setState((prev) => ({ ...prev, emulationMode: false }));
+				}
+			}
+		});
 
-    // Subscribe to device state changes
-    const deviceStateSub = service.onDeviceStateChanged((event) => {
-      if (mounted) {
-        // Handle emulation mode state changes
-        if (event.state === 'ACTIVE') {
-          setState(prev => ({ ...prev, emulationMode: true }));
-        } else if (event.state === 'INACTIVE') {
-          setState(prev => ({ ...prev, emulationMode: false }));
-        }
-      }
-    });
+		// Subscribe to UI refresh hints (after XR permission flow on cold start)
+		const uiRefreshSub = service.onUiRefreshNeeded(async (event) => {
+			if (mounted) {
+				logger.debug(TAG, "UI refresh needed:", event.reason);
+				// Increment refreshKey to force full component remount
+				// This is necessary because XR SDK's RequestPermissionsOnHostActivity overlay
+				// corrupts React Native's native text rendering, and state updates alone
+				// don't fix the visual corruption - a full unmount/remount is required.
+				try {
+					const [isConnected, engagementMode, capabilities] = await Promise.all(
+						[
+							service.isGlassesConnected(),
+							service.getEngagementMode(),
+							service.getDeviceCapabilities(),
+						],
+					);
+					if (mounted) {
+						setState((prev) => ({
+							...prev,
+							connected: isConnected,
+							engagementMode,
+							capabilities,
+							refreshKey: prev.refreshKey + 1, // Force remount of components using this key
+						}));
+						logger.debug(TAG, "Incremented refreshKey to force UI remount");
+					}
+				} catch (err) {
+					logger.warn(TAG, "Failed to refresh state:", err);
+				}
+			}
+		});
 
-    // Subscribe to UI refresh hints (after XR permission flow on cold start)
-    const uiRefreshSub = service.onUiRefreshNeeded(async (event) => {
-      if (mounted) {
-        logger.debug(TAG, 'UI refresh needed:', event.reason);
-        // Increment refreshKey to force full component remount
-        // This is necessary because XR SDK's RequestPermissionsOnHostActivity overlay
-        // corrupts React Native's native text rendering, and state updates alone
-        // don't fix the visual corruption - a full unmount/remount is required.
-        try {
-          const [isConnected, engagementMode, capabilities] = await Promise.all([
-            service.isGlassesConnected(),
-            service.getEngagementMode(),
-            service.getDeviceCapabilities(),
-          ]);
-          if (mounted) {
-            setState(prev => ({
-              ...prev,
-              connected: isConnected,
-              engagementMode,
-              capabilities,
-              refreshKey: prev.refreshKey + 1, // Force remount of components using this key
-            }));
-            logger.debug(TAG, 'Incremented refreshKey to force UI remount');
-          }
-        } catch (err) {
-          logger.warn(TAG, 'Failed to refresh state:', err);
-        }
-      }
-    });
+		return () => {
+			mounted = false;
+			connectionSub.remove();
+			engagementSub.remove();
+			deviceStateSub.remove();
+			uiRefreshSub.remove();
+		};
+	}, [initialize]);
 
-    return () => {
-      mounted = false;
-      connectionSub.remove();
-      engagementSub.remove();
-      deviceStateSub.remove();
-      uiRefreshSub.remove();
-    };
-  }, [initialize]);
+	// Connect to glasses
+	const connect = useCallback(async () => {
+		const service = serviceRef.current;
+		if (!service) {
+			setError(new Error("Service not initialized"));
+			return;
+		}
 
-  // Connect to glasses
-  const connect = useCallback(async () => {
-    const service = serviceRef.current;
-    if (!service) {
-      setError(new Error('Service not initialized'));
-      return;
-    }
+		setLoading(true);
+		setError(null);
 
-    setLoading(true);
-    setError(null);
+		try {
+			await service.connect();
+			const mode = await service.getEngagementMode();
+			setState((prev) => ({
+				...prev,
+				connected: true,
+				engagementMode: mode,
+			}));
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)));
+		} finally {
+			setLoading(false);
+		}
+	}, []);
 
-    try {
-      await service.connect();
-      const mode = await service.getEngagementMode();
-      setState(prev => ({
-        ...prev,
-        connected: true,
-        engagementMode: mode,
-      }));
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+	// Disconnect from glasses
+	const disconnect = useCallback(async () => {
+		const service = serviceRef.current;
+		if (!service) {
+			setError(new Error("Service not initialized"));
+			return;
+		}
 
-  // Disconnect from glasses
-  const disconnect = useCallback(async () => {
-    const service = serviceRef.current;
-    if (!service) {
-      setError(new Error('Service not initialized'));
-      return;
-    }
+		try {
+			await service.disconnect();
+			setState((prev) => ({
+				...prev,
+				connected: false,
+				engagementMode: { visualsOn: false, audioOn: false },
+			}));
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)));
+		}
+	}, []);
 
-    try {
-      await service.disconnect();
-      setState(prev => ({
-        ...prev,
-        connected: false,
-        engagementMode: { visualsOn: false, audioOn: false },
-      }));
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, []);
+	// Keep screen on
+	const keepScreenOn = useCallback(async (enabled: boolean) => {
+		const service = serviceRef.current;
+		if (!service) {
+			setError(new Error("Service not initialized"));
+			return;
+		}
 
-  // Keep screen on
-  const keepScreenOn = useCallback(async (enabled: boolean) => {
-    const service = serviceRef.current;
-    if (!service) {
-      setError(new Error('Service not initialized'));
-      return;
-    }
+		try {
+			await service.keepScreenOn(enabled);
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)));
+		}
+	}, []);
 
-    try {
-      await service.keepScreenOn(enabled);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, []);
+	// Set emulation mode
+	const setEmulationMode = useCallback(async (enabled: boolean) => {
+		const service = serviceRef.current;
+		if (!service) {
+			setError(new Error("Service not initialized"));
+			return;
+		}
 
-  // Set emulation mode
-  const setEmulationMode = useCallback(async (enabled: boolean) => {
-    const service = serviceRef.current;
-    if (!service) {
-      setError(new Error('Service not initialized'));
-      return;
-    }
+		try {
+			await service.setEmulationMode(enabled);
 
-    try {
-      await service.setEmulationMode(enabled);
+			// Refetch capabilities after changing emulation mode
+			const [capabilities, isProjected] = await Promise.all([
+				service.getDeviceCapabilities(),
+				service.isProjectedDevice(),
+			]);
 
-      // Refetch capabilities after changing emulation mode
-      const [capabilities, isProjected] = await Promise.all([
-        service.getDeviceCapabilities(),
-        service.isProjectedDevice(),
-      ]);
+			setState((prev) => ({
+				...prev,
+				emulationMode: enabled,
+				capabilities,
+				isProjectedDevice: isProjected,
+			}));
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)));
+		}
+	}, []);
 
-      setState(prev => ({
-        ...prev,
-        emulationMode: enabled,
-        capabilities,
-        isProjectedDevice: isProjected,
-      }));
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, []);
+	// Simulate input event
+	const simulateInputEvent = useCallback(async (action: string) => {
+		const service = serviceRef.current;
+		if (!service) {
+			setError(new Error("Service not initialized"));
+			return;
+		}
 
-  // Simulate input event
-  const simulateInputEvent = useCallback(async (action: string) => {
-    const service = serviceRef.current;
-    if (!service) {
-      setError(new Error('Service not initialized'));
-      return;
-    }
+		try {
+			await service.simulateInputEvent(action);
+		} catch (e) {
+			setError(e instanceof Error ? e : new Error(String(e)));
+		}
+	}, []);
 
-    try {
-      await service.simulateInputEvent(action);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, []);
+	// Reinitialize
+	const reinitialize = useCallback(async () => {
+		setState({
+			initialized: false,
+			connected: false,
+			isProjectedDevice: false,
+			engagementMode: { visualsOn: false, audioOn: false },
+			capabilities: null,
+			emulationMode: false,
+			refreshKey: 0,
+		});
+		await initialize();
+	}, [initialize]);
 
-  // Reinitialize
-  const reinitialize = useCallback(async () => {
-    setState({
-      initialized: false,
-      connected: false,
-      isProjectedDevice: false,
-      engagementMode: { visualsOn: false, audioOn: false },
-      capabilities: null,
-      emulationMode: false,
-      refreshKey: 0,
-    });
-    await initialize();
-  }, [initialize]);
-
-  return {
-    ...state,
-    loading,
-    error,
-    connect,
-    disconnect,
-    keepScreenOn,
-    setEmulationMode,
-    simulateInputEvent,
-    reinitialize,
-  };
+	return {
+		...state,
+		loading,
+		error,
+		connect,
+		disconnect,
+		keepScreenOn,
+		setEmulationMode,
+		simulateInputEvent,
+		reinitialize,
+	};
 }

@@ -6,7 +6,7 @@
  * that shape explicitly so we avoid `as any` casts.
  */
 export interface ReactNativeFile {
-  uri: string;
-  type: string;
-  name: string;
+	uri: string;
+	type: string;
+	name: string;
 }

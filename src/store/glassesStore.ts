@@ -1,82 +1,82 @@
-import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
+import { create } from "zustand";
+import { subscribeWithSelector } from "zustand/middleware";
 
 /**
  * Device capabilities interface.
  * Reflects actual AI glasses hardware capabilities.
  */
 interface DeviceCapabilities {
-  isXrPeripheral: boolean;    // Device is XR glasses
-  hasXrProjection: boolean;   // Device can project to glasses
-  hasTouchInput: boolean;     // Has touchpad/touch input
-  hasCamera: boolean;         // Has camera
-  hasMicrophone: boolean;     // Has microphone
-  hasAudioOutput: boolean;    // Has speakers
-  isEmulated?: boolean;
-  deviceType?: string;
+	isXrPeripheral: boolean; // Device is XR glasses
+	hasXrProjection: boolean; // Device can project to glasses
+	hasTouchInput: boolean; // Has touchpad/touch input
+	hasCamera: boolean; // Has camera
+	hasMicrophone: boolean; // Has microphone
+	hasAudioOutput: boolean; // Has speakers
+	isEmulated?: boolean;
+	deviceType?: string;
 }
 
 /**
  * Input event interface.
  */
 interface InputEvent {
-  id: string;
-  action: string;
-  timestamp: number;
+	id: string;
+	action: string;
+	timestamp: number;
 }
 
 /**
  * Glasses store state interface.
  */
 interface GlassesState {
-  // Connection state
-  isConnected: boolean;
-  isConnecting: boolean;
-  connectionError: string | null;
+	// Connection state
+	isConnected: boolean;
+	isConnecting: boolean;
+	connectionError: string | null;
 
-  // Device info
-  deviceCapabilities: DeviceCapabilities | null;
-  isProjectedDevice: boolean;
+	// Device info
+	deviceCapabilities: DeviceCapabilities | null;
+	isProjectedDevice: boolean;
 
-  // Engagement mode
-  visualsOn: boolean;
-  audioOn: boolean;
+	// Engagement mode
+	visualsOn: boolean;
+	audioOn: boolean;
 
-  // Emulation
-  emulationMode: boolean;
+	// Emulation
+	emulationMode: boolean;
 
-  // Input events log (for debugging)
-  inputEvents: InputEvent[];
-  maxInputEvents: number;
+	// Input events log (for debugging)
+	inputEvents: InputEvent[];
+	maxInputEvents: number;
 }
 
 /**
  * Glasses store actions interface.
  */
 interface GlassesActions {
-  // Connection actions
-  setConnected: (connected: boolean) => void;
-  setConnecting: (connecting: boolean) => void;
-  setConnectionError: (error: string | null) => void;
+	// Connection actions
+	setConnected: (connected: boolean) => void;
+	setConnecting: (connecting: boolean) => void;
+	setConnectionError: (error: string | null) => void;
 
-  // Device actions
-  setDeviceCapabilities: (caps: DeviceCapabilities | null) => void;
-  setIsProjectedDevice: (isProjected: boolean) => void;
+	// Device actions
+	setDeviceCapabilities: (caps: DeviceCapabilities | null) => void;
+	setIsProjectedDevice: (isProjected: boolean) => void;
 
-  // Engagement mode actions
-  setEngagementMode: (visualsOn: boolean, audioOn: boolean) => void;
-  toggleVisuals: () => void;
-  toggleAudio: () => void;
+	// Engagement mode actions
+	setEngagementMode: (visualsOn: boolean, audioOn: boolean) => void;
+	toggleVisuals: () => void;
+	toggleAudio: () => void;
 
-  // Emulation actions
-  setEmulationMode: (enabled: boolean) => void;
+	// Emulation actions
+	setEmulationMode: (enabled: boolean) => void;
 
-  // Input event actions
-  addInputEvent: (event: Omit<InputEvent, 'id'>) => void;
-  clearInputEvents: () => void;
+	// Input event actions
+	addInputEvent: (event: Omit<InputEvent, "id">) => void;
+	clearInputEvents: () => void;
 
-  // Reset
-  reset: () => void;
+	// Reset
+	reset: () => void;
 }
 
 /**
@@ -88,23 +88,23 @@ type GlassesStore = GlassesState & GlassesActions;
  * Initial state values.
  */
 const initialState: GlassesState = {
-  isConnected: false,
-  isConnecting: false,
-  connectionError: null,
-  deviceCapabilities: null,
-  isProjectedDevice: false,
-  visualsOn: false,
-  audioOn: false,
-  emulationMode: false,
-  inputEvents: [],
-  maxInputEvents: 100,
+	isConnected: false,
+	isConnecting: false,
+	connectionError: null,
+	deviceCapabilities: null,
+	isProjectedDevice: false,
+	visualsOn: false,
+	audioOn: false,
+	emulationMode: false,
+	inputEvents: [],
+	maxInputEvents: 100,
 };
 
 /**
  * Generate a unique ID for events.
  */
 const generateId = (): string =>
-  `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+	`${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
 /**
  * Zustand store for XR Glasses state management.
@@ -147,67 +147,60 @@ const generateId = (): string =>
  * ```
  */
 export const useGlassesStore = create<GlassesStore>()(
-  subscribeWithSelector((set, get) => ({
-    // Initial state
-    ...initialState,
+	subscribeWithSelector((set, get) => ({
+		// Initial state
+		...initialState,
 
-    // Connection actions
-    setConnected: (connected) =>
-      set({
-        isConnected: connected,
-        connectionError: null,
-      }),
+		// Connection actions
+		setConnected: (connected) =>
+			set({
+				isConnected: connected,
+				connectionError: null,
+			}),
 
-    setConnecting: (connecting) =>
-      set({ isConnecting: connecting }),
+		setConnecting: (connecting) => set({ isConnecting: connecting }),
 
-    setConnectionError: (error) =>
-      set({
-        connectionError: error,
-        isConnected: false,
-        isConnecting: false,
-      }),
+		setConnectionError: (error) =>
+			set({
+				connectionError: error,
+				isConnected: false,
+				isConnecting: false,
+			}),
 
-    // Device actions
-    setDeviceCapabilities: (caps) =>
-      set({ deviceCapabilities: caps }),
+		// Device actions
+		setDeviceCapabilities: (caps) => set({ deviceCapabilities: caps }),
 
-    setIsProjectedDevice: (isProjected) =>
-      set({ isProjectedDevice: isProjected }),
+		setIsProjectedDevice: (isProjected) =>
+			set({ isProjectedDevice: isProjected }),
 
-    // Engagement mode actions
-    setEngagementMode: (visualsOn, audioOn) =>
-      set({ visualsOn, audioOn }),
+		// Engagement mode actions
+		setEngagementMode: (visualsOn, audioOn) => set({ visualsOn, audioOn }),
 
-    toggleVisuals: () =>
-      set((state) => ({ visualsOn: !state.visualsOn })),
+		toggleVisuals: () => set((state) => ({ visualsOn: !state.visualsOn })),
 
-    toggleAudio: () =>
-      set((state) => ({ audioOn: !state.audioOn })),
+		toggleAudio: () => set((state) => ({ audioOn: !state.audioOn })),
 
-    // Emulation actions
-    setEmulationMode: (enabled) =>
-      set({ emulationMode: enabled }),
+		// Emulation actions
+		setEmulationMode: (enabled) => set({ emulationMode: enabled }),
 
-    // Input event actions
-    addInputEvent: (event) =>
-      set((state) => {
-        const newEvent: InputEvent = {
-          ...event,
-          id: generateId(),
-        };
-        const newEvents = [newEvent, ...state.inputEvents];
-        return {
-          inputEvents: newEvents.slice(0, state.maxInputEvents),
-        };
-      }),
+		// Input event actions
+		addInputEvent: (event) =>
+			set((state) => {
+				const newEvent: InputEvent = {
+					...event,
+					id: generateId(),
+				};
+				const newEvents = [newEvent, ...state.inputEvents];
+				return {
+					inputEvents: newEvents.slice(0, state.maxInputEvents),
+				};
+			}),
 
-    clearInputEvents: () =>
-      set({ inputEvents: [] }),
+		clearInputEvents: () => set({ inputEvents: [] }),
 
-    // Reset to initial state
-    reset: () => set(initialState),
-  }))
+		// Reset to initial state
+		reset: () => set(initialState),
+	})),
 );
 
 /**
@@ -215,11 +208,13 @@ export const useGlassesStore = create<GlassesStore>()(
  */
 export const selectIsConnected = (state: GlassesStore) => state.isConnected;
 export const selectIsConnecting = (state: GlassesStore) => state.isConnecting;
-export const selectConnectionError = (state: GlassesStore) => state.connectionError;
-export const selectDeviceCapabilities = (state: GlassesStore) => state.deviceCapabilities;
+export const selectConnectionError = (state: GlassesStore) =>
+	state.connectionError;
+export const selectDeviceCapabilities = (state: GlassesStore) =>
+	state.deviceCapabilities;
 export const selectEngagementMode = (state: GlassesStore) => ({
-  visualsOn: state.visualsOn,
-  audioOn: state.audioOn,
+	visualsOn: state.visualsOn,
+	audioOn: state.audioOn,
 });
 export const selectEmulationMode = (state: GlassesStore) => state.emulationMode;
 export const selectInputEvents = (state: GlassesStore) => state.inputEvents;
@@ -238,23 +233,23 @@ export const selectInputEvents = (state: GlassesStore) => state.inputEvents;
  * ```
  */
 export const subscribeToConnection = (
-  callback: (isConnected: boolean) => void
+	callback: (isConnected: boolean) => void,
 ) => {
-  return useGlassesStore.subscribe(
-    (state) => state.isConnected,
-    callback
-  );
+	return useGlassesStore.subscribe((state) => state.isConnected, callback);
 };
 
 /**
  * Subscribe to engagement mode changes outside of React.
  */
 export const subscribeToEngagementMode = (
-  callback: (mode: { visualsOn: boolean; audioOn: boolean }) => void
+	callback: (mode: { visualsOn: boolean; audioOn: boolean }) => void,
 ) => {
-  return useGlassesStore.subscribe(
-    (state) => ({ visualsOn: state.visualsOn, audioOn: state.audioOn }),
-    callback,
-    { equalityFn: (a, b) => a.visualsOn === b.visualsOn && a.audioOn === b.audioOn }
-  );
+	return useGlassesStore.subscribe(
+		(state) => ({ visualsOn: state.visualsOn, audioOn: state.audioOn }),
+		callback,
+		{
+			equalityFn: (a, b) =>
+				a.visualsOn === b.visualsOn && a.audioOn === b.audioOn,
+		},
+	);
 };
