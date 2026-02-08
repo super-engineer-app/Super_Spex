@@ -64,19 +64,7 @@ Speech results from the XR glasses speech recognizer are processed through `proc
 
 ### Multi-Source Image Capture
 
-All image sources produce `TaggedImage` objects:
-
-```typescript
-interface TaggedImage {
-  base64: string;       // JPEG base64-encoded image data
-  timestamp: number;    // Unix timestamp of capture
-  source: 'glasses' | 'phone' | 'gallery';
-  coordinates: {
-    lat: number;
-    long: number;
-  };
-}
-```
+All image sources produce `TaggedImage` objects (defined at `src/types/tagging.ts:12`).
 
 **Glasses camera:**
 - Uses `useGlassesCamera()` hook
@@ -96,11 +84,14 @@ interface TaggedImage {
 
 ### GPS Tagging
 
-Each image gets GPS coordinates via `createTaggedImage()`:
+Each image gets GPS coordinates instantly via `createTaggedImageSync()` (`src/services/taggingApi.ts:375`):
 
-1. Calls `getCurrentLocation()` which uses `expo-location`
-2. Requests foreground location permission if not already granted
-3. Falls back to `{lat: 0, long: 0}` if permission denied or location unavailable
+1. On app launch, `prefetchLocation()` caches GPS coords with a 5-minute TTL (`taggingApi.ts:294`)
+2. `getCachedLocation()` provides instant retrieval — no async wait (`taggingApi.ts:344`)
+3. `refreshLocationCache()` runs in background if cache is stale (>1 min) (`taggingApi.ts:352`)
+4. Falls back to `{lat: 0, long: 0}` if permission denied or location unavailable
+
+The older async `createTaggedImage()` (`taggingApi.ts:399`) is deprecated — `createTaggedImageSync()` is used for responsive captures.
 
 ### Async Save Pattern
 
@@ -146,14 +137,7 @@ Content-Type: multipart/form-data
 | `coordinates` | string | JSON stringified array of `{lat, long}` |
 | `images` | file[] | Image files via React Native FormData pattern |
 
-Images are attached using the React Native FormData convention:
-```typescript
-formData.append('images', {
-  uri: `data:image/jpeg;base64,${image.base64}`,
-  type: 'image/jpeg',
-  name: `tag-image-${index}.jpg`,
-} as ReactNativeFile as unknown as Blob);
-```
+Images are attached using the platform-specific FormData convention — see `src/services/taggingApi.ts:173` (native) and `src/utils/formDataHelper.web.ts:34` (web).
 
 ### SSE Response Format
 
@@ -176,18 +160,13 @@ Event types and callbacks:
 
 ### Authentication Status
 
-**Currently in DEV MODE** with hardcoded values:
+**Currently in DEV MODE** with hardcoded user/org IDs at `src/services/taggingApi.ts:27–28`. A proper auth system is not yet implemented.
 
-```typescript
-const DEV_USER_ID = 1;
-const DEV_ORG_ID = 1;
+## Web Platform Differences
 
-function getTaggingUserId(): number {
-  return DEV_USER_ID; // TODO: Replace with proper authentication
-}
-```
+On web, `captureFromPhone()` delegates to `getUserMedia` (same as glasses capture) instead of `expo-image-picker`, since `launchCameraAsync()` is unavailable in browsers. See `src/hooks/useTaggingSession.ts:383` for the platform check.
 
-A proper auth system is not yet implemented. This is tracked as out-of-scope (W5 in the audit).
+Gallery picking via `expo-image-picker` works on web (browser file dialog).
 
 ## Known Limitations
 
@@ -199,7 +178,7 @@ A proper auth system is not yet implemented. This is tracked as out-of-scope (W5
 
 4. **Gallery limit**: Multi-select capped at 10 images per capture action, but no limit on total images per session.
 
-5. **Keyword false positives**: Simple substring matching for start/end keywords could trigger on normal speech containing "note", "tag", "done", or "save".
+5. **Keyword false positives**: Word-boundary regex matching for start/end keywords. Uses `\b` boundaries to reduce false positives (see `src/types/tagging.ts:99`).
 
 6. **Camera exclusivity**: Glasses camera capture during tagging is mutually exclusive with recording and streaming.
 

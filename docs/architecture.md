@@ -59,27 +59,29 @@ See [maintenance/xr-glasses-projection.md](maintenance/xr-glasses-projection.md)
 │                              │                                      │
 │                              ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │              XRGlassesModule (Expo Native Module)           │   │
+│  │             IXRGlassesService (platform interface)          │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
-            ┌─────────────────┴─────────────────┐
-            ▼                                   ▼
-┌─────────────────────────┐       ┌─────────────────────────┐
-│   ANDROID (Current)     │       │   iOS (Future)          │
-│                         │       │                         │
-│  Main Process:          │       │  Expo Module (Swift)    │
-│  - XRGlassesService     │       │         │               │
-│  - XRGlassesModule      │       │         ▼               │
-│                         │       │  C++ Protocol Core      │
-│  :xr_process:           │       │  (reverse engineered)   │
-│  - GlassesActivity      │       │         │               │
-│  - ProjectionLauncher   │       │         ▼               │
-│         │               │       │  CoreBluetooth          │
-│         ▼               │       │                         │
-│  Jetpack XR SDK         │       │                         │
-└─────────────────────────┘       └─────────────────────────┘
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                     ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  ANDROID         │  │  WEB (Demo)      │  │  iOS (Future)    │
+│                  │  │                  │  │                  │
+│  Main Process:   │  │  WebXRGlasses-   │  │  IOSXRGlasses-   │
+│  - XRGlassesModule│  │  Service         │  │  Service (stub)  │
+│  - XRGlassesService│ │                  │  │                  │
+│                  │  │  Browser APIs:   │  │                  │
+│  :xr_process:    │  │  - Web Speech    │  │                  │
+│  - GlassesActivity│  │  - getUserMedia  │  │                  │
+│  - ProjectionLauncher│ │  - MediaRecorder│  │                  │
+│        │         │  │  - Agora Web SDK │  │                  │
+│        ▼         │  │                  │  │                  │
+│  Jetpack XR SDK  │  │  .web.ts files   │  │                  │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
+
+**Platform abstraction:** All hooks call `IXRGlassesService` methods (defined at `modules/xr-glasses/src/XRGlassesModule.ts:62`). Metro's `.web.ts` convention selects the right implementation at bundle time.
 
 ---
 
@@ -164,6 +166,21 @@ Main Process (on phone)               Cloud                    Browser
 
 ---
 
+## Web Platform
+
+The demo version of the app runs cross-platform (Android, web, future iOS). On web, `WebXRGlassesService` implements the same `IXRGlassesService` interface using browser APIs (Web Speech, getUserMedia, MediaRecorder, Agora Web SDK).
+
+Key differences from native:
+- No separate process — everything runs in the browser
+- Camera uses `getUserMedia` instead of CameraX/ProjectedContext
+- Speech falls back to network-based transcription on Firefox
+- FormData uses Blob instead of RN's `{uri, type, name}` convention
+- Platform-split files (`.web.ts`) are selected automatically by Metro
+
+See [maintenance/web-platform.md](maintenance/web-platform.md) for full details.
+
+---
+
 ## Detailed Documentation
 
 For implementation details and troubleshooting:
@@ -171,3 +188,4 @@ For implementation details and troubleshooting:
 - [maintenance/speech-recognition.md](maintenance/speech-recognition.md) - Speech architecture
 - [maintenance/camera-capture.md](maintenance/camera-capture.md) - Camera system
 - [maintenance/remote-view-streaming.md](maintenance/remote-view-streaming.md) - Remote View (Agora streaming)
+- [maintenance/web-platform.md](maintenance/web-platform.md) - Web platform (browser APIs, `.web.ts` files)

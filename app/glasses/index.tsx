@@ -8,6 +8,7 @@ import {
 	ScrollView,
 	StyleSheet,
 	Text,
+	useWindowDimensions,
 	View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -38,7 +39,19 @@ const TAG = "GlassesDashboard";
 export default function GlassesDashboard() {
 	const router = useRouter();
 	const { connected, emulationMode, disconnect, refreshKey } = useXRGlasses();
+	const { width: screenWidth } = useWindowDimensions();
 	const initialRefreshKey = useRef(refreshKey);
+
+	// Responsive web layout: scale content width with screen, cap at 720px
+	const isWeb = Platform.OS === "web";
+	const webContentStyle = isWeb
+		? {
+				maxWidth: Math.min(screenWidth * 0.9, 720),
+				width: "100%" as const,
+				alignSelf: "center" as const,
+				flex: 1,
+			}
+		: undefined;
 
 	const {
 		isListening,
@@ -370,9 +383,7 @@ export default function GlassesDashboard() {
 
 	return (
 		<SafeAreaView style={styles.container}>
-			<View
-				style={Platform.OS === "web" ? styles.webWrapper : styles.nativeWrapper}
-			>
+			<View style={isWeb ? webContentStyle : styles.nativeWrapper}>
 				<ScrollView
 					style={styles.scroll}
 					contentContainerStyle={styles.scrollContent}
@@ -479,7 +490,10 @@ export default function GlassesDashboard() {
 								</Text>
 								<Image
 									source={{ uri: `data:image/jpeg;base64,${lastImage}` }}
-									style={styles.imagePreview}
+									style={[
+										styles.imagePreview,
+										isWeb && screenWidth > 600 && { height: 320 },
+									]}
 									resizeMode="contain"
 								/>
 								<Pressable
@@ -905,12 +919,6 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 20,
-	},
-	webWrapper: {
-		flex: 1,
-		maxWidth: 480,
-		width: "100%",
-		alignSelf: "center",
 	},
 	nativeWrapper: {
 		flex: 1,

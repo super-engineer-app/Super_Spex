@@ -2,9 +2,11 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import {
 	ActivityIndicator,
+	Platform,
 	Pressable,
 	StyleSheet,
 	Text,
+	useWindowDimensions,
 	View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +20,8 @@ import { useXRGlasses } from "../src/hooks/useXRGlasses";
  */
 export default function ConnectScreen() {
 	const router = useRouter();
+	const { width: screenWidth } = useWindowDimensions();
+	const isWeb = Platform.OS === "web";
 	const {
 		connected,
 		loading,
@@ -62,7 +66,16 @@ export default function ConnectScreen() {
 
 	return (
 		<SafeAreaView style={styles.container} edges={["bottom"]}>
-			<View style={styles.content}>
+			<View
+				style={[
+					styles.content,
+					isWeb && {
+						maxWidth: Math.min(screenWidth * 0.9, 720),
+						alignSelf: "center" as const,
+						width: "100%" as const,
+					},
+				]}
+			>
 				{/* Error Display */}
 				{error && (
 					<View style={styles.errorCard}>

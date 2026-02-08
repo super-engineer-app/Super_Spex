@@ -29,24 +29,46 @@
 | File | Purpose |
 |------|---------|
 | `modules/xr-glasses/index.ts` | Native module interface & event types |
-| `modules/xr-glasses/src/XRGlassesModule.ts` | Platform service abstraction |
+| `modules/xr-glasses/src/XRGlassesModule.ts` | Platform service interface (`IXRGlassesService`) + Android/iOS implementations |
+| `modules/xr-glasses/types.ts` | Shared event type definitions (all platforms) |
 | `src/hooks/useXRGlasses.ts` | Main React hook for glasses state |
 | `src/hooks/useSpeechRecognition.ts` | Speech recognition hook |
 | `src/hooks/useGlassesCamera.ts` | Camera capture hook |
 | `src/hooks/useRemoteView.ts` | Remote view streaming hook |
 | `src/hooks/useVideoRecording.ts` | Video recording + transcription hook |
-| `src/services/backendApi.ts` | AI backend integration |
+| `src/hooks/useParkingTimer.ts` | Parking countdown timer hook |
+| `src/hooks/useTaggingSession.ts` | Voice-activated tagging session hook |
+| `src/hooks/useGlassesInput.ts` | Input event tracking hook |
+| `src/services/backendApi.ts` | AI backend integration (SSE streaming) |
+| `src/services/taggingApi.ts` | Tagging backend + GPS location cache |
 | `src/services/transcriptionApi.ts` | Transcription types & formatting |
+| `src/services/errorReporting.ts` | Discord webhook error reporting |
 | `src/components/QualitySelector.tsx` | Stream quality UI component |
-| `app/index.tsx` | Home/connection screen |
-| `app/glasses/index.tsx` | Glasses dashboard UI |
+| `src/components/TaggingMode.tsx` | Tagging session UI (transcript, images, capture buttons) |
+| `src/components/TimePicker.tsx` | Scrollable wheel time picker for parking timer |
+| `src/types/tagging.ts` | TaggedImage type + keyword detection functions |
+| `src/utils/formDataHelper.ts` | Native FormData file handling (expo-file-system) |
+| `src/utils/logger.ts` | Development-gated logging utility |
+| `app/index.tsx` | Home screen (connect or demo mode) |
+| `app/connect.tsx` | Connection management screen |
+| `app/glasses/index.tsx` | Glasses dashboard (all features) |
+| `app/glasses/display.tsx` | Display settings (brightness, always-on) |
+| `app/glasses/input.tsx` | Input event monitor + emulation controls |
+
+### Web Platform-Split Files
+| File | Native Counterpart | What Changes |
+|------|-------------------|-------------|
+| `modules/xr-glasses/index.web.ts` | `index.ts` | Stubs native module |
+| `modules/xr-glasses/src/XRGlassesModule.web.ts` | `XRGlassesModule.ts` | `WebXRGlassesService` (browser APIs) |
+| `src/utils/formDataHelper.web.ts` | `formDataHelper.ts` | Blob + download instead of expo-file-system |
+| `src/services/errorReporting.web.ts` | `errorReporting.ts` | `window` event listeners instead of RN polyfill |
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Build release APK
+# Build release APK (Android)
 export ANDROID_HOME=~/Android/Sdk
 cd android && ./gradlew clean && ./gradlew assembleRelease
 
@@ -61,6 +83,13 @@ android/app/build/outputs/apk/release/app-release.apk
 
 # Watch XR logs
 ~/Android/Sdk/platform-tools/adb -s emulator-5556 logcat | grep -iE "XRGlassesService|GlassesActivity|ProjectionLauncher"
+
+# Run web dev server
+npm run web   # or: npx expo start --web
+# Opens at http://localhost:8081
+
+# Type check (all platforms)
+npx tsc --noEmit
 ```
 
 ---
@@ -77,6 +106,7 @@ For detailed troubleshooting, see the maintenance docs:
 | Remote view grey/black video | [maintenance/remote-view-streaming.md](maintenance/remote-view-streaming.md) |
 | Emulator problems | [maintenance/emulator-testing.md](maintenance/emulator-testing.md) |
 | Build failures | [maintenance/build-deploy.md](maintenance/build-deploy.md) |
+| Web platform issues | [maintenance/web-platform.md](maintenance/web-platform.md) |
 
 ---
 
