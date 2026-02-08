@@ -1,12 +1,6 @@
 ### PENDING:
 5. verify all css code to make sure it is safe and doesnt bug.
 4. Legacy imports cleanup
-11. Transcription on recording stop:
-    - When user stops recording, prompt: "Would you like to make a transcription?"
-    - If yes: "Are you sure?" confirmation
-    - Mix all audio tracks (all participants + host) into single audio file
-    - Send to /transcribe-dia endpoint (accepts audio file, user_id, language)
-    - Save both files: video+audio combined AND transcription text separately
 
 ### DONE:
 2. ~~every participant in the channel should be able to mute/unmute~~ (implemented in web viewer)
