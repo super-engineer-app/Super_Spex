@@ -16,6 +16,8 @@ expo-env.d.ts
 *.aab
 *.ipa
 
+
+*.png
 # Kotlin
 .kotlin/
 
@@ -126,6 +128,13 @@ vendor/bundle/
 
 # Claude Code
 .claude/
+
+# Biome (local linting only)
+biome.json
+biome-test.ts
+
+# Images
+*.png
 
 # Cloudflare Workers
 .wrangler/

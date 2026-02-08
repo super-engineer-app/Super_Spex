@@ -5,8 +5,10 @@
  * and handles streaming responses.
  */
 
-import { File, Paths } from "expo-file-system/next";
-import type { ReactNativeFile } from "../types/reactNativeFile";
+import {
+	appendImageFileToFormData,
+	cleanupTempFile,
+} from "../utils/formDataHelper";
 import logger from "../utils/logger";
 
 const TAG = "BackendAPI";
@@ -22,28 +24,6 @@ function generateUUID(): string {
 		const v = c === "x" ? r : (r & 0x3) | 0x8;
 		return v.toString(16);
 	});
-}
-
-/**
- * Save base64 image to a temp file and return the URI
- */
-async function saveBase64ToTempFile(base64: string): Promise<string> {
-	const filename = `capture_${Date.now()}.jpg`;
-	const file = new File(Paths.cache, filename);
-	file.base64 = base64;
-	return file.uri;
-}
-
-/**
- * Clean up temp file
- */
-async function deleteTempFile(fileUri: string): Promise<void> {
-	try {
-		const file = new File(fileUri);
-		file.delete();
-	} catch (e) {
-		logger.warn(TAG, "Failed to delete temp file:", e);
-	}
 }
 
 // Session state
@@ -130,13 +110,12 @@ export async function sendToBackend(
 		}
 
 		if (imageBase64) {
-			// Save base64 to temp file and use file URI (React Native compatible)
-			tempFileUri = await saveBase64ToTempFile(imageBase64);
-			formData.append("image", {
-				uri: tempFileUri,
-				type: "image/jpeg",
-				name: "capture.jpg",
-			} as ReactNativeFile as unknown as Blob);
+			tempFileUri = await appendImageFileToFormData(
+				formData,
+				"image",
+				imageBase64,
+				"capture.jpg",
+			);
 		}
 
 		logger.debug(TAG, "Sending request to:", GENERATE_ENDPOINT);
@@ -221,7 +200,7 @@ export async function sendToBackend(
 
 		// Clean up temp file
 		if (tempFileUri) {
-			await deleteTempFile(tempFileUri);
+			await cleanupTempFile(tempFileUri);
 		}
 
 		return {
@@ -232,7 +211,7 @@ export async function sendToBackend(
 	} catch (error) {
 		// Clean up temp file on error
 		if (tempFileUri) {
-			await deleteTempFile(tempFileUri);
+			await cleanupTempFile(tempFileUri);
 		}
 
 		const err = error instanceof Error ? error : new Error(String(error));

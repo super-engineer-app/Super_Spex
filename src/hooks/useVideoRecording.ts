@@ -13,8 +13,6 @@
  */
 
 import * as Clipboard from "expo-clipboard";
-import { File, Paths } from "expo-file-system/next";
-import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 import type {
@@ -32,6 +30,7 @@ import {
 	formatTranscriptAsText,
 	isValidTranscriptionResult,
 } from "../services/transcriptionApi";
+import { shareFileFromUri, shareTextFile } from "../utils/formDataHelper";
 import logger from "../utils/logger";
 
 const TAG = "useVideoRecording";
@@ -82,6 +81,13 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 		null,
 	);
 
+	const stopDurationTimer = useCallback(() => {
+		if (durationIntervalRef.current !== null) {
+			clearInterval(durationIntervalRef.current);
+			durationIntervalRef.current = null;
+		}
+	}, []);
+
 	// Start a JS-side timer that ticks every second while recording
 	const startDurationTimer = useCallback(() => {
 		stopDurationTimer();
@@ -94,14 +100,7 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 				return { ...prev, durationMs: elapsed };
 			});
 		}, 500);
-	}, []);
-
-	const stopDurationTimer = useCallback(() => {
-		if (durationIntervalRef.current !== null) {
-			clearInterval(durationIntervalRef.current);
-			durationIntervalRef.current = null;
-		}
-	}, []);
+	}, [stopDurationTimer]);
 
 	// Subscribe to native recording events
 	useEffect(() => {
@@ -223,13 +222,12 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 		}
 
 		try {
-			const isAvailable = await Sharing.isAvailableAsync();
-			if (isAvailable) {
-				await Sharing.shareAsync(`file://${filePath}`, {
-					mimeType: "video/mp4",
-					dialogTitle: "Save Recording",
-				});
-			} else {
+			const shared = await shareFileFromUri(
+				`file://${filePath}`,
+				"video/mp4",
+				"Save Recording",
+			);
+			if (!shared) {
 				logger.warn(TAG, "Sharing not available on this device");
 			}
 		} catch (error) {
@@ -247,16 +245,9 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 		try {
 			const text = formatTranscriptAsText(result.segments);
 			const fileName = `spex-transcript-${Date.now()}.txt`;
-			const file = new File(Paths.cache, fileName);
-			file.text = text;
 
-			const isAvailable = await Sharing.isAvailableAsync();
-			if (isAvailable) {
-				await Sharing.shareAsync(file.uri, {
-					mimeType: "text/plain",
-					dialogTitle: "Share Transcript",
-				});
-			} else {
+			const shared = await shareTextFile(text, fileName);
+			if (!shared) {
 				// Fallback: copy to clipboard if sharing is unavailable (e.g. some emulators)
 				await Clipboard.setStringAsync(text);
 				Alert.alert(

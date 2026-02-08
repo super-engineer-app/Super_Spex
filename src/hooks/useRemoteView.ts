@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, Share } from "react-native";
 import {
+	getXRGlassesService,
 	type StreamCameraSourceChangedEvent,
 	type StreamErrorEvent,
 	type StreamQuality,
 	type StreamStartedEvent,
 	type StreamStoppedEvent,
 	type ViewerUpdateEvent,
-	XRGlassesNative,
 } from "../../modules/xr-glasses";
 import logger from "../utils/logger";
 
@@ -34,9 +34,9 @@ export interface RemoteViewState {
 	error: string | null;
 	/** Whether an operation is in progress */
 	loading: boolean;
-	/** Camera source being used for streaming (e.g., "PHONE CAMERA (Demo Mode)" or "GLASSES CAMERA") */
+	/** Camera source being used for streaming */
 	cameraSource: string | null;
-	/** Whether streaming is using demo mode (phone camera instead of glasses) */
+	/** Whether streaming is using demo mode */
 	isDemoMode: boolean;
 }
 
@@ -44,15 +44,10 @@ export interface RemoteViewState {
  * Return type for the useRemoteView hook.
  */
 export interface UseRemoteViewReturn extends RemoteViewState {
-	/** Start streaming with current quality setting */
 	startStream: () => Promise<void>;
-	/** Stop streaming */
 	stopStream: () => Promise<void>;
-	/** Set quality preset */
 	setQuality: (quality: StreamQuality) => void;
-	/** Share the viewer URL via native share sheet */
 	shareLink: () => Promise<void>;
-	/** Clear any error state */
 	clearError: () => void;
 }
 
@@ -61,10 +56,7 @@ export interface UseRemoteViewReturn extends RemoteViewState {
  */
 export const QUALITY_OPTIONS: Record<
 	StreamQuality,
-	{
-		label: string;
-		description: string;
-	}
+	{ label: string; description: string }
 > = {
 	low_latency: {
 		label: "Low Latency",
@@ -82,44 +74,7 @@ export const QUALITY_OPTIONS: Record<
 
 /**
  * Hook for managing Remote View streaming.
- *
- * Provides a complete interface for streaming the glasses camera view
- * to remote viewers via Agora, including quality selection and sharing.
- *
- * @example
- * ```tsx
- * function RemoteViewSection() {
- *   const {
- *     isStreaming,
- *     viewerUrl,
- *     viewerCount,
- *     selectedQuality,
- *     startStream,
- *     stopStream,
- *     setQuality,
- *     shareLink,
- *   } = useRemoteView();
- *
- *   return (
- *     <View>
- *       <QualitySelector
- *         value={selectedQuality}
- *         onChange={setQuality}
- *         disabled={isStreaming}
- *       />
- *       {isStreaming ? (
- *         <>
- *           <Text>Viewers: {viewerCount}</Text>
- *           <Button onPress={shareLink}>Share Link</Button>
- *           <Button onPress={stopStream}>Stop</Button>
- *         </>
- *       ) : (
- *         <Button onPress={startStream}>Start Remote View</Button>
- *       )}
- *     </View>
- *   );
- * }
- * ```
+ * Uses the service abstraction instead of XRGlassesNative directly.
  */
 export function useRemoteView(): UseRemoteViewReturn {
 	const [state, setState] = useState<RemoteViewState>({
@@ -134,80 +89,65 @@ export function useRemoteView(): UseRemoteViewReturn {
 		isDemoMode: false,
 	});
 
+	const serviceRef = useRef(getXRGlassesService());
+
 	// Set up event listeners
 	useEffect(() => {
 		let mounted = true;
+		const service = serviceRef.current;
 
-		// Stream started event
-		const startedSub = XRGlassesNative.addListener(
-			"onStreamStarted",
-			(event: StreamStartedEvent) => {
-				if (mounted) {
-					logger.debug(TAG, "Stream started:", event.viewerUrl);
-					setState((prev) => ({
-						...prev,
-						isStreaming: true,
-						channelId: event.channelId,
-						viewerUrl: event.viewerUrl,
-						error: null,
-						loading: false,
-					}));
-				}
-			},
-		);
+		const startedSub = service.onStreamStarted((event: StreamStartedEvent) => {
+			if (mounted) {
+				logger.debug(TAG, "Stream started:", event.viewerUrl);
+				setState((prev) => ({
+					...prev,
+					isStreaming: true,
+					channelId: event.channelId,
+					viewerUrl: event.viewerUrl,
+					error: null,
+					loading: false,
+				}));
+			}
+		});
 
-		// Stream stopped event
-		const stoppedSub = XRGlassesNative.addListener(
-			"onStreamStopped",
-			(_event: StreamStoppedEvent) => {
-				if (mounted) {
-					logger.debug(TAG, "Stream stopped");
-					setState((prev) => ({
-						...prev,
-						isStreaming: false,
-						channelId: null,
-						viewerUrl: null,
-						viewerCount: 0,
-						loading: false,
-						cameraSource: null,
-						isDemoMode: false,
-					}));
-				}
-			},
-		);
+		const stoppedSub = service.onStreamStopped((_event: StreamStoppedEvent) => {
+			if (mounted) {
+				logger.debug(TAG, "Stream stopped");
+				setState((prev) => ({
+					...prev,
+					isStreaming: false,
+					channelId: null,
+					viewerUrl: null,
+					viewerCount: 0,
+					loading: false,
+					cameraSource: null,
+					isDemoMode: false,
+				}));
+			}
+		});
 
-		// Stream error event
-		const errorSub = XRGlassesNative.addListener(
-			"onStreamError",
-			(event: StreamErrorEvent) => {
-				if (mounted) {
-					logger.error(TAG, "Stream error:", event.message);
-					setState((prev) => ({
-						...prev,
-						error: event.message,
-						loading: false,
-					}));
-				}
-			},
-		);
+		const errorSub = service.onStreamError((event: StreamErrorEvent) => {
+			if (mounted) {
+				logger.error(TAG, "Stream error:", event.message);
+				setState((prev) => ({
+					...prev,
+					error: event.message,
+					loading: false,
+				}));
+			}
+		});
 
-		// Viewer update event
-		const viewerSub = XRGlassesNative.addListener(
-			"onViewerUpdate",
-			(event: ViewerUpdateEvent) => {
-				if (mounted) {
-					logger.debug(TAG, "Viewer update:", event.viewerCount);
-					setState((prev) => ({
-						...prev,
-						viewerCount: event.viewerCount,
-					}));
-				}
-			},
-		);
+		const viewerSub = service.onViewerUpdate((event: ViewerUpdateEvent) => {
+			if (mounted) {
+				logger.debug(TAG, "Viewer update:", event.viewerCount);
+				setState((prev) => ({
+					...prev,
+					viewerCount: event.viewerCount,
+				}));
+			}
+		});
 
-		// Camera source changed event
-		const cameraSourceSub = XRGlassesNative.addListener(
-			"onStreamCameraSourceChanged",
+		const cameraSourceSub = service.onStreamCameraSourceChanged(
 			(event: StreamCameraSourceChangedEvent) => {
 				if (mounted) {
 					logger.debug(
@@ -220,14 +160,15 @@ export function useRemoteView(): UseRemoteViewReturn {
 					setState((prev) => ({
 						...prev,
 						cameraSource: event.cameraSource,
-						isDemoMode: event.isDemoMode ?? event.isEmulationMode, // Use new name with fallback
+						isDemoMode: event.isDemoMode ?? event.isEmulationMode,
 					}));
 				}
 			},
 		);
 
 		// Check initial streaming state
-		XRGlassesNative.isRemoteViewActive()
+		service
+			.isRemoteViewActive()
 			.then((active) => {
 				if (mounted && active) {
 					setState((prev) => ({ ...prev, isStreaming: active }));
@@ -249,10 +190,11 @@ export function useRemoteView(): UseRemoteViewReturn {
 
 	// WebSocket connection for real-time viewer count updates
 	const wsRef = useRef<WebSocket | null>(null);
-	const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 
 	useEffect(() => {
-		// Close any existing connection
 		if (wsRef.current) {
 			wsRef.current.close();
 			wsRef.current = null;
@@ -262,7 +204,6 @@ export function useRemoteView(): UseRemoteViewReturn {
 			reconnectTimeoutRef.current = null;
 		}
 
-		// Open WebSocket if streaming with a channel ID
 		if (state.isStreaming && state.channelId) {
 			const connectWebSocket = () => {
 				const wsUrl = `${WS_BASE_URL}/${state.channelId}?role=host&name=Broadcaster`;
@@ -297,7 +238,6 @@ export function useRemoteView(): UseRemoteViewReturn {
 
 				ws.onclose = () => {
 					logger.debug(TAG, "WebSocket closed");
-					// Reconnect after 3 seconds if still streaming
 					if (state.isStreaming && state.channelId) {
 						reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
 					}
@@ -319,14 +259,11 @@ export function useRemoteView(): UseRemoteViewReturn {
 		};
 	}, [state.isStreaming, state.channelId]);
 
-	// Start streaming
 	const startStream = useCallback(async () => {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
-
 		try {
 			logger.debug(TAG, "Starting stream with quality:", state.selectedQuality);
-			await XRGlassesNative.startRemoteView(state.selectedQuality);
-			// State will be updated via onStreamStarted event
+			await serviceRef.current.startRemoteView(state.selectedQuality);
 		} catch (e) {
 			const error = e instanceof Error ? e.message : "Failed to start stream";
 			logger.error(TAG, "Start failed:", error);
@@ -334,14 +271,11 @@ export function useRemoteView(): UseRemoteViewReturn {
 		}
 	}, [state.selectedQuality]);
 
-	// Stop streaming
 	const stopStream = useCallback(async () => {
 		setState((prev) => ({ ...prev, loading: true }));
-
 		try {
 			logger.debug(TAG, "Stopping stream");
-			await XRGlassesNative.stopRemoteView();
-			// State will be updated via onStreamStopped event
+			await serviceRef.current.stopRemoteView();
 		} catch (e) {
 			const error = e instanceof Error ? e.message : "Failed to stop stream";
 			logger.error(TAG, "Stop failed:", error);
@@ -349,14 +283,11 @@ export function useRemoteView(): UseRemoteViewReturn {
 		}
 	}, []);
 
-	// Set quality
 	const setQuality = useCallback(
 		(quality: StreamQuality) => {
 			setState((prev) => ({ ...prev, selectedQuality: quality }));
-
-			// If currently streaming, update quality on the fly
 			if (state.isStreaming) {
-				XRGlassesNative.setRemoteViewQuality(quality).catch((e) => {
+				serviceRef.current.setRemoteViewQuality(quality).catch((e) => {
 					logger.error(TAG, "Failed to update quality:", e);
 				});
 			}
@@ -364,19 +295,16 @@ export function useRemoteView(): UseRemoteViewReturn {
 		[state.isStreaming],
 	);
 
-	// Share link
 	const shareLink = useCallback(async () => {
 		if (!state.viewerUrl) {
 			logger.warn(TAG, "No viewer URL to share");
 			return;
 		}
-
 		try {
 			const result = await Share.share({
 				message: state.viewerUrl,
 				url: Platform.OS === "ios" ? state.viewerUrl : undefined,
 			});
-
 			if (result.action === Share.sharedAction) {
 				logger.debug(TAG, "Link shared successfully");
 			}
@@ -385,7 +313,6 @@ export function useRemoteView(): UseRemoteViewReturn {
 		}
 	}, [state.viewerUrl]);
 
-	// Clear error
 	const clearError = useCallback(() => {
 		setState((prev) => ({ ...prev, error: null }));
 	}, []);
