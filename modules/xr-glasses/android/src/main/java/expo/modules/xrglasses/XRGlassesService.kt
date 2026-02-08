@@ -19,6 +19,7 @@ import androidx.camera.video.Recorder
 import androidx.camera.video.VideoCapture
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import expo.modules.xrglasses.glasses.GlassesActivity
 import expo.modules.xrglasses.stream.AgoraStreamManager
 import expo.modules.xrglasses.stream.StreamQuality
 import expo.modules.xrglasses.stream.StreamSession
@@ -131,6 +132,12 @@ class XRGlassesService(
     private var continuousMode = false
     private var useNetworkRecognizer = false  // Falls back to true if on-device fails
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Speech source routing: glasses-first with phone fallback
+    enum class SpeechSource { NONE, GLASSES, PHONE }
+    private var currentSpeechSource = SpeechSource.NONE
+    private var glassesSpeechStartTimeoutJob: Job? = null
+    private var glassesSpeechConfirmed = false
 
     // Camera capture (for single image capture)
     private var cameraManager: GlassesCameraManager? = null
@@ -954,22 +961,114 @@ class XRGlassesService(
 
     /**
      * Start speech recognition.
+     * Routes to glasses-side ASR when connected (with phone fallback), or phone ASR directly.
      */
     fun startSpeechRecognition(continuous: Boolean) {
-        Log.d(TAG, "Starting speech recognition (continuous: $continuous)")
+        Log.d(TAG, "Starting speech recognition (continuous: $continuous, connected: $isConnected, emulation: $emulationMode)")
+
+        continuousMode = continuous
+        isListening = true
+
+        if (isConnected && !emulationMode) {
+            startGlassesSpeechRecognition(continuous)
+        } else {
+            startPhoneSpeechRecognition(continuous)
+        }
+    }
+
+    /**
+     * Start glasses-side ASR via broadcast to GlassesActivity.
+     * Sets a 5s timeout — if no confirmation arrives, falls back to phone ASR.
+     */
+    private fun startGlassesSpeechRecognition(continuous: Boolean) {
+        Log.d(TAG, "Requesting glasses-side ASR")
+        currentSpeechSource = SpeechSource.GLASSES
+        glassesSpeechConfirmed = false
+
+        val intent = Intent(GlassesActivity.ACTION_START_LISTENING).apply {
+            putExtra(GlassesActivity.EXTRA_CONTINUOUS, continuous)
+            setPackage(context.packageName)
+        }
+        context.sendBroadcast(intent)
+
+        // 5s timeout: if glasses don't confirm listening, fall back to phone
+        glassesSpeechStartTimeoutJob?.cancel()
+        glassesSpeechStartTimeoutJob = scope.launch {
+            delay(5000)
+            if (!glassesSpeechConfirmed && currentSpeechSource == SpeechSource.GLASSES && isListening) {
+                Log.w(TAG, "Glasses ASR did not confirm within 5s, falling back to phone ASR")
+                fallbackToPhoneSpeechRecognition()
+            }
+        }
+    }
+
+    /**
+     * Start phone-side ASR directly.
+     */
+    private fun startPhoneSpeechRecognition(continuous: Boolean) {
+        Log.d(TAG, "Starting phone-side ASR (continuous: $continuous)")
+        currentSpeechSource = SpeechSource.PHONE
 
         if (speechRecognizer == null) {
             initSpeechRecognizer()
         }
 
         if (speechRecognizer == null) {
-            Log.e(TAG, "Failed to initialize speech recognizer")
+            Log.e(TAG, "Failed to initialize phone speech recognizer")
             return
         }
 
         continuousMode = continuous
-        isListening = true
         startListeningInternal()
+    }
+
+    /**
+     * Fallback from glasses ASR to phone ASR.
+     * Stops glasses listening, brief delay, then starts phone recognizer.
+     */
+    private fun fallbackToPhoneSpeechRecognition() {
+        Log.d(TAG, "Falling back from glasses to phone ASR")
+
+        // Tell glasses to stop listening
+        val stopIntent = Intent(GlassesActivity.ACTION_STOP_LISTENING).apply {
+            setPackage(context.packageName)
+        }
+        context.sendBroadcast(stopIntent)
+
+        // Brief delay to let glasses stop, then start phone ASR
+        scope.launch {
+            delay(200)
+            if (isListening) {
+                startPhoneSpeechRecognition(continuousMode)
+            }
+        }
+    }
+
+    /**
+     * Handle speech events from glasses (via GlassesBroadcastReceiver.serviceCallback).
+     * Used to detect confirmation of glasses ASR start and non-recoverable errors.
+     */
+    fun handleGlassesSpeechEvent(eventName: String, data: Map<String, Any?>) {
+        when (eventName) {
+            "onSpeechStateChanged" -> {
+                val isGlassesListening = data["isListening"] as? Boolean ?: false
+                if (isGlassesListening && currentSpeechSource == SpeechSource.GLASSES) {
+                    Log.d(TAG, "Glasses ASR confirmed listening")
+                    glassesSpeechConfirmed = true
+                    glassesSpeechStartTimeoutJob?.cancel()
+                    glassesSpeechStartTimeoutJob = null
+                }
+            }
+            "onSpeechError" -> {
+                val errorCode = data["code"] as? Int ?: -1
+                if (currentSpeechSource == SpeechSource.GLASSES && !isRecoverableError(errorCode)) {
+                    Log.w(TAG, "Glasses ASR non-recoverable error (code: $errorCode), falling back to phone")
+                    glassesSpeechStartTimeoutJob?.cancel()
+                    glassesSpeechStartTimeoutJob = null
+                    fallbackToPhoneSpeechRecognition()
+                }
+            }
+        }
     }
 
     private fun startListeningInternal() {
@@ -994,13 +1093,38 @@ class XRGlassesService(
     }
 
     /**
-     * Stop speech recognition.
+     * Stop speech recognition from whichever source is currently active.
      */
     fun stopSpeechRecognition() {
-        Log.d(TAG, "Stopping speech recognition")
+        Log.d(TAG, "Stopping speech recognition (source: $currentSpeechSource)")
+
+        glassesSpeechStartTimeoutJob?.cancel()
+        glassesSpeechStartTimeoutJob = null
+
+        when (currentSpeechSource) {
+            SpeechSource.GLASSES -> {
+                val stopIntent = Intent(GlassesActivity.ACTION_STOP_LISTENING).apply {
+                    setPackage(context.packageName)
+                }
+                context.sendBroadcast(stopIntent)
+            }
+            SpeechSource.PHONE -> {
+                speechRecognizer?.stopListening()
+            }
+            SpeechSource.NONE -> {
+                // Safety net: stop both in case of inconsistent state
+                speechRecognizer?.stopListening()
+                val stopIntent = Intent(GlassesActivity.ACTION_STOP_LISTENING).apply {
+                    setPackage(context.packageName)
+                }
+                context.sendBroadcast(stopIntent)
+            }
+        }
+
         isListening = false
         continuousMode = false
-        speechRecognizer?.stopListening()
+        currentSpeechSource = SpeechSource.NONE
+
         module.emitEvent("onSpeechStateChanged", mapOf(
             "isListening" to false,
             "timestamp" to System.currentTimeMillis()
@@ -1919,6 +2043,9 @@ class XRGlassesService(
         scope.cancel()
 
         // Cleanup speech recognizer
+        glassesSpeechStartTimeoutJob?.cancel()
+        glassesSpeechStartTimeoutJob = null
+        currentSpeechSource = SpeechSource.NONE
         speechRecognizer?.destroy()
         speechRecognizer = null
         isListening = false

@@ -50,9 +50,12 @@ class GlassesActivity : ComponentActivity() {
 
         // Broadcast actions from phone (incoming)
         const val ACTION_CLOSE_GLASSES = "expo.modules.xrglasses.CLOSE_GLASSES"
+        const val ACTION_START_LISTENING = "expo.modules.xrglasses.CMD_START_LISTENING"
+        const val ACTION_STOP_LISTENING = "expo.modules.xrglasses.CMD_STOP_LISTENING"
 
         // Extras - Speech
         const val EXTRA_TEXT = "text"
+        const val EXTRA_CONTINUOUS = "continuous"
         const val EXTRA_CONFIDENCE = "confidence"
         const val EXTRA_ERROR_CODE = "error_code"
         const val EXTRA_ERROR_MESSAGE = "error_message"
@@ -71,6 +74,26 @@ class GlassesActivity : ComponentActivity() {
             if (intent?.action == ACTION_CLOSE_GLASSES) {
                 Log.d(TAG, "Received close command from phone, finishing activity")
                 finish()
+            }
+        }
+    }
+
+    // Broadcast receiver to handle speech commands from phone (glasses-first ASR)
+    private val speechCommandReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                ACTION_START_LISTENING -> {
+                    Log.d(TAG, "Received START_LISTENING command from phone")
+                    continuousMode = intent.getBooleanExtra(EXTRA_CONTINUOUS, true)
+                    if (speechRecognizer == null && isPermissionGranted) {
+                        initSpeechRecognizer()
+                    }
+                    startListening()
+                }
+                ACTION_STOP_LISTENING -> {
+                    Log.d(TAG, "Received STOP_LISTENING command from phone")
+                    stopListening()
+                }
             }
         }
     }
@@ -100,6 +123,17 @@ class GlassesActivity : ComponentActivity() {
             registerReceiver(closeReceiver, closeFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(closeReceiver, closeFilter)
+        }
+
+        // Register speech command receiver for glasses-first ASR
+        val speechFilter = IntentFilter().apply {
+            addAction(ACTION_START_LISTENING)
+            addAction(ACTION_STOP_LISTENING)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(speechCommandReceiver, speechFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(speechCommandReceiver, speechFilter)
         }
 
         // Try to set up projected permissions launcher via reflection
@@ -491,9 +525,14 @@ class GlassesActivity : ComponentActivity() {
         // Remove all pending handler callbacks to prevent leaks
         mainHandler.removeCallbacksAndMessages(null)
 
-        // Unregister close receiver
+        // Unregister receivers
         try {
             unregisterReceiver(closeReceiver)
+        } catch (e: Exception) {
+            // Ignore if already unregistered
+        }
+        try {
+            unregisterReceiver(speechCommandReceiver)
         } catch (e: Exception) {
             // Ignore if already unregistered
         }
