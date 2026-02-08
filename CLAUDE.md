@@ -81,14 +81,18 @@ Read these when relevant — don't load them all upfront:
 | Web platform | `docs/maintenance/web-platform.md` |
 | Emulator setup | `docs/maintenance/emulator-testing.md` |
 | Build failures | `docs/maintenance/build-deploy.md` |
+| Web deployment | `docs/maintenance/web-deployment.md` |
 | Android XR SDK links | `docs/xr-glasses-resources.md` |
 
 ## Key Services
 
 | Service | URL / Location |
 |---------|---------------|
-| Agora token server | `https://REDACTED_TOKEN_SERVER/` (handles `/token`, `/ws/`, `/heartbeat`, `/leave`, `/viewers` only) |
+| Agora token server | `https://REDACTED_TOKEN_SERVER/` (handles `/token`, `/ws/`, `/heartbeat`, `/leave`, `/viewers`, `/report-error`) |
+| Web demo | `https://REDACTED_WEB_APP` (Cloudflare Pages static site) |
 | Web viewer | `https://REDACTED_VIEWER_URL/view/{channelId}` |
+| Production backend | `https://REDACTED_BACKEND_URL` (Render free tier — cold starts after 15min idle) |
+| Production database | Neon PostgreSQL (connection string in Render env vars) |
 | Local backend | `http://0.0.0.0:8000` — transcription (`/transcribe-dia`), tagging, AI. NOT on the Cloudflare Worker. |
 | Backend source | `~/coding/backend-with-testing-frontend/SuperSpexWins` |
 | Web viewer source | `~/coding/spex-web-viewer/` |

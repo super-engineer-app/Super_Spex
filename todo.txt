@@ -14,3 +14,14 @@ the demo version only features hardware apis like camera, microphone, etc. so it
 2. iOS port - not started yet (IOSXRGlassesService is stubbed in XRGlassesModule.ts)
 
 fix all the errors from the cloudworkers
+
+
+
+  Manual Steps Still Needed
+
+  1. Set up Neon PostgreSQL — Sign up at neon.tech, create project, copy connection string
+  2. Deploy backend to Render — Connect GitHub repo, set env vars from .env + Neon connection string
+  3. Add Worker secret — cd cloudflare-workers && npx wrangler secret put DISCORD_WEBHOOK_URL
+  4. Redeploy Worker — cd cloudflare-workers && npm run deploy
+  5. Create Cloudflare Pages project — npx wrangler pages project create spex-demo
+  6. Run first deploy — ./scripts/deploy-web.sh

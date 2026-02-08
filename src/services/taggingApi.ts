@@ -16,8 +16,8 @@ import logger from "../utils/logger";
 
 const TAG = "TaggingAPI";
 
-// For Android emulator: 10.0.2.2 maps to host machine's localhost
-// For real device on same network: use host machine's local IP (e.g., 192.168.x.x)
+// EXPO_PUBLIC_TAGGING_API_URL is set in .env (local) or .env.production (deployed)
+// Fallback to Android emulator localhost for local dev
 const BACKEND_URL =
 	process.env.EXPO_PUBLIC_TAGGING_API_URL || "http://10.0.2.2:8000";
 const TAGGING_ENDPOINT = `${BACKEND_URL}/tagging-sessions`;

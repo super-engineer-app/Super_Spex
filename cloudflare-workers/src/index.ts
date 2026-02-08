@@ -14,9 +14,21 @@ import { RtcRole, RtcTokenBuilder } from "agora-token";
 interface Env {
 	AGORA_APP_ID: string;
 	AGORA_APP_CERTIFICATE: string;
+	DISCORD_WEBHOOK_URL: string;
 	VIEWERS: KVNamespace;
 	CHANNEL_ROOM: DurableObjectNamespace;
 }
+
+interface ErrorReport {
+	level: string;
+	message: string;
+	context?: Record<string, unknown>;
+}
+
+// Simple in-memory rate limiter for error reporting (per-isolate)
+const errorReportCounts = new Map<string, { count: number; resetAt: number }>();
+const ERROR_REPORT_LIMIT = 10;
+const ERROR_REPORT_WINDOW_MS = 60_000;
 
 interface ViewerData {
 	joinedAt: number;
@@ -81,6 +93,14 @@ export default {
 
 		if (path === "/viewers" || path === "/viewers/") {
 			return handleViewerCount(url, env);
+		}
+
+		// Error reporting proxy (Discord webhook)
+		if (
+			(path === "/report-error" || path === "/report-error/") &&
+			request.method === "POST"
+		) {
+			return handleErrorReport(request, env);
 		}
 
 		// Default: token generation
@@ -423,6 +443,103 @@ export class ChannelRoom implements DurableObject {
 				// Connection might be closed
 			}
 		}
+	}
+}
+
+// ============================================================================
+// Error Reporting Proxy (Discord Webhook)
+// ============================================================================
+
+async function handleErrorReport(
+	request: Request,
+	env: Env,
+): Promise<Response> {
+	if (!env.DISCORD_WEBHOOK_URL) {
+		return jsonResponse({ error: "Error reporting not configured" }, 503);
+	}
+
+	// Rate limit by client IP
+	const clientIp = request.headers.get("CF-Connecting-IP") ?? "unknown";
+	const now = Date.now();
+	const entry = errorReportCounts.get(clientIp);
+
+	if (entry && now < entry.resetAt) {
+		if (entry.count >= ERROR_REPORT_LIMIT) {
+			return jsonResponse({ error: "Rate limit exceeded" }, 429);
+		}
+		entry.count++;
+	} else {
+		errorReportCounts.set(clientIp, {
+			count: 1,
+			resetAt: now + ERROR_REPORT_WINDOW_MS,
+		});
+	}
+
+	let body: ErrorReport;
+	try {
+		body = (await request.json()) as ErrorReport;
+	} catch {
+		return jsonResponse({ error: "Invalid JSON body" }, 400);
+	}
+
+	if (!body.message) {
+		return jsonResponse({ error: "Missing message field" }, 400);
+	}
+
+	// Forward to Discord as an embed
+	const severityColors: Record<string, number> = {
+		critical: 0xff0000,
+		error: 0xff6b6b,
+		warning: 0xffaa00,
+		info: 0x0099ff,
+	};
+
+	const severityEmoji: Record<string, string> = {
+		critical: "\u{1F534}",
+		error: "\u{1F7E0}",
+		warning: "\u{1F7E1}",
+		info: "\u{1F535}",
+	};
+
+	const level = body.level ?? "error";
+	const emoji = severityEmoji[level] ?? "\u{1F7E0}";
+	const color = severityColors[level] ?? 0xff6b6b;
+
+	const embed: Record<string, unknown> = {
+		title: `${emoji} ${level.toUpperCase()}: Web Error Report`,
+		description: body.message.substring(0, 2000),
+		color,
+		fields: [] as Array<Record<string, unknown>>,
+		timestamp: new Date().toISOString(),
+	};
+
+	if (body.context) {
+		(embed.fields as Array<Record<string, unknown>>).push({
+			name: "Context",
+			value: `\`\`\`json\n${JSON.stringify(body.context, null, 2).substring(0, 1000)}\n\`\`\``,
+			inline: false,
+		});
+	}
+
+	try {
+		const discordResponse = await fetch(env.DISCORD_WEBHOOK_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				username: "SPEX Web Error Reporter",
+				embeds: [embed],
+			}),
+		});
+
+		if (!discordResponse.ok) {
+			console.error("Discord webhook failed:", discordResponse.status);
+			return jsonResponse({ error: "Failed to forward error report" }, 502);
+		}
+
+		return jsonResponse({ success: true });
+	} catch (err) {
+		console.error("Discord webhook error:", err);
+		return jsonResponse({ error: "Failed to forward error report" }, 502);
 	}
 }
 
