@@ -6,14 +6,14 @@
  */
 
 export {
-  useGlassesStore,
-  selectIsConnected,
-  selectIsConnecting,
-  selectConnectionError,
-  selectDeviceCapabilities,
-  selectEngagementMode,
-  selectEmulationMode,
-  selectInputEvents,
-  subscribeToConnection,
-  subscribeToEngagementMode,
-} from './glassesStore';
+	selectConnectionError,
+	selectDeviceCapabilities,
+	selectEmulationMode,
+	selectEngagementMode,
+	selectInputEvents,
+	selectIsConnected,
+	selectIsConnecting,
+	subscribeToConnection,
+	subscribeToEngagementMode,
+	useGlassesStore,
+} from "./glassesStore";

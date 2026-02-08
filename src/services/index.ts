@@ -1,49 +1,42 @@
+export type { BackendResponse, SendToBackendOptions } from "./backendApi";
 export {
-  sendToBackend,
-  sendText,
-  sendImage,
-  sendTextAndImage,
-  getSessionUserId,
-  getConversationId,
-  setConversationId,
-  resetSession,
-} from './backendApi';
-
-export type { SendToBackendOptions, BackendResponse } from './backendApi';
-
+	getConversationId,
+	getSessionUserId,
+	resetSession,
+	sendImage,
+	sendText,
+	sendTextAndImage,
+	sendToBackend,
+	setConversationId,
+} from "./backendApi";
+export type { ErrorSeverity } from "./errorReporting";
 export {
-  initializeErrorReporting,
-  reportError,
-  sendErrorToDiscord,
-  handleNativeError,
-} from './errorReporting';
-
-export type { ErrorSeverity } from './errorReporting';
-
+	handleNativeError,
+	initializeErrorReporting,
+	reportError,
+	sendErrorToDiscord,
+} from "./errorReporting";
+export type {
+	LocationPermissionStatus,
+	SubmitTaggingSessionOptions,
+	SubmitTaggingSessionResult,
+} from "./taggingApi";
 // Tagging API
 export {
-  submitTaggingSession,
-  createTaggedImage,
-  getCurrentLocation,
-  requestLocationPermission,
-  getTaggingUserId,
-  getTaggingOrgId,
-  resetTaggingSession,
-} from './taggingApi';
-
+	createTaggedImage,
+	getCurrentLocation,
+	getTaggingOrgId,
+	getTaggingUserId,
+	requestLocationPermission,
+	resetTaggingSession,
+	submitTaggingSession,
+} from "./taggingApi";
 export type {
-  SubmitTaggingSessionOptions,
-  SubmitTaggingSessionResult,
-  LocationPermissionStatus,
-} from './taggingApi';
-
+	TranscriptionResult,
+	TranscriptionSegment,
+} from "./transcriptionApi";
 // Transcription API
 export {
-  formatTranscriptAsText,
-  isValidTranscriptionResult,
-} from './transcriptionApi';
-
-export type {
-  TranscriptionSegment,
-  TranscriptionResult,
-} from './transcriptionApi';
+	formatTranscriptAsText,
+	isValidTranscriptionResult,
+} from "./transcriptionApi";

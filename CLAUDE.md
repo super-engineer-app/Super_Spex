@@ -4,6 +4,9 @@
 
 React Native (Expo) app for Android that communicates with AI glasses via the Jetpack XR SDK. The phone is the hub; glasses are the display.
 
+After completing each function or logical unit of work, make a commit 
+with a descriptive message. Keep changes atomic and reversible.
+
 ## Critical Architecture Rules
 
 **1. All XR features MUST be native Kotlin modules.**

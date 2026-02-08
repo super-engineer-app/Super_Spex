@@ -1,40 +1,38 @@
 {
-  "expo": {
-    "name": "XR Glasses",
-    "slug": "xr-glasses-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "scheme": "xrglasses",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0a0a0a"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.xrglasses.app"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0a0a0a"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.xrglasses.app",
-      "minSdkVersion": 30
-    },
-    "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro"
-    },
-    "plugins": [
-      "expo-router"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
-  }
+	"expo": {
+		"name": "XR Glasses",
+		"slug": "xr-glasses-app",
+		"version": "1.0.0",
+		"orientation": "portrait",
+		"icon": "./assets/icon.png",
+		"userInterfaceStyle": "dark",
+		"newArchEnabled": true,
+		"scheme": "xrglasses",
+		"splash": {
+			"image": "./assets/splash-icon.png",
+			"resizeMode": "contain",
+			"backgroundColor": "#0a0a0a"
+		},
+		"ios": {
+			"supportsTablet": true,
+			"bundleIdentifier": "com.xrglasses.app"
+		},
+		"android": {
+			"adaptiveIcon": {
+				"foregroundImage": "./assets/adaptive-icon.png",
+				"backgroundColor": "#0a0a0a"
+			},
+			"edgeToEdgeEnabled": true,
+			"package": "com.xrglasses.app",
+			"minSdkVersion": 30
+		},
+		"web": {
+			"favicon": "./assets/favicon.png",
+			"bundler": "metro"
+		},
+		"plugins": ["expo-router"],
+		"experiments": {
+			"typedRoutes": true
+		}
+	}
 }

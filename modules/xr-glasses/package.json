@@ -1,11 +1,11 @@
 {
-  "name": "xr-glasses",
-  "version": "1.0.0",
-  "main": "index.ts",
-  "types": "index.ts",
-  "expo": {
-    "autolinking": {
-      "nativeModulesDir": "."
-    }
-  }
+	"name": "xr-glasses",
+	"version": "1.0.0",
+	"main": "index.ts",
+	"types": "index.ts",
+	"expo": {
+		"autolinking": {
+			"nativeModulesDir": "."
+		}
+	}
 }
