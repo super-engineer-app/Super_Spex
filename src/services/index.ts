@@ -1,3 +1,15 @@
+// Backend API
+export type { BackendResponse, SendToBackendOptions } from "./backendApi";
+export {
+	getConversationId,
+	getSessionUserId,
+	resetSession,
+	sendImage,
+	sendText,
+	sendTextAndImage,
+	sendToBackend,
+	setConversationId,
+} from "./backendApi";
 export type { ErrorSeverity } from "./errorReporting";
 export {
 	handleNativeError,
