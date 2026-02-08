@@ -39,6 +39,7 @@
 | `src/hooks/useParkingTimer.ts` | Parking countdown timer hook |
 | `src/hooks/useTaggingSession.ts` | Voice-activated tagging session hook |
 | `src/hooks/useGlassesInput.ts` | Input event tracking hook |
+| `src/services/backendApi.ts` | AI backend (send text/image, SSE response) |
 | `src/services/taggingApi.ts` | Tagging backend + GPS location cache |
 | `src/services/transcriptionApi.ts` | Transcription types & formatting |
 | `src/services/errorReporting.ts` | Discord webhook error reporting |
