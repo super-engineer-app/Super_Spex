@@ -12,7 +12,7 @@ enum class StreamQuality(
     val height: Int,
     val fps: Int,
     val bitrate: Int,
-    val description: String
+    val description: String,
 ) {
     LOW_LATENCY(
         displayName = "Low Latency",
@@ -20,7 +20,7 @@ enum class StreamQuality(
         height = 480,
         fps = 10,
         bitrate = 300,
-        description = "Fastest response, lower quality"
+        description = "Fastest response, lower quality",
     ),
     BALANCED(
         displayName = "Balanced",
@@ -28,7 +28,7 @@ enum class StreamQuality(
         height = 480,
         fps = 15,
         bitrate = 500,
-        description = "Good quality, recommended"
+        description = "Good quality, recommended",
     ),
     HIGH_QUALITY(
         displayName = "High Quality",
@@ -36,8 +36,9 @@ enum class StreamQuality(
         height = 480,
         fps = 30,
         bitrate = 800,
-        description = "Best quality, needs strong network"
-    );
+        description = "Best quality, needs strong network",
+    ),
+    ;
 
     companion object {
         /**

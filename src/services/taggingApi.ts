@@ -6,11 +6,7 @@
  */
 
 import * as Location from "expo-location";
-import type {
-	TaggedImage,
-	TaggingSessionRequest,
-	TaggingStatusEvent,
-} from "../types/tagging";
+import type { TaggedImage, TaggingStatusEvent } from "../types/tagging";
 import { appendImageDataUriToFormData } from "../utils/formDataHelper";
 import logger from "../utils/logger";
 

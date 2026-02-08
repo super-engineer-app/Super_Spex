@@ -147,7 +147,7 @@ const generateId = (): string =>
  * ```
  */
 export const useGlassesStore = create<GlassesStore>()(
-	subscribeWithSelector((set, get) => ({
+	subscribeWithSelector((set, _get) => ({
 		// Initial state
 		...initialState,
 

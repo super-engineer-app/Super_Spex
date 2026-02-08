@@ -68,7 +68,7 @@ export default function GlassesDashboard() {
 		lastImage,
 		lastImageSize,
 		error: cameraError,
-		isEmulated: cameraEmulated,
+		isEmulated: _cameraEmulated,
 		initializeCamera,
 		captureImage,
 		releaseCamera,

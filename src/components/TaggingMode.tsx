@@ -62,7 +62,7 @@ export function TaggingMode({
 	isSaving,
 	error,
 	statusMessage,
-	isGlassesCameraReady,
+	isGlassesCameraReady: _isGlassesCameraReady,
 	isGlassesCapturing,
 	onStartTagging,
 	onCancelTagging,

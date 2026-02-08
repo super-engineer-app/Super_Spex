@@ -29,9 +29,10 @@ import java.nio.ByteBuffer
  */
 class GlassesCameraManager(
     private val context: Context,
-    private val onImageCaptured: (String, Int, Int) -> Unit,  // base64, width, height
+    /** Callback: (base64, width, height) */
+    private val onImageCaptured: (String, Int, Int) -> Unit,
     private val onError: (String) -> Unit,
-    private val onCameraStateChanged: (Boolean) -> Unit
+    private val onCameraStateChanged: (Boolean) -> Unit,
 ) {
     companion object {
         private const val TAG = "GlassesCameraManager"
@@ -63,7 +64,7 @@ class GlassesCameraManager(
     fun initializeCamera(
         lifecycleOwner: LifecycleOwner,
         emulationMode: Boolean = false,
-        lowPowerMode: Boolean = false
+        lowPowerMode: Boolean = false,
     ) {
         this.isEmulationMode = emulationMode
         Log.d(TAG, "Initializing camera (emulation: $emulationMode, lowPower: $lowPowerMode)")
@@ -75,28 +76,29 @@ class GlassesCameraManager(
                 val height = if (lowPowerMode) LOW_POWER_CAPTURE_HEIGHT else DEFAULT_CAPTURE_HEIGHT
 
                 // Acquire ImageCapture from SharedCameraProvider
-                val config = SharedCameraProvider.CaptureConfig(
-                    width = width,
-                    height = height,
-                    captureMode = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
-                )
+                val config =
+                    SharedCameraProvider.CaptureConfig(
+                        width = width,
+                        height = height,
+                        captureMode = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY,
+                    )
 
-                imageCapture = SharedCameraProvider.getInstance(context).acquireImageCapture(
-                    lifecycleOwner = lifecycleOwner,
-                    config = config,
-                    emulationMode = emulationMode
-                )
+                imageCapture =
+                    SharedCameraProvider.getInstance(context).acquireImageCapture(
+                        lifecycleOwner = lifecycleOwner,
+                        config = config,
+                        emulationMode = emulationMode,
+                    )
 
                 if (imageCapture != null) {
                     cameraSource = SharedCameraProvider.getInstance(context).getCameraSource()
                     isCameraReady = true
                     onCameraStateChanged(true)
-                    Log.d(TAG, "Camera initialized successfully (resolution: ${width}x${height}, source: $cameraSource)")
+                    Log.d(TAG, "Camera initialized successfully (resolution: ${width}x$height, source: $cameraSource)")
                 } else {
                     Log.e(TAG, "Failed to acquire ImageCapture from SharedCameraProvider")
                     onError("Failed to initialize camera")
                 }
-
             } catch (e: Exception) {
                 Log.e(TAG, "Camera initialization failed", e)
                 onError("Camera initialization failed: ${e.message}")
@@ -110,10 +112,11 @@ class GlassesCameraManager(
      */
     fun captureImage() {
         // Get ImageCapture from SharedCameraProvider (may have been updated)
-        val capture = SharedCameraProvider.getInstance(context).getImageCapture() ?: run {
-            onError("Camera not initialized")
-            return
-        }
+        val capture =
+            SharedCameraProvider.getInstance(context).getImageCapture() ?: run {
+                onError("Camera not initialized")
+                return
+            }
 
         if (!isCameraReady) {
             onError("Camera not ready")
@@ -155,7 +158,7 @@ class GlassesCameraManager(
                     Log.e(TAG, "Image capture failed", exception)
                     onError("Capture failed: ${exception.message}")
                 }
-            }
+            },
         )
     }
 
@@ -168,18 +171,21 @@ class GlassesCameraManager(
         buffer.get(bytes)
 
         // Decode to bitmap
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            ?: throw Exception("Failed to decode image bytes")
+        val bitmap =
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: throw Exception("Failed to decode image bytes")
 
         // Apply rotation if needed
-        val rotatedBitmap = if (image.imageInfo.rotationDegrees != 0) {
-            val matrix = Matrix().apply {
-                postRotate(image.imageInfo.rotationDegrees.toFloat())
+        val rotatedBitmap =
+            if (image.imageInfo.rotationDegrees != 0) {
+                val matrix =
+                    Matrix().apply {
+                        postRotate(image.imageInfo.rotationDegrees.toFloat())
+                    }
+                Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            } else {
+                bitmap
             }
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        } else {
-            bitmap
-        }
 
         // Compress to JPEG
         val outputStream = ByteArrayOutputStream()

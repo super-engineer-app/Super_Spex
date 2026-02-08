@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type NativeScrollEvent,
 	type NativeSyntheticEvent,
@@ -64,7 +64,7 @@ function WheelPicker({
 			}, 50);
 			return () => clearTimeout(timer);
 		}
-	}, []);
+	}, [selectedIndex, itemHeight]);
 
 	// Scroll when selectedValue changes externally (from presets)
 	useEffect(() => {
@@ -78,7 +78,7 @@ function WheelPicker({
 				animated: true,
 			});
 		}
-	}, [selectedValue, selectedIndex, itemHeight]);
+	}, [selectedIndex, itemHeight]);
 
 	// Handle scroll end - snap to nearest item
 	const handleMomentumScrollEnd = useCallback(

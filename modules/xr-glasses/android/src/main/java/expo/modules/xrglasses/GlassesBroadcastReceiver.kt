@@ -16,7 +16,6 @@ import expo.modules.xrglasses.glasses.GlassesActivity
  * directly from XRGlassesService in the main process.
  */
 class GlassesBroadcastReceiver : BroadcastReceiver() {
-
     companion object {
         private const val TAG = "GlassesBroadcastReceiver"
 
@@ -33,7 +32,10 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
         var serviceCallback: ((eventName: String, data: Map<String, Any?>) -> Unit)? = null
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         Log.d(TAG, "Received broadcast: ${intent.action}")
 
         val callback = moduleCallback
@@ -49,12 +51,15 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.d(TAG, "Speech result: '$text' (confidence: $confidence)")
 
-                callback("onSpeechResult", mapOf(
-                    "text" to text,
-                    "confidence" to confidence,
-                    "isFinal" to true,
-                    "timestamp" to System.currentTimeMillis()
-                ))
+                callback(
+                    "onSpeechResult",
+                    mapOf(
+                        "text" to text,
+                        "confidence" to confidence,
+                        "isFinal" to true,
+                        "timestamp" to System.currentTimeMillis(),
+                    ),
+                )
             }
 
             GlassesActivity.ACTION_SPEECH_PARTIAL -> {
@@ -62,11 +67,14 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.d(TAG, "Partial result: '$text'")
 
-                callback("onPartialResult", mapOf(
-                    "text" to text,
-                    "isFinal" to false,
-                    "timestamp" to System.currentTimeMillis()
-                ))
+                callback(
+                    "onPartialResult",
+                    mapOf(
+                        "text" to text,
+                        "isFinal" to false,
+                        "timestamp" to System.currentTimeMillis(),
+                    ),
+                )
             }
 
             GlassesActivity.ACTION_SPEECH_ERROR -> {
@@ -75,11 +83,12 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.e(TAG, "Speech error: $message (code: $code)")
 
-                val data = mapOf<String, Any?>(
-                    "code" to code,
-                    "message" to message,
-                    "timestamp" to System.currentTimeMillis()
-                )
+                val data =
+                    mapOf<String, Any?>(
+                        "code" to code,
+                        "message" to message,
+                        "timestamp" to System.currentTimeMillis(),
+                    )
                 callback("onSpeechError", data)
                 serviceCallback?.invoke("onSpeechError", data)
             }
@@ -89,10 +98,11 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.d(TAG, "Speech state changed: isListening=$isListening")
 
-                val data = mapOf<String, Any?>(
-                    "isListening" to isListening,
-                    "timestamp" to System.currentTimeMillis()
-                )
+                val data =
+                    mapOf<String, Any?>(
+                        "isListening" to isListening,
+                        "timestamp" to System.currentTimeMillis(),
+                    )
                 callback("onSpeechStateChanged", data)
                 serviceCallback?.invoke("onSpeechStateChanged", data)
             }
@@ -107,15 +117,18 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
 
                 Log.e(TAG, "Native error: $message (fatal: $isFatal, thread: $threadName)")
 
-                callback("onNativeError", mapOf(
-                    "message" to message,
-                    "stackTrace" to stackTrace,
-                    "isFatal" to isFatal,
-                    "threadName" to threadName,
-                    "deviceModel" to deviceModel,
-                    "androidVersion" to androidVersion,
-                    "timestamp" to System.currentTimeMillis()
-                ))
+                callback(
+                    "onNativeError",
+                    mapOf(
+                        "message" to message,
+                        "stackTrace" to stackTrace,
+                        "isFatal" to isFatal,
+                        "threadName" to threadName,
+                        "deviceModel" to deviceModel,
+                        "androidVersion" to androidVersion,
+                        "timestamp" to System.currentTimeMillis(),
+                    ),
+                )
             }
 
             else -> {

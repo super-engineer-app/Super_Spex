@@ -30,7 +30,7 @@ class StreamingCameraManager(
     private val onFrame: (buffer: ByteArray, width: Int, height: Int, rotation: Int, timestampMs: Long) -> Unit,
     private val onError: (String) -> Unit,
     private val onCameraReady: (Boolean) -> Unit,
-    private val onCameraSourceChanged: ((String) -> Unit)? = null
+    private val onCameraSourceChanged: ((String) -> Unit)? = null,
 ) {
     companion object {
         private const val TAG = "StreamingCameraManager"
@@ -39,9 +39,11 @@ class StreamingCameraManager(
 
     private var imageAnalysis: ImageAnalysis? = null
     private val isCapturing = AtomicBoolean(false)
+
     @Volatile private var currentQuality: StreamQuality = StreamQuality.BALANCED
 
     @Volatile private var cameraSource: String = "unknown"
+
     @Volatile private var isEmulationMode: Boolean = false
 
     // Reusable buffer to avoid allocations - thread-safe access
@@ -49,27 +51,30 @@ class StreamingCameraManager(
 
     // Frame counter for periodic logging
     @Volatile private var frameCount = 0
+
     @Volatile private var lastLogTime = 0L
 
     // Lifecycle handling for app background/foreground
     private var currentLifecycleOwner: LifecycleOwner? = null
+
     @Volatile private var wasCapturingBeforePause = false
 
     // Lifecycle observer to handle app going to background/foreground
-    private val lifecycleObserver = object : DefaultLifecycleObserver {
-        override fun onResume(owner: LifecycleOwner) {
-            Log.d(TAG, ">>> Lifecycle RESUMED - wasCapturing: $wasCapturingBeforePause, isCapturing: ${isCapturing.get()}")
-        }
+    private val lifecycleObserver =
+        object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) {
+                Log.d(TAG, ">>> Lifecycle RESUMED - wasCapturing: $wasCapturingBeforePause, isCapturing: ${isCapturing.get()}")
+            }
 
-        override fun onPause(owner: LifecycleOwner) {
-            Log.d(TAG, ">>> Lifecycle PAUSED - isCapturing: ${isCapturing.get()}")
-            wasCapturingBeforePause = isCapturing.get()
-        }
+            override fun onPause(owner: LifecycleOwner) {
+                Log.d(TAG, ">>> Lifecycle PAUSED - isCapturing: ${isCapturing.get()}")
+                wasCapturingBeforePause = isCapturing.get()
+            }
 
-        override fun onStop(owner: LifecycleOwner) {
-            Log.d(TAG, ">>> Lifecycle STOPPED - this may interrupt streaming")
+            override fun onStop(owner: LifecycleOwner) {
+                Log.d(TAG, ">>> Lifecycle STOPPED - this may interrupt streaming")
+            }
         }
-    }
 
     /**
      * Start capturing camera frames at the specified quality.
@@ -78,7 +83,11 @@ class StreamingCameraManager(
      * @param quality Stream quality preset
      * @param emulationMode If true, uses phone camera instead of glasses camera (demo mode for testing)
      */
-    fun startCapture(lifecycleOwner: LifecycleOwner, quality: StreamQuality, emulationMode: Boolean = false) {
+    fun startCapture(
+        lifecycleOwner: LifecycleOwner,
+        quality: StreamQuality,
+        emulationMode: Boolean = false,
+    ) {
         this.isEmulationMode = emulationMode
         if (isCapturing.get()) {
             Log.w(TAG, "Already capturing, stopping first")
@@ -86,7 +95,7 @@ class StreamingCameraManager(
         }
 
         currentQuality = quality
-        frameCount = 0  // Reset frame counter for debug logging
+        frameCount = 0 // Reset frame counter for debug logging
         Log.d(TAG, "Starting streaming camera capture at ${quality.width}x${quality.height} @ ${quality.fps}fps (demoMode: $emulationMode)")
 
         // Register lifecycle observer to track app background/foreground
@@ -95,26 +104,29 @@ class StreamingCameraManager(
         lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
 
         // Create analyzer that processes frames
-        val analyzer = ImageAnalysis.Analyzer { imageProxy ->
-            processFrame(imageProxy)
-        }
+        val analyzer =
+            ImageAnalysis.Analyzer { imageProxy ->
+                processFrame(imageProxy)
+            }
 
         // Acquire ImageAnalysis from SharedCameraProvider
-        val config = SharedCameraProvider.AnalysisConfig(
-            width = quality.width,
-            height = quality.height,
-            analyzer = analyzer
-        )
+        val config =
+            SharedCameraProvider.AnalysisConfig(
+                width = quality.width,
+                height = quality.height,
+                analyzer = analyzer,
+            )
 
-        imageAnalysis = SharedCameraProvider.getInstance(context).acquireImageAnalysis(
-            lifecycleOwner = lifecycleOwner,
-            config = config,
-            emulationMode = emulationMode,
-            onSourceChanged = { source ->
-                cameraSource = source
-                onCameraSourceChanged?.invoke(source)
-            }
-        )
+        imageAnalysis =
+            SharedCameraProvider.getInstance(context).acquireImageAnalysis(
+                lifecycleOwner = lifecycleOwner,
+                config = config,
+                emulationMode = emulationMode,
+                onSourceChanged = { source ->
+                    cameraSource = source
+                    onCameraSourceChanged?.invoke(source)
+                },
+            )
 
         if (imageAnalysis != null) {
             isCapturing.set(true)
@@ -153,14 +165,14 @@ class StreamingCameraManager(
             val width = imageProxy.width
             val height = imageProxy.height
             val rotation = imageProxy.imageInfo.rotationDegrees
-            val timestamp = imageProxy.imageInfo.timestamp / 1_000_000  // Convert to milliseconds
+            val timestamp = imageProxy.imageInfo.timestamp / 1_000_000 // Convert to milliseconds
 
             frameCount++
 
             // Log periodically for monitoring
             val now = System.currentTimeMillis()
             if (now - lastLogTime > LOG_INTERVAL_MS) {
-                Log.d(TAG, "Streaming frame #$frameCount: ${width}x${height}, rotation=$rotation")
+                Log.d(TAG, "Streaming frame #$frameCount: ${width}x$height, rotation=$rotation")
                 lastLogTime = now
             }
 
@@ -172,7 +184,6 @@ class StreamingCameraManager(
             } else {
                 Log.e(TAG, "Failed to convert frame to NV21")
             }
-
         } catch (e: Exception) {
             Log.e(TAG, "Error processing frame", e)
         } finally {
@@ -192,7 +203,7 @@ class StreamingCameraManager(
         val width = imageProxy.width
         val height = imageProxy.height
         val ySize = width * height
-        val uvSize = width * height / 2  // Interleaved VU for NV21
+        val uvSize = width * height / 2 // Interleaved VU for NV21
         val totalSize = ySize + uvSize
 
         // Reuse or allocate buffer - thread-safe via AtomicReference
@@ -200,7 +211,7 @@ class StreamingCameraManager(
         if (nv21 == null || nv21.size != totalSize) {
             nv21 = ByteArray(totalSize)
             nv21BufferRef.set(nv21)
-            Log.d(TAG, "Allocated NV21 buffer: $totalSize bytes for ${width}x${height}")
+            Log.d(TAG, "Allocated NV21 buffer: $totalSize bytes for ${width}x$height")
         }
 
         val planes = imageProxy.planes
@@ -254,8 +265,8 @@ class StreamingCameraManager(
                     if (bufferIndex < vBuffer.capacity() && bufferIndex < uBuffer.capacity() && uvIndex + 1 < totalSize) {
                         vBuffer.position(bufferIndex)
                         uBuffer.position(bufferIndex)
-                        nv21[uvIndex++] = vBuffer.get()  // V
-                        nv21[uvIndex++] = uBuffer.get()  // U
+                        nv21[uvIndex++] = vBuffer.get() // V
+                        nv21[uvIndex++] = uBuffer.get() // U
                     }
                 }
             }
@@ -272,8 +283,8 @@ class StreamingCameraManager(
                     if (bufferIndex < vBuffer.capacity() && bufferIndex < uBuffer.capacity() && uvIndex + 1 < totalSize) {
                         vBuffer.position(bufferIndex)
                         uBuffer.position(bufferIndex)
-                        nv21[uvIndex++] = vBuffer.get()  // V
-                        nv21[uvIndex++] = uBuffer.get()  // U
+                        nv21[uvIndex++] = vBuffer.get() // V
+                        nv21[uvIndex++] = uBuffer.get() // U
                     }
                 }
             }
@@ -285,7 +296,10 @@ class StreamingCameraManager(
     /**
      * Update the quality preset while capturing.
      */
-    fun updateQuality(lifecycleOwner: LifecycleOwner, quality: StreamQuality) {
+    fun updateQuality(
+        lifecycleOwner: LifecycleOwner,
+        quality: StreamQuality,
+    ) {
         if (quality == currentQuality) return
 
         Log.d(TAG, "Updating streaming quality to ${quality.displayName}")

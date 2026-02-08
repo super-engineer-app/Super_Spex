@@ -1,14 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import {
-	Alert,
-	PermissionsAndroid,
-	Platform,
-	StyleSheet,
-	useColorScheme,
-	View,
-} from "react-native";
+import { PermissionsAndroid, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { initializeErrorReporting } from "../src/services";
 import { prefetchLocation } from "../src/services/taggingApi";
@@ -65,8 +58,6 @@ async function requestAllPermissions() {
  * It uses a dark theme to match the XR glasses aesthetic.
  */
 export default function RootLayout() {
-	const colorScheme = useColorScheme();
-
 	// Initialize error reporting, request permissions, and pre-fetch GPS on app launch
 	useEffect(() => {
 		initializeErrorReporting();

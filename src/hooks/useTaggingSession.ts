@@ -450,7 +450,11 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 				const newImages: TaggedImage[] = result.assets
 					.filter((asset) => asset.base64)
 					.map((asset) =>
-						createTaggedImageSync(asset.base64!, "gallery", cachedLocation),
+						createTaggedImageSync(
+							asset.base64 ?? "",
+							"gallery",
+							cachedLocation,
+						),
 					);
 				setTaggingImages((prev) => [...prev, ...newImages]);
 				logger.debug(TAG, `=== GALLERY IMAGES ADDED: ${newImages.length} ===`);

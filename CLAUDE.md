@@ -31,6 +31,11 @@ The XR SDK corrupts React Native rendering if they share a process. This is non-
 - When fixing React Native issues, never use web-only APIs (Blob, FormData with Blob, etc.).
 - Never modify working code paths without confirming they're actually broken.
 
+## Linting
+
+- **TypeScript/JS**: Biome runs automatically via PostToolUse hook on every file edit/write. No manual step needed — safe fixes are auto-applied, remaining issues are fed back. Config: `biome.json`.
+- **Kotlin**: After modifying Kotlin files, run `cd android && ./gradlew ktlintCheck detekt` to verify. Fix any issues before considering the change done. Config: `.editorconfig` (ktlint) and `android/config/detekt/detekt.yml` (detekt). Use `./gradlew ktlintFormat` to auto-fix formatting.
+
 ## Research Before Implementation
 
 - Read official docs before implementing new features or integrating libraries

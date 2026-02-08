@@ -9,7 +9,7 @@ data class StreamSession(
     val channelId: String,
     val viewerUrl: String,
     val quality: StreamQuality,
-    val startTimeMs: Long = System.currentTimeMillis()
+    val startTimeMs: Long = System.currentTimeMillis(),
 )
 
 /**
@@ -19,5 +19,5 @@ data class ViewerInfo(
     val uid: Int,
     val displayName: String? = null,
     val isSpeaking: Boolean = false,
-    val isStreaming: Boolean = false
+    val isStreaming: Boolean = false,
 )
