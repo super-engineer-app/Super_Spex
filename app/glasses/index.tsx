@@ -22,7 +22,6 @@ import { useSpeechRecognition } from "../../src/hooks/useSpeechRecognition";
 import { useTaggingSession } from "../../src/hooks/useTaggingSession";
 import { useVideoRecording } from "../../src/hooks/useVideoRecording";
 import { useXRGlasses } from "../../src/hooks/useXRGlasses";
-import { sendImage, sendText } from "../../src/services";
 import logger from "../../src/utils/logger";
 
 const TAG = "GlassesDashboard";
@@ -186,10 +185,6 @@ export default function GlassesDashboard() {
 		return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 	};
 
-	const [isSendingAudio, setIsSendingAudio] = useState(false);
-	const [isSendingImage, setIsSendingImage] = useState(false);
-	const [aiResponse, setAiResponse] = useState("");
-	const [aiError, setAiError] = useState<string | null>(null);
 	const [copiedUrl, setCopiedUrl] = useState(false);
 
 	// Track whether a UI refresh is pending but deferred due to active operations

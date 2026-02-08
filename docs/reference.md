@@ -39,7 +39,6 @@
 | `src/hooks/useParkingTimer.ts` | Parking countdown timer hook |
 | `src/hooks/useTaggingSession.ts` | Voice-activated tagging session hook |
 | `src/hooks/useGlassesInput.ts` | Input event tracking hook |
-| `src/services/backendApi.ts` | AI backend integration (SSE streaming) |
 | `src/services/taggingApi.ts` | Tagging backend + GPS location cache |
 | `src/services/transcriptionApi.ts` | Transcription types & formatting |
 | `src/services/errorReporting.ts` | Discord webhook error reporting |
@@ -87,6 +86,12 @@ android/app/build/outputs/apk/release/app-release.apk
 # Run web dev server
 npm run web   # or: npx expo start --web
 # Opens at http://localhost:8081
+
+# Deploy web demo to production (see docs/maintenance/web-deployment.md)
+./scripts/deploy-web.sh
+
+# Deploy Cloudflare Worker
+cd cloudflare-workers && npm run deploy
 
 # Type check (all platforms)
 npx tsc --noEmit
