@@ -1,7 +1,7 @@
 {
 	"name": "xr-glasses",
 	"version": "1.0.0",
-	"main": "index.ts",
+	"main": "index",
 	"types": "index.ts",
 	"expo": {
 		"autolinking": {

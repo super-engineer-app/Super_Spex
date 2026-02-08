@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+	getXRGlassesService,
 	type ParkingTimerCancelledEvent,
 	type ParkingTimerExpiredEvent,
 	type ParkingTimerStartedEvent,
 	type ParkingTimerState,
 	type ParkingTimerWarningEvent,
-	XRGlassesNative,
 } from "../../modules/xr-glasses";
 import logger from "../utils/logger";
 
@@ -15,21 +15,13 @@ const TAG = "ParkingTimer";
  * Extended parking timer state for the hook.
  */
 export interface ParkingTimerHookState {
-	/** Whether a timer is currently active */
 	isActive: boolean;
-	/** Remaining time in milliseconds */
 	remainingMs: number;
-	/** Timer end timestamp */
 	endTime: number;
-	/** Original duration in minutes */
 	durationMinutes: number;
-	/** Whether the 5-minute warning has been shown */
 	warningShown: boolean;
-	/** Whether the timer has expired */
 	expired: boolean;
-	/** Whether an operation is in progress */
 	loading: boolean;
-	/** Last error message */
 	error: string | null;
 }
 
@@ -37,15 +29,10 @@ export interface ParkingTimerHookState {
  * Return type for the useParkingTimer hook.
  */
 export interface UseParkingTimerReturn extends ParkingTimerHookState {
-	/** Formatted remaining time (MM:SS) */
 	formattedTime: string;
-	/** Start a parking timer with the specified duration */
 	startTimer: (durationMinutes: number) => Promise<void>;
-	/** Cancel the current timer */
 	cancelTimer: () => Promise<void>;
-	/** Stop the alarm sound */
 	stopAlarm: () => Promise<void>;
-	/** Clear error state */
 	clearError: () => void;
 }
 
@@ -80,47 +67,7 @@ function formatTime(ms: number): string {
 
 /**
  * Hook for managing parking timer functionality.
- *
- * Provides a complete interface for starting, monitoring, and stopping
- * parking timers with 5-minute warnings and alarm sounds.
- *
- * The timer uses efficient coroutine-based delays on the native side
- * (no CPU waste, similar to Linux sleep/wait).
- *
- * @example
- * ```tsx
- * function ParkingTimerSection() {
- *   const {
- *     isActive,
- *     formattedTime,
- *     warningShown,
- *     expired,
- *     startTimer,
- *     cancelTimer,
- *     stopAlarm,
- *   } = useParkingTimer();
- *
- *   return (
- *     <View>
- *       {isActive ? (
- *         <>
- *           <Text style={warningShown ? styles.warning : undefined}>
- *             {formattedTime}
- *           </Text>
- *           <Button onPress={cancelTimer}>Cancel</Button>
- *         </>
- *       ) : expired ? (
- *         <>
- *           <Text>Timer Expired!</Text>
- *           <Button onPress={stopAlarm}>Stop Alarm</Button>
- *         </>
- *       ) : (
- *         <Button onPress={() => startTimer(60)}>Start 1hr Timer</Button>
- *       )}
- *     </View>
- *   );
- * }
- * ```
+ * Uses the service abstraction instead of XRGlassesNative directly.
  */
 export function useParkingTimer(): UseParkingTimerReturn {
 	const [state, setState] = useState<ParkingTimerHookState>({
@@ -134,18 +81,18 @@ export function useParkingTimer(): UseParkingTimerReturn {
 		error: null,
 	});
 
-	// Interval ref for countdown updates
-	const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+	const serviceRef = useRef(getXRGlassesService());
+	const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+		null,
+	);
 
 	// Update remaining time every second when timer is active
 	useEffect(() => {
 		if (state.isActive && state.endTime > 0) {
-			// Clear existing interval
 			if (countdownIntervalRef.current) {
 				clearInterval(countdownIntervalRef.current);
 			}
 
-			// Start countdown interval
 			countdownIntervalRef.current = setInterval(() => {
 				const now = Date.now();
 				const remaining = Math.max(0, state.endTime - now);
@@ -156,7 +103,6 @@ export function useParkingTimer(): UseParkingTimerReturn {
 					isActive: remaining > 0,
 				}));
 
-				// Stop interval if timer ended
 				if (remaining <= 0 && countdownIntervalRef.current) {
 					clearInterval(countdownIntervalRef.current);
 					countdownIntervalRef.current = null;
@@ -175,10 +121,9 @@ export function useParkingTimer(): UseParkingTimerReturn {
 	// Set up event listeners
 	useEffect(() => {
 		let mounted = true;
+		const service = serviceRef.current;
 
-		// Timer started event
-		const startedSub = XRGlassesNative.addListener(
-			"onParkingTimerStarted",
+		const startedSub = service.onParkingTimerStarted(
 			(event: ParkingTimerStartedEvent) => {
 				if (mounted) {
 					logger.debug(TAG, "Started:", event.durationMinutes, "min");
@@ -197,9 +142,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
 			},
 		);
 
-		// Warning event (5 minutes before)
-		const warningSub = XRGlassesNative.addListener(
-			"onParkingTimerWarning",
+		const warningSub = service.onParkingTimerWarning(
 			(event: ParkingTimerWarningEvent) => {
 				if (mounted) {
 					logger.debug(
@@ -217,9 +160,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
 			},
 		);
 
-		// Expired event (alarm!)
-		const expiredSub = XRGlassesNative.addListener(
-			"onParkingTimerExpired",
+		const expiredSub = service.onParkingTimerExpired(
 			(_event: ParkingTimerExpiredEvent) => {
 				if (mounted) {
 					logger.debug(TAG, "EXPIRED!");
@@ -233,9 +174,7 @@ export function useParkingTimer(): UseParkingTimerReturn {
 			},
 		);
 
-		// Cancelled event
-		const cancelledSub = XRGlassesNative.addListener(
-			"onParkingTimerCancelled",
+		const cancelledSub = service.onParkingTimerCancelled(
 			(_event: ParkingTimerCancelledEvent) => {
 				if (mounted) {
 					logger.debug(TAG, "Cancelled");
@@ -253,7 +192,8 @@ export function useParkingTimer(): UseParkingTimerReturn {
 		);
 
 		// Check initial state
-		XRGlassesNative.getParkingTimerState()
+		service
+			.getParkingTimerState()
 			.then((timerState: ParkingTimerState) => {
 				if (mounted && timerState.isActive) {
 					setState((prev) => ({
@@ -280,14 +220,11 @@ export function useParkingTimer(): UseParkingTimerReturn {
 		};
 	}, []);
 
-	// Start timer
 	const startTimer = useCallback(async (durationMinutes: number) => {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
-
 		try {
 			logger.debug(TAG, "Starting timer for", durationMinutes, "minutes");
-			await XRGlassesNative.startParkingTimer(durationMinutes);
-			// State will be updated via onParkingTimerStarted event
+			await serviceRef.current.startParkingTimer(durationMinutes);
 		} catch (e) {
 			const error = e instanceof Error ? e.message : "Failed to start timer";
 			logger.error(TAG, "Start failed:", error);
@@ -295,14 +232,11 @@ export function useParkingTimer(): UseParkingTimerReturn {
 		}
 	}, []);
 
-	// Cancel timer
 	const cancelTimer = useCallback(async () => {
 		setState((prev) => ({ ...prev, loading: true }));
-
 		try {
 			logger.debug(TAG, "Cancelling timer");
-			await XRGlassesNative.cancelParkingTimer();
-			// State will be updated via onParkingTimerCancelled event
+			await serviceRef.current.cancelParkingTimer();
 		} catch (e) {
 			const error = e instanceof Error ? e.message : "Failed to cancel timer";
 			logger.error(TAG, "Cancel failed:", error);
@@ -310,11 +244,10 @@ export function useParkingTimer(): UseParkingTimerReturn {
 		}
 	}, []);
 
-	// Stop alarm
 	const stopAlarm = useCallback(async () => {
 		try {
 			logger.debug(TAG, "Stopping alarm");
-			await XRGlassesNative.stopParkingAlarm();
+			await serviceRef.current.stopParkingAlarm();
 			setState((prev) => ({ ...prev, expired: false }));
 		} catch (e) {
 			const error = e instanceof Error ? e.message : "Failed to stop alarm";
@@ -323,7 +256,6 @@ export function useParkingTimer(): UseParkingTimerReturn {
 		}
 	}, []);
 
-	// Clear error
 	const clearError = useCallback(() => {
 		setState((prev) => ({ ...prev, error: null }));
 	}, []);

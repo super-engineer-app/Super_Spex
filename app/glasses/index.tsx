@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Image,
+	Platform,
 	Pressable,
 	ScrollView,
 	StyleSheet,
@@ -622,25 +623,21 @@ export default function GlassesDashboard() {
 										style={styles.transcriptionScroll}
 										nestedScrollEnabled
 									>
-										{recordingState.transcriptionResult.segments.map(
-											(seg, i) => (
-												<View
-													key={`seg-${i}`}
-													style={styles.transcriptionSegment}
-												>
-													<Text style={styles.transcriptionSpeaker}>
-														{seg.speaker}
-													</Text>
-													<Text style={styles.transcriptionText}>
-														{seg.text}
-													</Text>
-													<Text style={styles.transcriptionTime}>
-														{formatDuration(seg.start * 1000)} -{" "}
-														{formatDuration(seg.end * 1000)}
-													</Text>
-												</View>
-											),
-										)}
+										{recordingState.transcriptionResult.segments.map((seg) => (
+											<View
+												key={`${seg.speaker}-${seg.start}-${seg.end}`}
+												style={styles.transcriptionSegment}
+											>
+												<Text style={styles.transcriptionSpeaker}>
+													{seg.speaker}
+												</Text>
+												<Text style={styles.transcriptionText}>{seg.text}</Text>
+												<Text style={styles.transcriptionTime}>
+													{formatDuration(seg.start * 1000)} -{" "}
+													{formatDuration(seg.end * 1000)}
+												</Text>
+											</View>
+										))}
 									</ScrollView>
 								</View>
 								<Pressable
@@ -679,100 +676,104 @@ export default function GlassesDashboard() {
 					)}
 				</View>
 
-				{/* Remote View Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Remote View</Text>
+				{/* Remote View Section — hidden on web (no glasses camera to stream) */}
+				{Platform.OS !== "web" && (
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>Remote View</Text>
 
-					{!isStreaming ? (
-						<>
-							<QualitySelector
-								value={selectedQuality}
-								onChange={setQuality}
-								disabled={streamLoading}
-							/>
-							<Pressable
-								style={[
-									styles.captureButton,
-									styles.captureButtonPurple,
-									streamLoading && styles.captureButtonActive,
-								]}
-								onPress={startStream}
-								disabled={streamLoading}
-							>
-								<Text style={styles.captureButtonText}>
-									{streamLoading ? "STARTING..." : "START STREAM"}
-								</Text>
-							</Pressable>
-						</>
-					) : (
-						<>
-							<View style={styles.streamInfo}>
-								<Text style={styles.streamLabel}>Viewers</Text>
-								<Text style={styles.viewerCount}>{viewerCount}</Text>
-							</View>
-
-							{/* Camera Source Label */}
-							{cameraSource && (
-								<View
-									style={[
-										styles.cameraSourceBox,
-										streamDemoMode && styles.cameraSourceBoxEmulation,
-									]}
-								>
-									<Text style={styles.cameraSourceLabel}>Camera Source:</Text>
-									<Text
-										style={[
-											styles.cameraSourceText,
-											streamDemoMode && styles.cameraSourceTextEmulation,
-										]}
-									>
-										{cameraSource}
-									</Text>
-								</View>
-							)}
-
-							{viewerUrl && (
-								<View style={styles.resultBox}>
-									<Text style={styles.resultLabel}>Viewer Link:</Text>
-									<View style={styles.urlRow}>
-										<Text style={styles.linkText} numberOfLines={1}>
-											{viewerUrl}
-										</Text>
-										<Pressable
-											style={styles.copyButton}
-											onPress={handleCopyUrl}
-										>
-											<Text style={styles.copyButtonText}>
-												{copiedUrl ? "✓" : "Copy"}
-											</Text>
-										</Pressable>
-									</View>
-								</View>
-							)}
-
-							<View style={styles.streamButtons}>
-								<Pressable style={styles.shareButton} onPress={shareLink}>
-									<Text style={styles.shareButtonText}>Share Link</Text>
-								</Pressable>
-
+						{!isStreaming ? (
+							<>
+								<QualitySelector
+									value={selectedQuality}
+									onChange={setQuality}
+									disabled={streamLoading}
+								/>
 								<Pressable
 									style={[
-										styles.stopButton,
-										streamLoading && styles.sendButtonDisabled,
+										styles.captureButton,
+										styles.captureButtonPurple,
+										streamLoading && styles.captureButtonActive,
 									]}
-									onPress={stopStream}
+									onPress={startStream}
 									disabled={streamLoading}
 								>
-									<Text style={styles.stopButtonText}>
-										{streamLoading ? "STOPPING..." : "STOP"}
+									<Text style={styles.captureButtonText}>
+										{streamLoading ? "STARTING..." : "START STREAM"}
 									</Text>
 								</Pressable>
-							</View>
-						</>
-					)}
+							</>
+						) : (
+							<>
+								<View style={styles.streamInfo}>
+									<Text style={styles.streamLabel}>Viewers</Text>
+									<Text style={styles.viewerCount}>{viewerCount}</Text>
+								</View>
 
-					{streamError ? <Text style={styles.error}>{streamError}</Text> : null}
-				</View>
+								{/* Camera Source Label */}
+								{cameraSource && (
+									<View
+										style={[
+											styles.cameraSourceBox,
+											streamDemoMode && styles.cameraSourceBoxEmulation,
+										]}
+									>
+										<Text style={styles.cameraSourceLabel}>Camera Source:</Text>
+										<Text
+											style={[
+												styles.cameraSourceText,
+												streamDemoMode && styles.cameraSourceTextEmulation,
+											]}
+										>
+											{cameraSource}
+										</Text>
+									</View>
+								)}
+
+								{viewerUrl && (
+									<View style={styles.resultBox}>
+										<Text style={styles.resultLabel}>Viewer Link:</Text>
+										<View style={styles.urlRow}>
+											<Text style={styles.linkText} numberOfLines={1}>
+												{viewerUrl}
+											</Text>
+											<Pressable
+												style={styles.copyButton}
+												onPress={handleCopyUrl}
+											>
+												<Text style={styles.copyButtonText}>
+													{copiedUrl ? "✓" : "Copy"}
+												</Text>
+											</Pressable>
+										</View>
+									</View>
+								)}
+
+								<View style={styles.streamButtons}>
+									<Pressable style={styles.shareButton} onPress={shareLink}>
+										<Text style={styles.shareButtonText}>Share Link</Text>
+									</Pressable>
+
+									<Pressable
+										style={[
+											styles.stopButton,
+											streamLoading && styles.sendButtonDisabled,
+										]}
+										onPress={stopStream}
+										disabled={streamLoading}
+									>
+										<Text style={styles.stopButtonText}>
+											{streamLoading ? "STOPPING..." : "STOP"}
+										</Text>
+									</Pressable>
+								</View>
+							</>
+						)}
+
+						{streamError ? (
+							<Text style={styles.error}>{streamError}</Text>
+						) : null}
+					</View>
+				)}
 
 				{/* Parking Timer Section */}
 				<View style={styles.section}>

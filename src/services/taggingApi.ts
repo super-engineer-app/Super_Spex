@@ -6,12 +6,12 @@
  */
 
 import * as Location from "expo-location";
-import type { ReactNativeFile } from "../types/reactNativeFile";
 import type {
 	TaggedImage,
 	TaggingSessionRequest,
 	TaggingStatusEvent,
 } from "../types/tagging";
+import { appendImageDataUriToFormData } from "../utils/formDataHelper";
 import logger from "../utils/logger";
 
 const TAG = "TaggingAPI";
@@ -135,15 +135,15 @@ export async function submitTaggingSession(
 	formData.append("local_date", localDate);
 	formData.append("coordinates", JSON.stringify(coordinates));
 
-	// Attach images as file uploads using React Native's FormData pattern
-	// RN doesn't support Blob - use {uri, type, name} objects with data URIs
+	// Attach images as file uploads (cross-platform via formDataHelper)
 	for (let i = 0; i < images.length; i++) {
 		const img = images[i];
-		formData.append("images", {
-			uri: `data:image/jpeg;base64,${img.base64}`,
-			type: "image/jpeg",
-			name: `image_${i + 1}.jpg`,
-		} as ReactNativeFile as unknown as Blob);
+		appendImageDataUriToFormData(
+			formData,
+			"images",
+			img.base64,
+			`image_${i + 1}.jpg`,
+		);
 	}
 
 	logger.debug(TAG, "Submitting tagging session:", {
