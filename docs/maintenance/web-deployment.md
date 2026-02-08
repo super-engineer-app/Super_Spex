@@ -7,7 +7,7 @@ How to deploy the SPEX web demo to production.
 ```
 User Browser
   └─ https://spex-demo.pages.dev (Cloudflare Pages - static)
-       ├─ API calls → https://spex-backend.onrender.com (Render - FastAPI)
+       ├─ API calls → https://spex-backend-demo.onrender.com (Render - FastAPI)
        │                 └─ DB → Neon PostgreSQL (free tier)
        ├─ Agora calls → https://agora-token.spex-remote.workers.dev (existing Worker)
        └─ Error reports → Worker /report-error → Discord webhook (proxied, rate-limited)
@@ -41,8 +41,8 @@ This script:
 | `EXPO_PUBLIC_AGORA_APP_ID` | Agora app ID |
 | `EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL` | `https://agora-token.spex-remote.workers.dev/` |
 | `EXPO_PUBLIC_SPEX_VIEWER_URL_BASE` | `https://spex-viewer.pages.dev/view/` |
-| `EXPO_PUBLIC_BACKEND_URL` | `https://spex-backend.onrender.com` |
-| `EXPO_PUBLIC_TAGGING_API_URL` | `https://spex-backend.onrender.com` |
+| `EXPO_PUBLIC_BACKEND_URL` | `https://spex-backend-demo.onrender.com` |
+| `EXPO_PUBLIC_TAGGING_API_URL` | `https://spex-backend-demo.onrender.com` |
 
 Note: `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` is **not** set in the web bundle. Error reports go through the Worker proxy (`/report-error`) instead.
 
@@ -82,7 +82,7 @@ npx wrangler secret put DISCORD_WEBHOOK_URL
 | Service | Dashboard | URL |
 |---------|-----------|-----|
 | Web app | [Cloudflare Pages](https://dash.cloudflare.com/) | `https://spex-demo.pages.dev` |
-| Backend | [Render](https://dashboard.render.com/) | `https://spex-backend.onrender.com` |
+| Backend | [Render](https://dashboard.render.com/) | `https://spex-backend-demo.onrender.com` |
 | Database | [Neon](https://console.neon.tech/) | Connection string in Render env vars |
 | Agora Worker | [Cloudflare Workers](https://dash.cloudflare.com/) | `https://agora-token.spex-remote.workers.dev/` |
 
