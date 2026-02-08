@@ -194,6 +194,61 @@ export interface IXRGlassesService {
 		callback: (event: RecordingErrorEvent) => void,
 	): Subscription;
 
+	// ============================================================
+	// Remote View Streaming (via Agora)
+	// ============================================================
+
+	/** Start remote view streaming with given quality preset */
+	startRemoteView(quality: StreamQuality): Promise<boolean>;
+
+	/** Stop remote view streaming */
+	stopRemoteView(): Promise<boolean>;
+
+	/** Set stream quality while streaming */
+	setRemoteViewQuality(quality: StreamQuality): Promise<boolean>;
+
+	/** Check if remote view is currently active */
+	isRemoteViewActive(): Promise<boolean>;
+
+	// Remote view events
+	onStreamStarted(callback: (event: StreamStartedEvent) => void): Subscription;
+	onStreamStopped(callback: (event: StreamStoppedEvent) => void): Subscription;
+	onStreamError(callback: (event: StreamErrorEvent) => void): Subscription;
+	onViewerUpdate(callback: (event: ViewerUpdateEvent) => void): Subscription;
+	onStreamCameraSourceChanged(
+		callback: (event: StreamCameraSourceChangedEvent) => void,
+	): Subscription;
+
+	// ============================================================
+	// Parking Timer
+	// ============================================================
+
+	/** Start a parking timer with the specified duration in minutes */
+	startParkingTimer(durationMinutes: number): Promise<boolean>;
+
+	/** Cancel the parking timer if running */
+	cancelParkingTimer(): Promise<boolean>;
+
+	/** Get current parking timer state */
+	getParkingTimerState(): Promise<ParkingTimerState>;
+
+	/** Stop the alarm sound (user dismisses alarm) */
+	stopParkingAlarm(): Promise<boolean>;
+
+	// Parking timer events
+	onParkingTimerStarted(
+		callback: (event: ParkingTimerStartedEvent) => void,
+	): Subscription;
+	onParkingTimerWarning(
+		callback: (event: ParkingTimerWarningEvent) => void,
+	): Subscription;
+	onParkingTimerExpired(
+		callback: (event: ParkingTimerExpiredEvent) => void,
+	): Subscription;
+	onParkingTimerCancelled(
+		callback: (event: ParkingTimerCancelledEvent) => void,
+	): Subscription;
+
 	// UI events
 	onUiRefreshNeeded(
 		callback: (event: UiRefreshNeededEvent) => void,
@@ -422,6 +477,121 @@ class AndroidXRGlassesService implements IXRGlassesService {
 		return { remove: () => subscription.remove() };
 	}
 
+	// Remote view methods
+	async startRemoteView(quality: StreamQuality): Promise<boolean> {
+		return XRGlassesNative.startRemoteView(quality);
+	}
+
+	async stopRemoteView(): Promise<boolean> {
+		return XRGlassesNative.stopRemoteView();
+	}
+
+	async setRemoteViewQuality(quality: StreamQuality): Promise<boolean> {
+		return XRGlassesNative.setRemoteViewQuality(quality);
+	}
+
+	async isRemoteViewActive(): Promise<boolean> {
+		return XRGlassesNative.isRemoteViewActive();
+	}
+
+	// Remote view event subscriptions
+	onStreamStarted(callback: (event: StreamStartedEvent) => void): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onStreamStarted",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	onStreamStopped(callback: (event: StreamStoppedEvent) => void): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onStreamStopped",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	onStreamError(callback: (event: StreamErrorEvent) => void): Subscription {
+		const subscription = XRGlassesNative.addListener("onStreamError", callback);
+		return { remove: () => subscription.remove() };
+	}
+
+	onViewerUpdate(callback: (event: ViewerUpdateEvent) => void): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onViewerUpdate",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	onStreamCameraSourceChanged(
+		callback: (event: StreamCameraSourceChangedEvent) => void,
+	): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onStreamCameraSourceChanged",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	// Parking timer methods
+	async startParkingTimer(durationMinutes: number): Promise<boolean> {
+		return XRGlassesNative.startParkingTimer(durationMinutes);
+	}
+
+	async cancelParkingTimer(): Promise<boolean> {
+		return XRGlassesNative.cancelParkingTimer();
+	}
+
+	async getParkingTimerState(): Promise<ParkingTimerState> {
+		return XRGlassesNative.getParkingTimerState();
+	}
+
+	async stopParkingAlarm(): Promise<boolean> {
+		return XRGlassesNative.stopParkingAlarm();
+	}
+
+	// Parking timer event subscriptions
+	onParkingTimerStarted(
+		callback: (event: ParkingTimerStartedEvent) => void,
+	): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onParkingTimerStarted",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	onParkingTimerWarning(
+		callback: (event: ParkingTimerWarningEvent) => void,
+	): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onParkingTimerWarning",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	onParkingTimerExpired(
+		callback: (event: ParkingTimerExpiredEvent) => void,
+	): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onParkingTimerExpired",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
+	onParkingTimerCancelled(
+		callback: (event: ParkingTimerCancelledEvent) => void,
+	): Subscription {
+		const subscription = XRGlassesNative.addListener(
+			"onParkingTimerCancelled",
+			callback,
+		);
+		return { remove: () => subscription.remove() };
+	}
+
 	// UI event subscriptions
 	onUiRefreshNeeded(
 		callback: (event: UiRefreshNeededEvent) => void,
@@ -615,6 +785,97 @@ class IOSXRGlassesService implements IXRGlassesService {
 
 	onRecordingError(
 		_callback: (event: RecordingErrorEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	// Remote view stubs for iOS
+	async startRemoteView(_quality: StreamQuality): Promise<boolean> {
+		throw new Error("iOS remote view not yet implemented");
+	}
+
+	async stopRemoteView(): Promise<boolean> {
+		throw new Error("iOS remote view not yet implemented");
+	}
+
+	async setRemoteViewQuality(_quality: StreamQuality): Promise<boolean> {
+		return false;
+	}
+
+	async isRemoteViewActive(): Promise<boolean> {
+		return false;
+	}
+
+	onStreamStarted(
+		_callback: (event: StreamStartedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onStreamStopped(
+		_callback: (event: StreamStoppedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onStreamError(_callback: (event: StreamErrorEvent) => void): Subscription {
+		return { remove: () => {} };
+	}
+
+	onViewerUpdate(_callback: (event: ViewerUpdateEvent) => void): Subscription {
+		return { remove: () => {} };
+	}
+
+	onStreamCameraSourceChanged(
+		_callback: (event: StreamCameraSourceChangedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	// Parking timer stubs for iOS
+	async startParkingTimer(_durationMinutes: number): Promise<boolean> {
+		throw new Error("iOS parking timer not yet implemented");
+	}
+
+	async cancelParkingTimer(): Promise<boolean> {
+		throw new Error("iOS parking timer not yet implemented");
+	}
+
+	async getParkingTimerState(): Promise<ParkingTimerState> {
+		return {
+			isActive: false,
+			remainingMs: 0,
+			endTime: 0,
+			durationMinutes: 0,
+			warningShown: false,
+			expired: false,
+		};
+	}
+
+	async stopParkingAlarm(): Promise<boolean> {
+		return false;
+	}
+
+	onParkingTimerStarted(
+		_callback: (event: ParkingTimerStartedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onParkingTimerWarning(
+		_callback: (event: ParkingTimerWarningEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onParkingTimerExpired(
+		_callback: (event: ParkingTimerExpiredEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onParkingTimerCancelled(
+		_callback: (event: ParkingTimerCancelledEvent) => void,
 	): Subscription {
 		return { remove: () => {} };
 	}
@@ -1003,6 +1264,99 @@ class WebXRGlassesService implements IXRGlassesService {
 
 	onRecordingError(
 		_callback: (event: RecordingErrorEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	// Remote view stubs for web (no glasses to stream from)
+	async startRemoteView(_quality: StreamQuality): Promise<boolean> {
+		console.log("[WebXR] Remote view not available on web");
+		return false;
+	}
+
+	async stopRemoteView(): Promise<boolean> {
+		return false;
+	}
+
+	async setRemoteViewQuality(_quality: StreamQuality): Promise<boolean> {
+		return false;
+	}
+
+	async isRemoteViewActive(): Promise<boolean> {
+		return false;
+	}
+
+	onStreamStarted(
+		_callback: (event: StreamStartedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onStreamStopped(
+		_callback: (event: StreamStoppedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onStreamError(_callback: (event: StreamErrorEvent) => void): Subscription {
+		return { remove: () => {} };
+	}
+
+	onViewerUpdate(_callback: (event: ViewerUpdateEvent) => void): Subscription {
+		return { remove: () => {} };
+	}
+
+	onStreamCameraSourceChanged(
+		_callback: (event: StreamCameraSourceChangedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	// Parking timer stubs for web emulation
+	async startParkingTimer(_durationMinutes: number): Promise<boolean> {
+		console.log("[WebXR] Parking timer (emulation)");
+		return false;
+	}
+
+	async cancelParkingTimer(): Promise<boolean> {
+		return false;
+	}
+
+	async getParkingTimerState(): Promise<ParkingTimerState> {
+		return {
+			isActive: false,
+			remainingMs: 0,
+			endTime: 0,
+			durationMinutes: 0,
+			warningShown: false,
+			expired: false,
+		};
+	}
+
+	async stopParkingAlarm(): Promise<boolean> {
+		return false;
+	}
+
+	onParkingTimerStarted(
+		_callback: (event: ParkingTimerStartedEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onParkingTimerWarning(
+		_callback: (event: ParkingTimerWarningEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onParkingTimerExpired(
+		_callback: (event: ParkingTimerExpiredEvent) => void,
+	): Subscription {
+		return { remove: () => {} };
+	}
+
+	onParkingTimerCancelled(
+		_callback: (event: ParkingTimerCancelledEvent) => void,
 	): Subscription {
 		return { remove: () => {} };
 	}

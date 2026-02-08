@@ -340,6 +340,7 @@ export type {
 	DeviceCapabilities,
 	EngagementMode,
 	IXRGlassesService,
+	Subscription,
 } from "./src/XRGlassesModule";
 // Re-export the service module
 export {
