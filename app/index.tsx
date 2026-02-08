@@ -1,5 +1,12 @@
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+	Platform,
+	Pressable,
+	StyleSheet,
+	Text,
+	useWindowDimensions,
+	View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useXRGlasses } from "../src/hooks/useXRGlasses";
 import logger from "../src/utils/logger";
@@ -15,6 +22,8 @@ const TAG = "HomeScreen";
  */
 export default function HomeScreen() {
 	const router = useRouter();
+	const { width: screenWidth } = useWindowDimensions();
+	const isWeb = Platform.OS === "web";
 	const {
 		connected,
 		loading,
@@ -52,7 +61,16 @@ export default function HomeScreen() {
 
 	return (
 		<SafeAreaView style={styles.container}>
-			<View style={styles.content}>
+			<View
+				style={[
+					styles.content,
+					isWeb && {
+						maxWidth: Math.min(screenWidth * 0.9, 720),
+						alignSelf: "center" as const,
+						width: "100%" as const,
+					},
+				]}
+			>
 				<Text style={styles.title}>XR Glasses</Text>
 				<Text style={styles.subtitle}>Connect to get started</Text>
 

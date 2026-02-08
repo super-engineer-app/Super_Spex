@@ -141,28 +141,20 @@ The full transcription pipeline after a recording is stopped:
 
 ### Transcription Types
 
-Defined in `src/services/transcriptionApi.ts`:
-
-```typescript
-interface TranscriptionSegment {
-  speaker: string;  // e.g., "Speaker 1"
-  text: string;     // Transcribed text
-  start: number;    // Start time in seconds
-  end: number;      // End time in seconds
-}
-
-interface TranscriptionResult {
-  segments: TranscriptionSegment[];
-}
-```
+Defined at `src/services/transcriptionApi.ts:8–18` — `TranscriptionSegment` (speaker, text, start, end) and `TranscriptionResult` (segments array).
 
 ### Runtime Validation
 
-`isValidTranscriptionResult()` is a type guard that checks:
-- `data.segments` is an array
-- Each segment has `speaker` (string), `text` (string), `start` (number), `end` (number)
+`isValidTranscriptionResult()` at `src/services/transcriptionApi.ts:52` is a type guard that validates the structure (array of segments with correct field types). Prevents runtime crashes from malformed backend responses.
 
-This prevents runtime crashes from malformed backend responses.
+## Web Platform Differences
+
+On web, video recording uses a single `MediaRecorder` (no CameraX) that captures video+audio as WebM directly. No separate audio-only track is needed since the web MediaRecorder output can be sent to `/transcribe-dia` as-is.
+
+- Recording setup: `modules/xr-glasses/src/XRGlassesModule.web.ts:797`
+- Codec negotiation (prefers vp9, falls back to vp8/webm): `:805–815`
+- Transcription submission: `:892` (FormData with Blob, not file URI)
+- File saving: triggers browser download via `formDataHelper.web.ts:21`
 
 ## Known Limitations
 

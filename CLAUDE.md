@@ -76,6 +76,9 @@ Read these when relevant — don't load them all upfront:
 | Speech issues | `docs/maintenance/speech-recognition.md` |
 | Camera issues | `docs/maintenance/camera-capture.md` |
 | Streaming issues | `docs/maintenance/remote-view-streaming.md` |
+| Recording/transcription | `docs/maintenance/video-recording.md` |
+| Tagging system | `docs/maintenance/tagging-system.md` |
+| Web platform | `docs/maintenance/web-platform.md` |
 | Emulator setup | `docs/maintenance/emulator-testing.md` |
 | Build failures | `docs/maintenance/build-deploy.md` |
 | Android XR SDK links | `docs/xr-glasses-resources.md` |

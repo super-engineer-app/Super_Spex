@@ -10,6 +10,9 @@ This folder contains troubleshooting guides and maintenance documentation for ea
 | [speech-recognition.md](speech-recognition.md) | Speech recognition architecture & troubleshooting | Speech not working |
 | [camera-capture.md](camera-capture.md) | Camera capture system & issues | Camera not capturing |
 | [remote-view-streaming.md](remote-view-streaming.md) | Remote View (Agora) streaming & troubleshooting | Video streaming grey/black |
+| [video-recording.md](video-recording.md) | Video recording + transcription pipeline | Recording or transcription issues |
+| [tagging-system.md](tagging-system.md) | Voice-activated tagging with GPS & images | Tagging workflow issues |
+| [web-platform.md](web-platform.md) | Web platform — browser APIs, `.web.ts` files, responsive layout | Web version issues |
 | [emulator-testing.md](emulator-testing.md) | Emulator setup, pairing, known issues | Emulator problems |
 | [build-deploy.md](build-deploy.md) | Build process, installation, dependencies | Build failing |
 
@@ -61,6 +64,10 @@ See [xr-glasses-projection.md](xr-glasses-projection.md) for full details.
 | Transcription "Missing channel parameter" | Request sent to Cloudflare Worker instead of backend | Set `TRANSCRIPTION_API_URL` in `.env` (emulator: `http://10.0.2.2:8000`) |
 | Save Transcript fails | `expo-file-system` v19 deprecated old API | Use `File`/`Paths` from `expo-file-system/next` |
 | Recording killed by UI refresh | `onUiRefreshNeeded` fires during recording | Refresh is auto-deferred while recording/streaming/tagging is active |
+| Web: speech "not available" | Firefox lacks Web Speech API | Network fallback activates; set `EXPO_PUBLIC_BACKEND_URL` |
+| Web: white screen | React version mismatch | `react` + `react-dom` must be 19.1.0 (match `react-native` 0.81.5) |
+| Web: `.web.ts` not picked up | `"main"` field has file extension | Use `"main": "index"` (no `.ts`) in module `package.json` |
+| Web: camera black | Browser blocked getUserMedia | Check permissions; use HTTPS or localhost |
 
 ## Adding New Maintenance Docs
 
