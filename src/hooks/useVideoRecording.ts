@@ -22,10 +22,7 @@ import type {
 	TranscriptionResponse,
 } from "../../modules/xr-glasses";
 import { getXRGlassesService } from "../../modules/xr-glasses";
-import type {
-	TranscriptionResult,
-	TranscriptionSegment,
-} from "../services/transcriptionApi";
+import type { TranscriptionResult } from "../services/transcriptionApi";
 import {
 	formatTranscriptAsText,
 	isValidTranscriptionResult,

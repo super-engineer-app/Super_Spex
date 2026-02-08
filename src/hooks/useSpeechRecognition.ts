@@ -115,7 +115,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 			const newText = event.text.trim();
 			if (newText) {
 				if (accumulatedTranscriptRef.current) {
-					accumulatedTranscriptRef.current += " " + newText;
+					accumulatedTranscriptRef.current += ` ${newText}`;
 				} else {
 					accumulatedTranscriptRef.current = newText;
 				}
@@ -136,7 +136,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 			// Show accumulated transcript + current partial
 			const partial = event.text.trim();
 			if (accumulatedTranscriptRef.current && partial) {
-				setPartialTranscript(accumulatedTranscriptRef.current + " " + partial);
+				setPartialTranscript(`${accumulatedTranscriptRef.current} ${partial}`);
 			} else if (partial) {
 				setPartialTranscript(partial);
 			} else if (accumulatedTranscriptRef.current) {

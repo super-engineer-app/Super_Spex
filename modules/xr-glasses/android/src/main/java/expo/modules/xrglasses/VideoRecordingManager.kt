@@ -22,7 +22,9 @@ import java.io.File
  */
 sealed class RecordingEvent {
     data object Started : RecordingEvent()
+
     data class Stopped(val uri: Uri, val durationMs: Long) : RecordingEvent()
+
     data class Error(val message: String) : RecordingEvent()
 }
 
@@ -34,7 +36,7 @@ enum class RecordingState {
     PREPARING,
     RECORDING,
     STOPPING,
-    STOPPED
+    STOPPED,
 }
 
 /**
@@ -47,7 +49,7 @@ enum class RecordingState {
  * The user can then explicitly save/share them via the UI.
  */
 class VideoRecordingManager(
-    private val context: Context
+    private val context: Context,
 ) {
     companion object {
         private const val TAG = "VideoRecordingManager"
@@ -70,9 +72,10 @@ class VideoRecordingManager(
     fun buildVideoCapture(): VideoCapture<Recorder> {
         Log.d(TAG, "Building VideoCapture use case")
 
-        val recorder = Recorder.Builder()
-            .setQualitySelector(QualitySelector.from(Quality.HD))
-            .build()
+        val recorder =
+            Recorder.Builder()
+                .setQualitySelector(QualitySelector.from(Quality.HD))
+                .build()
 
         return VideoCapture.withOutput(recorder)
     }
@@ -87,7 +90,7 @@ class VideoRecordingManager(
     fun startRecording(
         videoCapture: VideoCapture<Recorder>,
         audioEnabled: Boolean,
-        onEvent: (RecordingEvent) -> Unit
+        onEvent: (RecordingEvent) -> Unit,
     ) {
         if (state == RecordingState.RECORDING || state == RecordingState.STOPPING) {
             Log.w(TAG, "Cannot start recording in state: $state")
@@ -106,14 +109,16 @@ class VideoRecordingManager(
 
         val fileOutputOptions = FileOutputOptions.Builder(file).build()
 
-        val pendingRecording = videoCapture.output
-            .prepareRecording(context, fileOutputOptions)
+        val pendingRecording =
+            videoCapture.output
+                .prepareRecording(context, fileOutputOptions)
 
         // Enable audio if requested and permission is granted
         if (audioEnabled) {
-            val hasAudioPermission = ContextCompat.checkSelfPermission(
-                context, Manifest.permission.RECORD_AUDIO
-            ) == PackageManager.PERMISSION_GRANTED
+            val hasAudioPermission =
+                ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.RECORD_AUDIO,
+                ) == PackageManager.PERMISSION_GRANTED
 
             if (hasAudioPermission) {
                 pendingRecording.withAudioEnabled()
@@ -125,11 +130,12 @@ class VideoRecordingManager(
 
         recordingStartTimeMs = System.currentTimeMillis()
 
-        activeRecording = pendingRecording.start(
-            ContextCompat.getMainExecutor(context)
-        ) { event ->
-            handleRecordingEvent(event, onEvent)
-        }
+        activeRecording =
+            pendingRecording.start(
+                ContextCompat.getMainExecutor(context),
+            ) { event ->
+                handleRecordingEvent(event, onEvent)
+            }
 
         // Start separate audio recording as WebM/Opus for transcription
         if (audioEnabled) {
@@ -232,9 +238,10 @@ class VideoRecordingManager(
      */
     @Suppress("MissingPermission") // Permission already checked in startRecording
     private fun startAudioRecording() {
-        val hasAudioPermission = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
+        val hasAudioPermission =
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
 
         if (!hasAudioPermission) {
             Log.w(TAG, "No RECORD_AUDIO permission for separate audio recording")
@@ -246,12 +253,13 @@ class VideoRecordingManager(
             val audioFile = File(context.cacheDir, "spex-audio-$timestamp.webm")
             audioOutputFile = audioFile
 
-            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(context)
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
-            }
+            val recorder =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    MediaRecorder(context)
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaRecorder()
+                }
 
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
             recorder.setOutputFormat(MediaRecorder.OutputFormat.WEBM)
@@ -300,7 +308,7 @@ class VideoRecordingManager(
      */
     private fun handleRecordingEvent(
         event: VideoRecordEvent,
-        onEvent: (RecordingEvent) -> Unit
+        onEvent: (RecordingEvent) -> Unit,
     ) {
         when (event) {
             is VideoRecordEvent.Start -> {

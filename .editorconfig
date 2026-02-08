@@ -1,0 +1,13 @@
+root = true
+
+[*.{kt,kts}]
+indent_size = 4
+indent_style = space
+max_line_length = 150
+insert_final_newline = true
+
+# Allow wildcard imports for common packages (matches detekt config)
+ij_kotlin_packages_to_use_import_on_demand = java.util.**,kotlinx.coroutines.**,androidx.compose.runtime.**,androidx.compose.ui.**,androidx.compose.foundation.**,androidx.compose.material3.**
+
+# Composable functions use PascalCase by convention
+ktlint_function_naming_ignore_when_annotated_with = Composable

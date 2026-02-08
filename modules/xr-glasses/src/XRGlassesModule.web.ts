@@ -196,7 +196,9 @@ class WebXRGlassesService {
 	private agoraLocalAudioTrack: unknown = null;
 	private agoraLocalVideoTrack: unknown = null;
 	private remoteViewActive = false;
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used via this.remoteViewChannelId in startRemoteView/stopRemoteView
 	private remoteViewChannelId: string | null = null;
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used via this.remoteViewQuality in startRemoteView/setRemoteViewQuality
 	private remoteViewQuality: StreamQuality = "balanced";
 	private streamStartedCallbacks = new Set<
 		(event: StreamStartedEvent) => void
@@ -952,7 +954,6 @@ class WebXRGlassesService {
 				return { width: 640, height: 480, frameRate: 15 };
 			case "high_quality":
 				return { width: 1280, height: 720, frameRate: 30 };
-			case "balanced":
 			default:
 				return { width: 1280, height: 720, frameRate: 15 };
 		}

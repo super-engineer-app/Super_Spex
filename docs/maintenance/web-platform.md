@@ -64,6 +64,8 @@ The hooks are platform-agnostic — they call `IXRGlassesService` methods. On we
 - **Web:** `formData.append('file', blob, 'filename')` — standard Blob pattern
 - **Solution:** `src/utils/formDataHelper.ts` vs `formDataHelper.web.ts`
 
+Consumers: `backendApi.ts` (AI image upload) and `taggingApi.ts` (tagging images) both use `formDataHelper` for cross-platform FormData handling — no platform-split needed in the service files themselves.
+
 See `formDataHelper.web.ts:34` (`appendImageFileToFormData`) and `formDataHelper.web.ts:72` (`shareFileFromUri` triggers browser download).
 
 ### Tagging — Phone Camera on Web
@@ -136,5 +138,6 @@ npm run web          # or: npx expo start --web
 | `modules/xr-glasses/src/XRGlassesModule.web.ts` | WebXRGlassesService — all browser API implementations |
 | `modules/xr-glasses/index.web.ts` | Web entry point, stubs native module |
 | `src/utils/formDataHelper.web.ts` | Blob/download helpers for web FormData |
+| `src/services/backendApi.ts` | AI backend service — cross-platform (uses formDataHelper) |
 | `src/services/errorReporting.web.ts` | Web error reporting (Discord webhook) |
 | `app/glasses/index.tsx` | Dashboard with responsive web wrapper |

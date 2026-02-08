@@ -22,7 +22,6 @@ import android.util.Log
  * 5. Finishes immediately (transparent to user)
  */
 class ProjectionLauncherActivity : Activity() {
-
     companion object {
         private const val TAG = "ProjectionLauncher"
         const val ACTION_LAUNCH_GLASSES = "expo.modules.xrglasses.LAUNCH_VIA_PROJECTION"
@@ -57,20 +56,22 @@ class ProjectionLauncherActivity : Activity() {
         val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
 
         // First, try the simpler approach: createProjectedActivityOptions(context) directly
-        val createOptionsMethod = projectedContextClass.methods.find {
-            it.name == "createProjectedActivityOptions"
-        }
+        val createOptionsMethod =
+            projectedContextClass.methods.find {
+                it.name == "createProjectedActivityOptions"
+            }
 
         if (createOptionsMethod != null) {
             Log.d(TAG, "Trying createProjectedActivityOptions with this activity...")
 
             // Try with this activity's context
-            val options = try {
-                createOptionsMethod.invoke(null, this) as? android.app.ActivityOptions
-            } catch (e: Exception) {
-                Log.d(TAG, "Direct options failed, trying with projected device context...")
-                null
-            }
+            val options =
+                try {
+                    createOptionsMethod.invoke(null, this) as? android.app.ActivityOptions
+                } catch (e: Exception) {
+                    Log.d(TAG, "Direct options failed, trying with projected device context...")
+                    null
+                }
 
             if (options != null) {
                 launchWithOptions(options)
@@ -79,9 +80,10 @@ class ProjectionLauncherActivity : Activity() {
         }
 
         // Second approach: create projected device context first, then activity options
-        val createDeviceContextMethod = projectedContextClass.methods.find {
-            it.name == "createProjectedDeviceContext"
-        }
+        val createDeviceContextMethod =
+            projectedContextClass.methods.find {
+                it.name == "createProjectedDeviceContext"
+            }
 
         if (createDeviceContextMethod != null && createOptionsMethod != null) {
             Log.d(TAG, "Creating projected device context from this activity (connection #$connectionCount)...")
@@ -139,10 +141,11 @@ class ProjectionLauncherActivity : Activity() {
     private fun launchWithOptions(options: android.app.ActivityOptions?) {
         if (options == null) return
 
-        val intent = Intent(this, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
-            action = "expo.modules.xrglasses.LAUNCH_GLASSES"
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        val intent =
+            Intent(this, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
+                action = "expo.modules.xrglasses.LAUNCH_GLASSES"
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
 
         startActivity(intent, options.toBundle())
         Log.d(TAG, "GlassesActivity launched with projected options from intermediate activity!")
@@ -153,10 +156,11 @@ class ProjectionLauncherActivity : Activity() {
      * The manifest's requiredDisplayCategory="xr_projected" should still route to glasses.
      */
     private fun launchGlassesFallback() {
-        val intent = Intent(this, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
-            action = "expo.modules.xrglasses.LAUNCH_GLASSES"
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        val intent =
+            Intent(this, expo.modules.xrglasses.glasses.GlassesActivity::class.java).apply {
+                action = "expo.modules.xrglasses.LAUNCH_GLASSES"
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
         startActivity(intent)
         Log.d(TAG, "GlassesActivity launched via fallback (no projection options)")
     }

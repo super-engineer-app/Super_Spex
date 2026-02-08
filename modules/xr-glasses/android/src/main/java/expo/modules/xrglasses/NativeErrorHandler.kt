@@ -50,7 +50,7 @@ object NativeErrorHandler {
                 message = throwable.message ?: "Unknown native error",
                 stackTrace = getStackTraceString(throwable),
                 isFatal = true,
-                threadName = thread.name
+                threadName = thread.name,
             )
 
             // Call original handler to ensure proper crash handling
@@ -67,27 +67,33 @@ object NativeErrorHandler {
      *
      * val scope = CoroutineScope(Dispatchers.Main + SupervisorJob() + NativeErrorHandler.coroutineExceptionHandler)
      */
-    val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        Log.e(TAG, "Uncaught coroutine exception", throwable)
+    val coroutineExceptionHandler =
+        CoroutineExceptionHandler { _, throwable ->
+            Log.e(TAG, "Uncaught coroutine exception", throwable)
 
-        sendErrorBroadcast(
-            message = throwable.message ?: "Unknown coroutine error",
-            stackTrace = getStackTraceString(throwable),
-            isFatal = false, // Coroutine exceptions are typically non-fatal
-            threadName = "coroutine"
-        )
-    }
+            sendErrorBroadcast(
+                message = throwable.message ?: "Unknown coroutine error",
+                stackTrace = getStackTraceString(throwable),
+                // Coroutine exceptions are typically non-fatal
+                isFatal = false,
+                threadName = "coroutine",
+            )
+        }
 
     /**
      * Manually report a non-fatal error.
      * Use this for caught exceptions that should still be reported.
      */
-    fun reportError(throwable: Throwable, context: String? = null) {
-        val message = if (context != null) {
-            "$context: ${throwable.message}"
-        } else {
-            throwable.message ?: "Unknown error"
-        }
+    fun reportError(
+        throwable: Throwable,
+        context: String? = null,
+    ) {
+        val message =
+            if (context != null) {
+                "$context: ${throwable.message}"
+            } else {
+                throwable.message ?: "Unknown error"
+            }
 
         Log.e(TAG, "Reported error: $message", throwable)
 
@@ -95,21 +101,24 @@ object NativeErrorHandler {
             message = message,
             stackTrace = getStackTraceString(throwable),
             isFatal = false,
-            threadName = Thread.currentThread().name
+            threadName = Thread.currentThread().name,
         )
     }
 
     /**
      * Manually report an error with a custom message.
      */
-    fun reportError(message: String, isFatal: Boolean = false) {
+    fun reportError(
+        message: String,
+        isFatal: Boolean = false,
+    ) {
         Log.e(TAG, "Reported error: $message")
 
         sendErrorBroadcast(
             message = message,
             stackTrace = "No stack trace available",
             isFatal = isFatal,
-            threadName = Thread.currentThread().name
+            threadName = Thread.currentThread().name,
         )
     }
 
@@ -117,24 +126,26 @@ object NativeErrorHandler {
         message: String,
         stackTrace: String,
         isFatal: Boolean,
-        threadName: String
+        threadName: String,
     ) {
-        val context = appContext ?: run {
-            Log.e(TAG, "Cannot send error broadcast: context not initialized")
-            return
-        }
+        val context =
+            appContext ?: run {
+                Log.e(TAG, "Cannot send error broadcast: context not initialized")
+                return
+            }
 
         try {
-            val intent = Intent(ACTION_NATIVE_ERROR).apply {
-                putExtra(EXTRA_ERROR_MESSAGE, message)
-                putExtra(EXTRA_ERROR_STACK, stackTrace)
-                putExtra(EXTRA_IS_FATAL, isFatal)
-                putExtra(EXTRA_THREAD_NAME, threadName)
-                // Add device info for debugging
-                putExtra("device_model", Build.MODEL)
-                putExtra("android_version", Build.VERSION.SDK_INT)
-                setPackage(context.packageName)
-            }
+            val intent =
+                Intent(ACTION_NATIVE_ERROR).apply {
+                    putExtra(EXTRA_ERROR_MESSAGE, message)
+                    putExtra(EXTRA_ERROR_STACK, stackTrace)
+                    putExtra(EXTRA_IS_FATAL, isFatal)
+                    putExtra(EXTRA_THREAD_NAME, threadName)
+                    // Add device info for debugging
+                    putExtra("device_model", Build.MODEL)
+                    putExtra("android_version", Build.VERSION.SDK_INT)
+                    setPackage(context.packageName)
+                }
 
             context.sendBroadcast(intent)
             Log.d(TAG, "Error broadcast sent: $message")

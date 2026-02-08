@@ -86,7 +86,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
     data class AnalysisConfig(
         val width: Int,
         val height: Int,
-        val analyzer: ImageAnalysis.Analyzer
+        val analyzer: ImageAnalysis.Analyzer,
     )
 
     /**
@@ -95,7 +95,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
     data class CaptureConfig(
         val width: Int,
         val height: Int,
-        val captureMode: Int = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+        val captureMode: Int = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY,
     )
 
     /**
@@ -112,7 +112,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
         lifecycleOwner: LifecycleOwner,
         config: AnalysisConfig,
         emulationMode: Boolean,
-        onSourceChanged: ((String) -> Unit)? = null
+        onSourceChanged: ((String) -> Unit)? = null,
     ): ImageAnalysis? {
         val count = analysisRefCount.incrementAndGet()
         Log.d(TAG, "acquireImageAnalysis: refCount=$count")
@@ -126,20 +126,23 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
             // Build the ImageAnalysis use case
             val targetSize = Size(config.width, config.height)
-            val resolutionStrategy = ResolutionStrategy(
-                targetSize,
-                ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER
-            )
-            val resolutionSelector = ResolutionSelector.Builder()
-                .setResolutionStrategy(resolutionStrategy)
-                .build()
+            val resolutionStrategy =
+                ResolutionStrategy(
+                    targetSize,
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
+                )
+            val resolutionSelector =
+                ResolutionSelector.Builder()
+                    .setResolutionStrategy(resolutionStrategy)
+                    .build()
 
-            imageAnalysis = ImageAnalysis.Builder()
-                .setResolutionSelector(resolutionSelector)
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                .build()
-                .also { it.setAnalyzer(ContextCompat.getMainExecutor(context), config.analyzer) }
+            imageAnalysis =
+                ImageAnalysis.Builder()
+                    .setResolutionSelector(resolutionSelector)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                    .build()
+                    .also { it.setAnalyzer(ContextCompat.getMainExecutor(context), config.analyzer) }
 
             // Initialize camera provider and bind
             initAndBind(lifecycleOwner, emulationMode)
@@ -180,7 +183,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
     fun acquireImageCapture(
         lifecycleOwner: LifecycleOwner,
         config: CaptureConfig,
-        emulationMode: Boolean
+        emulationMode: Boolean,
     ): ImageCapture? {
         val count = captureRefCount.incrementAndGet()
         Log.d(TAG, "acquireImageCapture: refCount=$count")
@@ -193,18 +196,21 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
             // Build the ImageCapture use case
             val targetSize = Size(config.width, config.height)
-            val resolutionStrategy = ResolutionStrategy(
-                targetSize,
-                ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER
-            )
-            val resolutionSelector = ResolutionSelector.Builder()
-                .setResolutionStrategy(resolutionStrategy)
-                .build()
+            val resolutionStrategy =
+                ResolutionStrategy(
+                    targetSize,
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
+                )
+            val resolutionSelector =
+                ResolutionSelector.Builder()
+                    .setResolutionStrategy(resolutionStrategy)
+                    .build()
 
-            imageCapture = ImageCapture.Builder()
-                .setResolutionSelector(resolutionSelector)
-                .setCaptureMode(config.captureMode)
-                .build()
+            imageCapture =
+                ImageCapture.Builder()
+                    .setResolutionSelector(resolutionSelector)
+                    .setCaptureMode(config.captureMode)
+                    .build()
 
             // Initialize camera provider and bind
             initAndBind(lifecycleOwner, emulationMode)
@@ -245,7 +251,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
     fun acquireVideoCapture(
         lifecycleOwner: LifecycleOwner,
         videoRecordingManager: VideoRecordingManager,
-        emulationMode: Boolean
+        emulationMode: Boolean,
     ): VideoCapture<Recorder>? {
         val count = videoCaptureRefCount.incrementAndGet()
         Log.d(TAG, "acquireVideoCapture: refCount=$count")
@@ -299,7 +305,10 @@ class SharedCameraProvider private constructor(private val context: Context) {
     /**
      * Initialize ProcessCameraProvider and bind active use cases.
      */
-    private fun initAndBind(lifecycleOwner: LifecycleOwner, emulationMode: Boolean) {
+    private fun initAndBind(
+        lifecycleOwner: LifecycleOwner,
+        emulationMode: Boolean,
+    ) {
         currentLifecycleOwner = lifecycleOwner
         this.isEmulationMode = emulationMode
 
@@ -341,9 +350,10 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
         return try {
             val projectedContextClass = Class.forName("androidx.xr.projected.ProjectedContext")
-            val createMethod = projectedContextClass.methods.find {
-                it.name == "createProjectedDeviceContext"
-            }
+            val createMethod =
+                projectedContextClass.methods.find {
+                    it.name == "createProjectedDeviceContext"
+                }
 
             if (createMethod != null) {
                 val result = createMethod.invoke(null, context)
@@ -381,15 +391,17 @@ class SharedCameraProvider private constructor(private val context: Context) {
      * Called when use cases are added/removed or when provider is first obtained.
      */
     private fun rebindUseCases() {
-        val provider = cameraProvider ?: run {
-            Log.w(TAG, "rebindUseCases: no camera provider")
-            return
-        }
+        val provider =
+            cameraProvider ?: run {
+                Log.w(TAG, "rebindUseCases: no camera provider")
+                return
+            }
 
-        val lifecycleOwner = currentLifecycleOwner ?: run {
-            Log.w(TAG, "rebindUseCases: no lifecycle owner")
-            return
-        }
+        val lifecycleOwner =
+            currentLifecycleOwner ?: run {
+                Log.w(TAG, "rebindUseCases: no lifecycle owner")
+                return
+            }
 
         // Collect active use cases
         // MUTUAL EXCLUSION: When VideoCapture is active, exclude ImageAnalysis
@@ -430,7 +442,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
             provider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
-                *useCases.toTypedArray()
+                *useCases.toTypedArray(),
             )
 
             Log.d(TAG, "========================================")
@@ -440,7 +452,6 @@ class SharedCameraProvider private constructor(private val context: Context) {
             Log.d(TAG, ">>>   VideoCapture: ${videoCapture != null}")
             Log.d(TAG, ">>>   Source: $cameraSource")
             Log.d(TAG, "========================================")
-
         } catch (e: Exception) {
             Log.e(TAG, "Failed to bind camera use cases", e)
         }

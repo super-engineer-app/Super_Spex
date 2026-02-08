@@ -20,14 +20,14 @@ import androidx.compose.ui.unit.sp
  * Black = transparent on additive displays, so we use dark grays for surfaces.
  */
 private object GlassesColors {
-    val primary = Color(0xFFA8C7FA)      // Light blue - primary accent
-    val secondary = Color(0xFF4C88E9)    // Blue - secondary accent
-    val positive = Color(0xFF4CE995)     // Green - success
-    val negative = Color(0xFFF57084)     // Red - error
-    val surface = Color(0xFF2A2A3A)      // Dark purple-gray for visibility
-    val onSurface = Color(0xFFFFFFFF)    // White text for contrast
-    val outline = Color(0xFF606480)      // Border color
-    val background = Color(0xFF1A1A2A)   // Dark blue-gray (visible in emulator)
+    val primary = Color(0xFFA8C7FA) // Light blue - primary accent
+    val secondary = Color(0xFF4C88E9) // Blue - secondary accent
+    val positive = Color(0xFF4CE995) // Green - success
+    val negative = Color(0xFFF57084) // Red - error
+    val surface = Color(0xFF2A2A3A) // Dark purple-gray for visibility
+    val onSurface = Color(0xFFFFFFFF) // White text for contrast
+    val outline = Color(0xFF606480) // Border color
+    val background = Color(0xFF1A1A2A) // Dark blue-gray (visible in emulator)
 }
 
 /**
@@ -37,24 +37,25 @@ private object GlassesColors {
 @Composable
 fun GlassesScreen(
     uiState: GlassesUiState,
-    onClose: () -> Unit
+    onClose: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GlassesColors.background)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(GlassesColors.background)
+                .padding(24.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Listening indicator
             AnimatedVisibility(
                 visible = uiState.isListening,
                 enter = fadeIn(),
-                exit = fadeOut()
+                exit = fadeOut(),
             ) {
                 ListeningIndicator()
             }
@@ -62,7 +63,7 @@ fun GlassesScreen(
             // Main content card
             MainContentCard(
                 uiState = uiState,
-                onClose = onClose
+                onClose = onClose,
             )
 
             // Error display
@@ -78,17 +79,17 @@ private fun ListeningIndicator() {
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = GlassesColors.surface,
-        modifier = Modifier.padding(8.dp)
+        modifier = Modifier.padding(8.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             Text(
                 text = "● Listening...",
                 color = GlassesColors.primary,
-                fontSize = 16.sp
+                fontSize = 16.sp,
             )
         }
     }
@@ -97,24 +98,25 @@ private fun ListeningIndicator() {
 @Composable
 private fun MainContentCard(
     uiState: GlassesUiState,
-    onClose: () -> Unit
+    onClose: () -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = GlassesColors.surface,
-        modifier = Modifier
-            .fillMaxWidth(0.9f)
-            .padding(8.dp)
+        modifier =
+            Modifier
+                .fillMaxWidth(0.9f)
+                .padding(8.dp),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Title
             Text(
                 text = "AI Assistant",
                 color = GlassesColors.primary,
-                fontSize = 24.sp
+                fontSize = 24.sp,
             )
 
             HorizontalDivider(color = GlassesColors.outline, thickness = 1.dp)
@@ -124,7 +126,7 @@ private fun MainContentCard(
                 TranscriptSection(
                     label = "You:",
                     text = uiState.partialTranscript,
-                    isPartial = true
+                    isPartial = true,
                 )
             }
 
@@ -133,7 +135,7 @@ private fun MainContentCard(
                 TranscriptSection(
                     label = "You:",
                     text = uiState.transcript,
-                    isPartial = false
+                    isPartial = false,
                 )
             }
 
@@ -144,7 +146,7 @@ private fun MainContentCard(
                     label = "AI:",
                     text = uiState.aiResponse,
                     isPartial = false,
-                    isAi = true
+                    isAi = true,
                 )
             }
 
@@ -152,13 +154,14 @@ private fun MainContentCard(
             if (uiState.transcript.isEmpty() &&
                 uiState.partialTranscript.isEmpty() &&
                 uiState.aiResponse.isEmpty() &&
-                !uiState.isListening) {
+                !uiState.isListening
+            ) {
                 Text(
                     text = "Tap touchpad to start speaking",
                     color = GlassesColors.outline,
                     fontSize = 16.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
 
@@ -166,14 +169,15 @@ private fun MainContentCard(
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
             ) {
                 Button(
                     onClick = onClose,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = GlassesColors.secondary
-                    ),
-                    shape = RoundedCornerShape(8.dp)
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = GlassesColors.secondary,
+                        ),
+                    shape = RoundedCornerShape(8.dp),
                 ) {
                     Text("Close", color = Color.White)
                 }
@@ -187,20 +191,20 @@ private fun TranscriptSection(
     label: String,
     text: String,
     isPartial: Boolean,
-    isAi: Boolean = false
+    isAi: Boolean = false,
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = label,
             color = if (isAi) GlassesColors.secondary else GlassesColors.outline,
-            fontSize = 14.sp
+            fontSize = 14.sp,
         )
         Text(
             text = text,
             color = if (isPartial) GlassesColors.outline else GlassesColors.onSurface,
-            fontSize = 18.sp
+            fontSize = 18.sp,
         )
     }
 }
@@ -210,19 +214,20 @@ private fun ErrorCard(error: String) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = GlassesColors.surface,
-        modifier = Modifier
-            .fillMaxWidth(0.9f)
-            .padding(8.dp)
+        modifier =
+            Modifier
+                .fillMaxWidth(0.9f)
+                .padding(8.dp),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = "⚠ $error",
                 color = GlassesColors.negative,
-                fontSize = 14.sp
+                fontSize = 14.sp,
             )
         }
     }
