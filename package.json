@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
+    "agora-rtc-sdk-ng": "^4.24.2",
     "expo": "~54.0.32",
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",

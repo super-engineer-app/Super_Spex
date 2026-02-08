@@ -1,3 +1,13 @@
 the next big goal is to port the "demo" version of the spex app to 1. web 2. ios 
 we must make sure the demo version of the app runs everywhere - on android (the only place it runs right now), ios , and web.
 the demo version only features hardware apis like camera, microphone, etc. so it is not based of the android xr and can be cross platform.
+
+
+1. on the web expo build, the camera works in the capture feature, but:
+a. the audio capture does not work saying speech recognition is not available on this device. in that case it should try to use device speech recognition that is available, and if there is no such -> use network based speech recogniser.
+b. in the tagging mode, the glasses button takes the image from the camera correctly, whereas the phone button is basically the selector from galery, which is exactly what the gallery button is for. so phone button should be doing the same thing as the glasses in the demo mode.
+c. there is no streaming ui at all now, it should still be present and work exactly the same way it did in the old demo mode, just streaming the user`s camera and audio to other viewers.
+d (non urgent) the visuals is a bit off on the web version due to the dimensions of the laptops vs phones. this would be nice to fix, whule making sure the native version` visuals remain untouched.
+
+
+fix all the  errors from the cloudworkers

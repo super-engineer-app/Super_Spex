@@ -11,6 +11,7 @@
 
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import {
 	createTaggedImageSync,
 	getCachedLocation,
@@ -139,16 +140,6 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 		transcriptRef.current = taggingTranscript;
 	}, [taggingTranscript]);
 
-	// Effect to handle pending save (triggered by end keyword detection)
-	// This runs after state has been updated, avoiding the setTimeout race condition
-	useEffect(() => {
-		if (pendingSaveRef.current && isTaggingActive && taggingTranscript) {
-			pendingSaveRef.current = false;
-			// Use void to explicitly ignore the promise (fire-and-forget)
-			void saveTaggingSessionInternal();
-		}
-	}, [taggingTranscript, isTaggingActive]);
-
 	// Request location permission on mount
 	useEffect(() => {
 		requestLocationPermission().then(({ granted }) => {
@@ -170,12 +161,10 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 				"glasses",
 				getCachedLocation(),
 			);
-			setTaggingImages((prev) => [...prev, taggedImage]);
-			logger.debug(
-				TAG,
-				"Added glasses image, total:",
-				taggingImages.length + 1,
-			);
+			setTaggingImages((prev) => {
+				logger.debug(TAG, "Added glasses image, total:", prev.length + 1);
+				return [...prev, taggedImage];
+			});
 		}
 	}, [glassesLastImage]);
 
@@ -254,9 +243,8 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 
 	/**
 	 * Internal save function - used by both manual save and auto-save on end keyword.
-	 * Extracted to avoid circular dependency issues with useCallback.
 	 */
-	const saveTaggingSessionInternal = async () => {
+	const saveTaggingSessionInternal = useCallback(async () => {
 		// Get current state from refs to avoid stale closure issues
 		const currentTranscript = transcriptRef.current;
 		const currentActive = isTaggingActiveRef.current;
@@ -271,8 +259,6 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 			return;
 		}
 
-		// Note: We check taggingImages from state since we need the array reference
-		// This is safe because setTaggingImages is stable and the effect watches taggingTranscript
 		if (taggingImages.length === 0) {
 			setError("At least one image is required");
 			return;
@@ -314,14 +300,23 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 				releaseGlassesCamera();
 			}
 		}
-	};
+	}, [taggingImages, isGlassesCameraReady, releaseGlassesCamera]);
+
+	// Effect to handle pending save (triggered by end keyword detection)
+	// This runs after state has been updated, avoiding the setTimeout race condition
+	useEffect(() => {
+		if (pendingSaveRef.current && isTaggingActive && taggingTranscript) {
+			pendingSaveRef.current = false;
+			void saveTaggingSessionInternal();
+		}
+	}, [taggingTranscript, isTaggingActive, saveTaggingSessionInternal]);
 
 	/**
 	 * Save the current tagging session to the backend.
 	 */
 	const saveTaggingSession = useCallback(async () => {
 		await saveTaggingSessionInternal();
-	}, [taggingImages, isGlassesCameraReady, releaseGlassesCamera]);
+	}, [saveTaggingSessionInternal]);
 
 	/**
 	 * Capture image from glasses camera.
@@ -355,10 +350,29 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 
 	/**
 	 * Take photo with phone camera.
+	 * On web, ImagePicker.launchCameraAsync opens a file picker (same as gallery),
+	 * so we delegate to the getUserMedia camera path instead.
 	 */
 	const captureFromPhone = useCallback(async () => {
 		if (!isTaggingActive) {
 			setError("Start tagging first");
+			return;
+		}
+
+		// On web, use the same getUserMedia camera as the Glasses button
+		if (Platform.OS === "web") {
+			try {
+				if (!isGlassesCameraReady) {
+					logger.debug(TAG, "Initializing camera for web phone capture...");
+					await initGlassesCamera(false);
+				}
+				logger.debug(TAG, "Capturing from web camera (phone button)...");
+				await captureGlassesImage();
+			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "Failed to capture from camera";
+				setError(message);
+			}
 			return;
 		}
 
@@ -397,7 +411,12 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 				err instanceof Error ? err.message : "Failed to capture from phone";
 			setError(message);
 		}
-	}, [isTaggingActive]);
+	}, [
+		isTaggingActive,
+		isGlassesCameraReady,
+		initGlassesCamera,
+		captureGlassesImage,
+	]);
 
 	/**
 	 * Pick image from gallery.
@@ -501,7 +520,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 				}
 			}
 		},
-		[startTagging, addTranscript],
+		[startTagging, addTranscript, saveTaggingSessionInternal],
 	);
 
 	return {

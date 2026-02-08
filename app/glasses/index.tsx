@@ -215,6 +215,15 @@ export default function GlassesDashboard() {
 		}
 	}, [hasActiveOperation, router]);
 
+	// Share link — on web, copies to clipboard and shows feedback
+	const handleShareLink = useCallback(async () => {
+		await shareLink();
+		if (Platform.OS === "web") {
+			setCopiedUrl(true);
+			setTimeout(() => setCopiedUrl(false), 2000);
+		}
+	}, [shareLink]);
+
 	// Copy URL to clipboard
 	const handleCopyUrl = useCallback(async () => {
 		if (!viewerUrl) return;
@@ -361,323 +370,334 @@ export default function GlassesDashboard() {
 
 	return (
 		<SafeAreaView style={styles.container}>
-			<ScrollView
-				style={styles.scroll}
-				contentContainerStyle={styles.scrollContent}
+			<View
+				style={Platform.OS === "web" ? styles.webWrapper : styles.nativeWrapper}
 			>
-				{/* Header */}
-				<Text style={styles.header}>Glasses Dashboard</Text>
-				{emulationMode && <Text style={styles.badge}>EMULATION MODE</Text>}
+				<ScrollView
+					style={styles.scroll}
+					contentContainerStyle={styles.scrollContent}
+				>
+					{/* Header */}
+					<Text style={styles.header}>Glasses Dashboard</Text>
+					{emulationMode && <Text style={styles.badge}>EMULATION MODE</Text>}
 
-				{/* Audio Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Audio Capture</Text>
+					{/* Audio Section */}
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>Audio Capture</Text>
 
-					<Pressable
-						style={[
-							styles.captureButton,
-							isListening && styles.captureButtonActive,
-						]}
-						onPress={handleAudioPress}
-					>
-						<Text style={styles.captureButtonText}>
-							{isListening ? "STOP" : "RECORD"}
-						</Text>
-					</Pressable>
-
-					{displayTranscript ? (
-						<View style={styles.resultBox}>
-							<Text style={styles.resultLabel}>Transcript:</Text>
-							<Text style={styles.resultText}>{displayTranscript}</Text>
-						</View>
-					) : null}
-
-					{transcript ? (
-						<Pressable
-							style={[
-								styles.sendButton,
-								isSendingAudio && styles.sendButtonDisabled,
-							]}
-							onPress={handleSendAudio}
-							disabled={isSendingAudio}
-						>
-							<Text style={styles.sendButtonText}>
-								{isSendingAudio ? "Sending..." : "Send Audio to AI"}
-							</Text>
-						</Pressable>
-					) : null}
-
-					{speechError ? <Text style={styles.error}>{speechError}</Text> : null}
-				</View>
-
-				{/* Tagging Section */}
-				<TaggingMode
-					isActive={isTaggingActive}
-					transcript={taggingTranscript}
-					images={taggingImages}
-					isSaving={isTaggingSaving}
-					error={taggingError}
-					statusMessage={taggingStatus}
-					isGlassesCameraReady={taggingCameraReady}
-					isGlassesCapturing={taggingCameraCapturing}
-					onStartTagging={startTagging}
-					onCancelTagging={cancelTagging}
-					onSaveTagging={saveTaggingSession}
-					onCaptureFromGlasses={captureFromGlasses}
-					onCaptureFromPhone={captureFromPhone}
-					onPickFromGallery={pickFromGallery}
-					onRemoveImage={removeTaggingImage}
-					onEditTranscript={editTranscript}
-				/>
-
-				{/* Image Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Image Capture</Text>
-
-					<Pressable
-						style={[
-							styles.captureButton,
-							styles.captureButtonGreen,
-							cameraReady && styles.captureButtonActive,
-						]}
-						onPress={handleImagePress}
-						disabled={isCapturing}
-					>
-						<Text style={styles.captureButtonText}>
-							{isCapturing
-								? "CAPTURING..."
-								: cameraReady
-									? "CAPTURE"
-									: "ENABLE CAM"}
-						</Text>
-					</Pressable>
-
-					{cameraReady && (
-						<Pressable style={styles.releaseButton} onPress={releaseCamera}>
-							<Text style={styles.releaseButtonText}>Release Camera</Text>
-						</Pressable>
-					)}
-
-					{lastImage && lastImageSize ? (
-						<View style={styles.imageContainer}>
-							<Text style={styles.imageInfo}>
-								{lastImageSize.width}x{lastImageSize.height}
-							</Text>
-							<Image
-								source={{ uri: `data:image/jpeg;base64,${lastImage}` }}
-								style={styles.imagePreview}
-								resizeMode="contain"
-							/>
-							<Pressable
-								style={[
-									styles.sendButton,
-									styles.sendButtonGreen,
-									isSendingImage && styles.sendButtonDisabled,
-								]}
-								onPress={handleSendImage}
-								disabled={isSendingImage}
-							>
-								<Text style={styles.sendButtonText}>
-									{isSendingImage ? "Sending..." : "Send Image to AI"}
-								</Text>
-							</Pressable>
-						</View>
-					) : null}
-
-					{cameraError ? <Text style={styles.error}>{cameraError}</Text> : null}
-				</View>
-
-				{/* Video Recording Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Video Recording</Text>
-
-					{/* Camera Source Toggle */}
-					{canRecord && (
-						<View style={styles.cameraSourceToggle}>
-							<Text style={styles.cameraSourceToggleLabel}>Camera:</Text>
-							<View style={styles.segmentedControl}>
-								<Pressable
-									style={[
-										styles.segmentButton,
-										recordingState.cameraSource === "phone" &&
-											styles.segmentButtonActive,
-									]}
-									onPress={() => setRecordingCameraSource("phone")}
-								>
-									<Text
-										style={[
-											styles.segmentButtonText,
-											recordingState.cameraSource === "phone" &&
-												styles.segmentButtonTextActive,
-										]}
-									>
-										Phone
-									</Text>
-								</Pressable>
-								<Pressable
-									style={[
-										styles.segmentButton,
-										recordingState.cameraSource === "glasses" &&
-											styles.segmentButtonActive,
-									]}
-									onPress={() => setRecordingCameraSource("glasses")}
-								>
-									<Text
-										style={[
-											styles.segmentButtonText,
-											recordingState.cameraSource === "glasses" &&
-												styles.segmentButtonTextActive,
-										]}
-									>
-										Glasses
-									</Text>
-								</Pressable>
-							</View>
-						</View>
-					)}
-
-					{/* Record / Stop Button */}
-					{(canRecord || isRecording) && (
 						<Pressable
 							style={[
 								styles.captureButton,
-								isRecording
-									? styles.recordButtonRecording
-									: styles.recordButtonIdle,
+								isListening && styles.captureButtonActive,
 							]}
-							onPress={handleRecordPress}
+							onPress={handleAudioPress}
 						>
 							<Text style={styles.captureButtonText}>
-								{isRecording ? "STOP" : "RECORD"}
+								{isListening ? "STOP" : "RECORD"}
 							</Text>
 						</Pressable>
-					)}
 
-					{/* Recording in progress */}
-					{isRecording && (
-						<View style={styles.recordingIndicator}>
-							<View style={styles.recordingDot} />
-							<Text style={styles.recordingText}>
-								Recording... {formatDuration(recordingState.durationMs)}
+						{displayTranscript ? (
+							<View style={styles.resultBox}>
+								<Text style={styles.resultLabel}>Transcript:</Text>
+								<Text style={styles.resultText}>{displayTranscript}</Text>
+							</View>
+						) : null}
+
+						{transcript ? (
+							<Pressable
+								style={[
+									styles.sendButton,
+									isSendingAudio && styles.sendButtonDisabled,
+								]}
+								onPress={handleSendAudio}
+								disabled={isSendingAudio}
+							>
+								<Text style={styles.sendButtonText}>
+									{isSendingAudio ? "Sending..." : "Send Audio to AI"}
+								</Text>
+							</Pressable>
+						) : null}
+
+						{speechError ? (
+							<Text style={styles.error}>{speechError}</Text>
+						) : null}
+					</View>
+
+					{/* Tagging Section */}
+					<TaggingMode
+						isActive={isTaggingActive}
+						transcript={taggingTranscript}
+						images={taggingImages}
+						isSaving={isTaggingSaving}
+						error={taggingError}
+						statusMessage={taggingStatus}
+						isGlassesCameraReady={taggingCameraReady}
+						isGlassesCapturing={taggingCameraCapturing}
+						onStartTagging={startTagging}
+						onCancelTagging={cancelTagging}
+						onSaveTagging={saveTaggingSession}
+						onCaptureFromGlasses={captureFromGlasses}
+						onCaptureFromPhone={captureFromPhone}
+						onPickFromGallery={pickFromGallery}
+						onRemoveImage={removeTaggingImage}
+						onEditTranscript={editTranscript}
+					/>
+
+					{/* Image Section */}
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>Image Capture</Text>
+
+						<Pressable
+							style={[
+								styles.captureButton,
+								styles.captureButtonGreen,
+								cameraReady && styles.captureButtonActive,
+							]}
+							onPress={handleImagePress}
+							disabled={isCapturing}
+						>
+							<Text style={styles.captureButtonText}>
+								{isCapturing
+									? "CAPTURING..."
+									: cameraReady
+										? "CAPTURE"
+										: "ENABLE CAM"}
 							</Text>
-						</View>
-					)}
+						</Pressable>
 
-					{/* Tagging disabled notice */}
-					{isRecording && (
-						<Text style={styles.mutualExclusionNotice}>
-							Tagging paused during recording
-						</Text>
-					)}
+						{cameraReady && (
+							<Pressable style={styles.releaseButton} onPress={releaseCamera}>
+								<Text style={styles.releaseButtonText}>Release Camera</Text>
+							</Pressable>
+						)}
 
-					{/* After recording - actions */}
-					{recordingState.recordingState === "stopped" && (
-						<View style={styles.recordingActions}>
-							<Text style={styles.recordingCompleteText}>
-								Recording complete ({formatDuration(recordingState.durationMs)})
-							</Text>
-
-							<View style={styles.recordingButtonRow}>
-								<Pressable
-									style={styles.recordingActionButton}
-									onPress={saveVideo}
-								>
-									<Text style={styles.recordingActionButtonText}>
-										Save Video
-									</Text>
-								</Pressable>
+						{lastImage && lastImageSize ? (
+							<View style={styles.imageContainer}>
+								<Text style={styles.imageInfo}>
+									{lastImageSize.width}x{lastImageSize.height}
+								</Text>
+								<Image
+									source={{ uri: `data:image/jpeg;base64,${lastImage}` }}
+									style={styles.imagePreview}
+									resizeMode="contain"
+								/>
 								<Pressable
 									style={[
-										styles.recordingActionButton,
-										styles.recordingActionButtonTranscribe,
-										recordingState.transcriptionState === "loading" &&
-											styles.sendButtonDisabled,
+										styles.sendButton,
+										styles.sendButtonGreen,
+										isSendingImage && styles.sendButtonDisabled,
 									]}
-									onPress={() => transcribe()}
-									disabled={recordingState.transcriptionState === "loading"}
+									onPress={handleSendImage}
+									disabled={isSendingImage}
 								>
-									<Text style={styles.recordingActionButtonText}>
-										{recordingState.transcriptionState === "loading"
-											? "Transcribing..."
-											: "Transcribe"}
+									<Text style={styles.sendButtonText}>
+										{isSendingImage ? "Sending..." : "Send Image to AI"}
 									</Text>
 								</Pressable>
 							</View>
+						) : null}
 
-							<Pressable
-								style={styles.recordingDiscardButton}
-								onPress={handleDismissRecording}
-							>
-								<Text style={styles.recordingDiscardButtonText}>Discard</Text>
-							</Pressable>
-						</View>
-					)}
+						{cameraError ? (
+							<Text style={styles.error}>{cameraError}</Text>
+						) : null}
+					</View>
 
-					{/* Transcription Result */}
-					{recordingState.transcriptionState === "done" &&
-						recordingState.transcriptionResult && (
-							<>
-								<View style={styles.transcriptionResult}>
-									<Text style={styles.transcriptionTitle}>Transcription</Text>
-									<ScrollView
-										style={styles.transcriptionScroll}
-										nestedScrollEnabled
+					{/* Video Recording Section */}
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>Video Recording</Text>
+
+						{/* Camera Source Toggle */}
+						{canRecord && (
+							<View style={styles.cameraSourceToggle}>
+								<Text style={styles.cameraSourceToggleLabel}>Camera:</Text>
+								<View style={styles.segmentedControl}>
+									<Pressable
+										style={[
+											styles.segmentButton,
+											recordingState.cameraSource === "phone" &&
+												styles.segmentButtonActive,
+										]}
+										onPress={() => setRecordingCameraSource("phone")}
 									>
-										{recordingState.transcriptionResult.segments.map((seg) => (
-											<View
-												key={`${seg.speaker}-${seg.start}-${seg.end}`}
-												style={styles.transcriptionSegment}
-											>
-												<Text style={styles.transcriptionSpeaker}>
-													{seg.speaker}
-												</Text>
-												<Text style={styles.transcriptionText}>{seg.text}</Text>
-												<Text style={styles.transcriptionTime}>
-													{formatDuration(seg.start * 1000)} -{" "}
-													{formatDuration(seg.end * 1000)}
-												</Text>
-											</View>
-										))}
-									</ScrollView>
+										<Text
+											style={[
+												styles.segmentButtonText,
+												recordingState.cameraSource === "phone" &&
+													styles.segmentButtonTextActive,
+											]}
+										>
+											Phone
+										</Text>
+									</Pressable>
+									<Pressable
+										style={[
+											styles.segmentButton,
+											recordingState.cameraSource === "glasses" &&
+												styles.segmentButtonActive,
+										]}
+										onPress={() => setRecordingCameraSource("glasses")}
+									>
+										<Text
+											style={[
+												styles.segmentButtonText,
+												recordingState.cameraSource === "glasses" &&
+													styles.segmentButtonTextActive,
+											]}
+										>
+											Glasses
+										</Text>
+									</Pressable>
 								</View>
-								<Pressable
-									style={({ pressed }) => [
-										styles.recordingActionButton,
-										{ marginTop: 12, opacity: pressed ? 0.7 : 1 },
-									]}
-									onPress={downloadTranscript}
-									android_ripple={{ color: "rgba(255,255,255,0.2)" }}
-								>
-									<Text style={styles.recordingActionButtonText}>
-										Save Transcript
-									</Text>
-								</Pressable>
-							</>
+							</View>
 						)}
 
-					{/* Transcription Error */}
-					{recordingState.transcriptionState === "error" && (
-						<View style={styles.transcriptionError}>
-							<Text style={styles.error}>
-								{recordingState.transcriptionError ?? "Transcription failed"}
-							</Text>
+						{/* Record / Stop Button */}
+						{(canRecord || isRecording) && (
 							<Pressable
-								style={styles.recordingActionButton}
-								onPress={() => transcribe()}
+								style={[
+									styles.captureButton,
+									isRecording
+										? styles.recordButtonRecording
+										: styles.recordButtonIdle,
+								]}
+								onPress={handleRecordPress}
 							>
-								<Text style={styles.recordingActionButtonText}>Retry</Text>
+								<Text style={styles.captureButtonText}>
+									{isRecording ? "STOP" : "RECORD"}
+								</Text>
 							</Pressable>
-						</View>
-					)}
+						)}
 
-					{/* Stopping indicator */}
-					{recordingState.recordingState === "stopping" && (
-						<Text style={styles.loadingText}>Stopping recording...</Text>
-					)}
-				</View>
+						{/* Recording in progress */}
+						{isRecording && (
+							<View style={styles.recordingIndicator}>
+								<View style={styles.recordingDot} />
+								<Text style={styles.recordingText}>
+									Recording... {formatDuration(recordingState.durationMs)}
+								</Text>
+							</View>
+						)}
 
-				{/* Remote View Section — hidden on web (no glasses camera to stream) */}
-				{Platform.OS !== "web" && (
+						{/* Tagging disabled notice */}
+						{isRecording && (
+							<Text style={styles.mutualExclusionNotice}>
+								Tagging paused during recording
+							</Text>
+						)}
+
+						{/* After recording - actions */}
+						{recordingState.recordingState === "stopped" && (
+							<View style={styles.recordingActions}>
+								<Text style={styles.recordingCompleteText}>
+									Recording complete (
+									{formatDuration(recordingState.durationMs)})
+								</Text>
+
+								<View style={styles.recordingButtonRow}>
+									<Pressable
+										style={styles.recordingActionButton}
+										onPress={saveVideo}
+									>
+										<Text style={styles.recordingActionButtonText}>
+											Save Video
+										</Text>
+									</Pressable>
+									<Pressable
+										style={[
+											styles.recordingActionButton,
+											styles.recordingActionButtonTranscribe,
+											recordingState.transcriptionState === "loading" &&
+												styles.sendButtonDisabled,
+										]}
+										onPress={() => transcribe()}
+										disabled={recordingState.transcriptionState === "loading"}
+									>
+										<Text style={styles.recordingActionButtonText}>
+											{recordingState.transcriptionState === "loading"
+												? "Transcribing..."
+												: "Transcribe"}
+										</Text>
+									</Pressable>
+								</View>
+
+								<Pressable
+									style={styles.recordingDiscardButton}
+									onPress={handleDismissRecording}
+								>
+									<Text style={styles.recordingDiscardButtonText}>Discard</Text>
+								</Pressable>
+							</View>
+						)}
+
+						{/* Transcription Result */}
+						{recordingState.transcriptionState === "done" &&
+							recordingState.transcriptionResult && (
+								<>
+									<View style={styles.transcriptionResult}>
+										<Text style={styles.transcriptionTitle}>Transcription</Text>
+										<ScrollView
+											style={styles.transcriptionScroll}
+											nestedScrollEnabled
+										>
+											{recordingState.transcriptionResult.segments.map(
+												(seg) => (
+													<View
+														key={`${seg.speaker}-${seg.start}-${seg.end}`}
+														style={styles.transcriptionSegment}
+													>
+														<Text style={styles.transcriptionSpeaker}>
+															{seg.speaker}
+														</Text>
+														<Text style={styles.transcriptionText}>
+															{seg.text}
+														</Text>
+														<Text style={styles.transcriptionTime}>
+															{formatDuration(seg.start * 1000)} -{" "}
+															{formatDuration(seg.end * 1000)}
+														</Text>
+													</View>
+												),
+											)}
+										</ScrollView>
+									</View>
+									<Pressable
+										style={({ pressed }) => [
+											styles.recordingActionButton,
+											{ marginTop: 12, opacity: pressed ? 0.7 : 1 },
+										]}
+										onPress={downloadTranscript}
+										android_ripple={{ color: "rgba(255,255,255,0.2)" }}
+									>
+										<Text style={styles.recordingActionButtonText}>
+											Save Transcript
+										</Text>
+									</Pressable>
+								</>
+							)}
+
+						{/* Transcription Error */}
+						{recordingState.transcriptionState === "error" && (
+							<View style={styles.transcriptionError}>
+								<Text style={styles.error}>
+									{recordingState.transcriptionError ?? "Transcription failed"}
+								</Text>
+								<Pressable
+									style={styles.recordingActionButton}
+									onPress={() => transcribe()}
+								>
+									<Text style={styles.recordingActionButtonText}>Retry</Text>
+								</Pressable>
+							</View>
+						)}
+
+						{/* Stopping indicator */}
+						{recordingState.recordingState === "stopping" && (
+							<Text style={styles.loadingText}>Stopping recording...</Text>
+						)}
+					</View>
+
+					{/* Remote View Section */}
 					<View style={styles.section}>
 						<Text style={styles.sectionTitle}>Remote View</Text>
 
@@ -749,8 +769,13 @@ export default function GlassesDashboard() {
 								)}
 
 								<View style={styles.streamButtons}>
-									<Pressable style={styles.shareButton} onPress={shareLink}>
-										<Text style={styles.shareButtonText}>Share Link</Text>
+									<Pressable
+										style={styles.shareButton}
+										onPress={handleShareLink}
+									>
+										<Text style={styles.shareButtonText}>
+											{copiedUrl ? "Copied!" : "Share Link"}
+										</Text>
 									</Pressable>
 
 									<Pressable
@@ -773,99 +798,99 @@ export default function GlassesDashboard() {
 							<Text style={styles.error}>{streamError}</Text>
 						) : null}
 					</View>
-				)}
 
-				{/* Parking Timer Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Parking Timer</Text>
-
-					{timerExpired ? (
-						// Timer expired - show alarm state
-						<View style={styles.timerExpiredContainer}>
-							<Text style={styles.timerExpiredText}>TIME'S UP!</Text>
-							<Text style={styles.timerExpiredSubtext}>Move your car!</Text>
-							<Pressable style={styles.stopAlarmButton} onPress={stopAlarm}>
-								<Text style={styles.stopAlarmButtonText}>STOP ALARM</Text>
-							</Pressable>
-						</View>
-					) : timerActive ? (
-						// Timer running - show countdown
-						<View style={styles.timerActiveContainer}>
-							<Text
-								style={[
-									styles.timerCountdown,
-									timerWarning && styles.timerCountdownWarning,
-								]}
-							>
-								{formattedTime}
-							</Text>
-							{timerWarning && (
-								<Text style={styles.timerWarningText}>
-									5 minutes remaining!
-								</Text>
-							)}
-							<Text style={styles.timerDurationText}>
-								{timerDuration} min timer
-							</Text>
-							<Pressable
-								style={[
-									styles.cancelTimerButton,
-									timerLoading && styles.sendButtonDisabled,
-								]}
-								onPress={cancelTimer}
-								disabled={timerLoading}
-							>
-								<Text style={styles.cancelTimerButtonText}>
-									{timerLoading ? "Cancelling..." : "Cancel Timer"}
-								</Text>
-							</Pressable>
-						</View>
-					) : (
-						// No timer - show time picker
-						<TimePicker
-							initialHours={1}
-							initialMinutes={0}
-							maxHours={4}
-							onConfirm={startTimer}
-							disabled={timerLoading}
-						/>
-					)}
-
-					{timerError ? <Text style={styles.error}>{timerError}</Text> : null}
-				</View>
-
-				{/* AI Response Section */}
-				{aiResponse || aiError || isSendingAudio || isSendingImage ? (
+					{/* Parking Timer Section */}
 					<View style={styles.section}>
-						<Text style={styles.sectionTitle}>AI Response</Text>
-						{aiError ? (
-							<Text style={styles.error}>{aiError}</Text>
-						) : aiResponse ? (
-							<View style={styles.resultBox}>
-								<Text style={styles.resultText}>{aiResponse}</Text>
+						<Text style={styles.sectionTitle}>Parking Timer</Text>
+
+						{timerExpired ? (
+							// Timer expired - show alarm state
+							<View style={styles.timerExpiredContainer}>
+								<Text style={styles.timerExpiredText}>TIME'S UP!</Text>
+								<Text style={styles.timerExpiredSubtext}>Move your car!</Text>
+								<Pressable style={styles.stopAlarmButton} onPress={stopAlarm}>
+									<Text style={styles.stopAlarmButtonText}>STOP ALARM</Text>
+								</Pressable>
+							</View>
+						) : timerActive ? (
+							// Timer running - show countdown
+							<View style={styles.timerActiveContainer}>
+								<Text
+									style={[
+										styles.timerCountdown,
+										timerWarning && styles.timerCountdownWarning,
+									]}
+								>
+									{formattedTime}
+								</Text>
+								{timerWarning && (
+									<Text style={styles.timerWarningText}>
+										5 minutes remaining!
+									</Text>
+								)}
+								<Text style={styles.timerDurationText}>
+									{timerDuration} min timer
+								</Text>
+								<Pressable
+									style={[
+										styles.cancelTimerButton,
+										timerLoading && styles.sendButtonDisabled,
+									]}
+									onPress={cancelTimer}
+									disabled={timerLoading}
+								>
+									<Text style={styles.cancelTimerButtonText}>
+										{timerLoading ? "Cancelling..." : "Cancel Timer"}
+									</Text>
+								</Pressable>
 							</View>
 						) : (
-							<Text style={styles.loadingText}>Waiting for response...</Text>
+							// No timer - show time picker
+							<TimePicker
+								initialHours={1}
+								initialMinutes={0}
+								maxHours={4}
+								onConfirm={startTimer}
+								disabled={timerLoading}
+							/>
 						)}
-						{aiResponse ? (
-							<Pressable
-								style={styles.clearButton}
-								onPress={() => {
-									setAiResponse("");
-									setAiError(null);
-								}}
-							>
-								<Text style={styles.clearButtonText}>Clear Response</Text>
-							</Pressable>
-						) : null}
-					</View>
-				) : null}
 
-				{/* Disconnect */}
-				<Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
-					<Text style={styles.disconnectText}>Disconnect</Text>
-				</Pressable>
-			</ScrollView>
+						{timerError ? <Text style={styles.error}>{timerError}</Text> : null}
+					</View>
+
+					{/* AI Response Section */}
+					{aiResponse || aiError || isSendingAudio || isSendingImage ? (
+						<View style={styles.section}>
+							<Text style={styles.sectionTitle}>AI Response</Text>
+							{aiError ? (
+								<Text style={styles.error}>{aiError}</Text>
+							) : aiResponse ? (
+								<View style={styles.resultBox}>
+									<Text style={styles.resultText}>{aiResponse}</Text>
+								</View>
+							) : (
+								<Text style={styles.loadingText}>Waiting for response...</Text>
+							)}
+							{aiResponse ? (
+								<Pressable
+									style={styles.clearButton}
+									onPress={() => {
+										setAiResponse("");
+										setAiError(null);
+									}}
+								>
+									<Text style={styles.clearButtonText}>Clear Response</Text>
+								</Pressable>
+							) : null}
+						</View>
+					) : null}
+
+					{/* Disconnect */}
+					<Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
+						<Text style={styles.disconnectText}>Disconnect</Text>
+					</Pressable>
+				</ScrollView>
+			</View>
 		</SafeAreaView>
 	);
 }
@@ -880,6 +905,15 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 20,
+	},
+	webWrapper: {
+		flex: 1,
+		maxWidth: 480,
+		width: "100%",
+		alignSelf: "center",
+	},
+	nativeWrapper: {
+		flex: 1,
 	},
 	scroll: {
 		flex: 1,
