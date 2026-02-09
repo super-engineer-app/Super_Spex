@@ -25,7 +25,6 @@ import type {
 	StreamStartedEvent,
 	StreamStoppedEvent,
 	TranscriptionResponse,
-	UiRefreshNeededEvent,
 	ViewerUpdateEvent,
 } from "../types";
 
@@ -249,10 +248,8 @@ export interface IXRGlassesService {
 	onParkingTimerCancelled(
 		callback: (event: ParkingTimerCancelledEvent) => void,
 	): Subscription;
-
-	// UI events
-	onUiRefreshNeeded(
-		callback: (event: UiRefreshNeededEvent) => void,
+	onProjectedPermissionsCompleted(
+		callback: (event: { granted: boolean; timestamp: number }) => void,
 	): Subscription;
 }
 
@@ -593,12 +590,11 @@ class AndroidXRGlassesService implements IXRGlassesService {
 		return { remove: () => subscription.remove() };
 	}
 
-	// UI event subscriptions
-	onUiRefreshNeeded(
-		callback: (event: UiRefreshNeededEvent) => void,
+	onProjectedPermissionsCompleted(
+		callback: (event: { granted: boolean; timestamp: number }) => void,
 	): Subscription {
 		const subscription = XRGlassesNative.addListener(
-			"onUiRefreshNeeded",
+			"onProjectedPermissionsCompleted",
 			callback,
 		);
 		return { remove: () => subscription.remove() };
@@ -881,8 +877,8 @@ class IOSXRGlassesService implements IXRGlassesService {
 		return { remove: () => {} };
 	}
 
-	onUiRefreshNeeded(
-		_callback: (event: UiRefreshNeededEvent) => void,
+	onProjectedPermissionsCompleted(
+		_callback: (event: { granted: boolean; timestamp: number }) => void,
 	): Subscription {
 		return { remove: () => {} };
 	}
@@ -1344,10 +1340,9 @@ class WebXRGlassesService implements IXRGlassesService {
 		return { remove: () => {} };
 	}
 
-	onUiRefreshNeeded(
-		_callback: (event: UiRefreshNeededEvent) => void,
+	onProjectedPermissionsCompleted(
+		_callback: (event: { granted: boolean; timestamp: number }) => void,
 	): Subscription {
-		// Web doesn't have XR permission flows that would cause UI corruption
 		return { remove: () => {} };
 	}
 }

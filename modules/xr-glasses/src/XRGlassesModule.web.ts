@@ -31,7 +31,6 @@ import type {
 	StreamStartedEvent,
 	StreamStoppedEvent,
 	TranscriptionResponse,
-	UiRefreshNeededEvent,
 	ViewerUpdateEvent,
 } from "../types";
 
@@ -1291,12 +1290,8 @@ class WebXRGlassesService {
 		};
 	}
 
-	// ============================================================
-	// UI Events
-	// ============================================================
-
-	onUiRefreshNeeded(
-		_callback: (event: UiRefreshNeededEvent) => void,
+	onProjectedPermissionsCompleted(
+		_callback: (event: { granted: boolean; timestamp: number }) => void,
 	): Subscription {
 		return { remove: () => {} };
 	}
