@@ -189,6 +189,7 @@ export default function GlassesDashboard() {
 	const [isSendingAudio, setIsSendingAudio] = useState(false);
 	const [isSendingImage, setIsSendingImage] = useState(false);
 	const [aiResponse, setAiResponse] = useState("");
+	const [aiStatus, setAiStatus] = useState<string | null>(null);
 	const [aiError, setAiError] = useState<string | null>(null);
 	const [copiedUrl, setCopiedUrl] = useState(false);
 
@@ -294,14 +295,20 @@ export default function GlassesDashboard() {
 		if (!transcript) return;
 		setIsSendingAudio(true);
 		setAiResponse("");
+		setAiStatus(null);
 		setAiError(null);
 		try {
 			logger.debug(TAG, "Sending transcript to AI:", transcript);
 			await sendText(transcript, {
 				onChunk: (chunk) => {
+					setAiStatus(null);
 					setAiResponse((prev) => prev + chunk);
 				},
+				onStatus: (status) => {
+					setAiStatus(status);
+				},
 				onComplete: (fullResponse) => {
+					setAiStatus(null);
 					logger.debug(
 						TAG,
 						"AI response complete:",
@@ -310,6 +317,7 @@ export default function GlassesDashboard() {
 					);
 				},
 				onError: (error) => {
+					setAiStatus(null);
 					setAiError(error.message);
 				},
 			});
@@ -326,14 +334,20 @@ export default function GlassesDashboard() {
 		if (!lastImage) return;
 		setIsSendingImage(true);
 		setAiResponse("");
+		setAiStatus(null);
 		setAiError(null);
 		try {
 			logger.debug(TAG, "Sending image to AI:", lastImageSize);
 			await sendImage(lastImage, {
 				onChunk: (chunk) => {
+					setAiStatus(null);
 					setAiResponse((prev) => prev + chunk);
 				},
+				onStatus: (status) => {
+					setAiStatus(status);
+				},
 				onComplete: (fullResponse) => {
+					setAiStatus(null);
 					logger.debug(
 						TAG,
 						"AI response complete:",
@@ -342,6 +356,7 @@ export default function GlassesDashboard() {
 					);
 				},
 				onError: (error) => {
+					setAiStatus(null);
 					setAiError(error.message);
 				},
 			});
@@ -516,6 +531,47 @@ export default function GlassesDashboard() {
 							<Text style={styles.error}>{cameraError}</Text>
 						) : null}
 					</View>
+
+					{/* AI Response Section */}
+					{aiResponse ||
+					aiError ||
+					aiStatus ||
+					isSendingAudio ||
+					isSendingImage ? (
+						<View style={styles.section}>
+							<Text style={styles.sectionTitle}>AI Response</Text>
+							{aiError ? (
+								<Text style={styles.error}>{aiError}</Text>
+							) : (
+								<>
+									{aiStatus && !aiResponse ? (
+										<Text style={styles.statusText}>{aiStatus}</Text>
+									) : null}
+									{aiResponse ? (
+										<View style={styles.resultBox}>
+											<Text style={styles.resultText}>{aiResponse}</Text>
+										</View>
+									) : !aiStatus ? (
+										<Text style={styles.loadingText}>
+											Waiting for response...
+										</Text>
+									) : null}
+								</>
+							)}
+							{aiResponse ? (
+								<Pressable
+									style={styles.clearButton}
+									onPress={() => {
+										setAiResponse("");
+										setAiStatus(null);
+										setAiError(null);
+									}}
+								>
+									<Text style={styles.clearButtonText}>Clear Response</Text>
+								</Pressable>
+							) : null}
+						</View>
+					) : null}
 
 					{/* Video Recording Section */}
 					<View style={styles.section}>
@@ -872,33 +928,6 @@ export default function GlassesDashboard() {
 						{timerError ? <Text style={styles.error}>{timerError}</Text> : null}
 					</View>
 
-					{/* AI Response Section */}
-					{aiResponse || aiError || isSendingAudio || isSendingImage ? (
-						<View style={styles.section}>
-							<Text style={styles.sectionTitle}>AI Response</Text>
-							{aiError ? (
-								<Text style={styles.error}>{aiError}</Text>
-							) : aiResponse ? (
-								<View style={styles.resultBox}>
-									<Text style={styles.resultText}>{aiResponse}</Text>
-								</View>
-							) : (
-								<Text style={styles.loadingText}>Waiting for response...</Text>
-							)}
-							{aiResponse ? (
-								<Pressable
-									style={styles.clearButton}
-									onPress={() => {
-										setAiResponse("");
-										setAiError(null);
-									}}
-								>
-									<Text style={styles.clearButtonText}>Clear Response</Text>
-								</Pressable>
-							) : null}
-						</View>
-					) : null}
-
 					{/* Disconnect */}
 					<Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
 						<Text style={styles.disconnectText}>Disconnect</Text>
@@ -1042,6 +1071,11 @@ const styles = StyleSheet.create({
 	},
 	loadingText: {
 		color: "#888",
+		fontSize: 14,
+		fontStyle: "italic",
+	},
+	statusText: {
+		color: "#4af",
 		fontSize: 14,
 		fontStyle: "italic",
 	},
