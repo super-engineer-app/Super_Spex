@@ -1,27 +1,3 @@
-the next big goal is to port the "demo" version of the spex app to 1. web 2. ios
-we must make sure the demo version of the app runs everywhere - on android (the only place it runs right now), ios , and web.
-the demo version only features hardware apis like camera, microphone, etc. so it is not based of the android xr and can be cross platform.
+1. improve the web viewer
 
---- WEB PORT STATUS ---
-
-[DONE] 1a. Speech recognition on web - Web Speech API with network-based fallback for Firefox
-[DONE] 1b. Tagging phone button on web - delegates to getUserMedia (same as glasses capture)
-[DONE] 1c. Streaming UI on web - Agora Web SDK, dynamic import, full streaming with viewer count
-[DONE] 1d. Responsive web layout - useWindowDimensions, scales to 90% width (max 720px), native untouched
-
---- REMAINING ---
-
-2. iOS port - not started yet (IOSXRGlassesService is stubbed in XRGlassesModule.ts)
-
-fix all the errors from the cloudworkers
-
-
-
-  Manual Steps Still Needed
-
-  1. Set up Neon PostgreSQL — Sign up at neon.tech, create project, copy connection string
-  2. Deploy backend to Render — Connect GitHub repo, set env vars from .env + Neon connection string
-  3. Add Worker secret — cd cloudflare-workers && npx wrangler secret put DISCORD_WEBHOOK_URL
-  4. Redeploy Worker — cd cloudflare-workers && npm run deploy
-  5. Create Cloudflare Pages project — npx wrangler pages project create spex-demo
-  6. Run first deploy — ./scripts/deploy-web.sh
+2. answer streaming (currently the app just collects all in 1 blob, rather that gradually streaming.)

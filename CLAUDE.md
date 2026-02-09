@@ -35,6 +35,7 @@ The XR SDK corrupts React Native rendering if they share a process. This is non-
 
 - **TypeScript/JS**: Biome runs automatically via PostToolUse hook on every file edit/write. No manual step needed — safe fixes are auto-applied, remaining issues are fed back. Config: `biome.json`.
 - **Kotlin**: After modifying Kotlin files, run `cd android && ./gradlew ktlintCheck detekt` to verify. Fix any issues before considering the change done. Config: `.editorconfig` (ktlint) and `android/config/detekt/detekt.yml` (detekt). Use `./gradlew ktlintFormat` to auto-fix formatting.
+- **Web Viewer** (`~/coding/spex-web-viewer/`): No biome/eslint — only `npm run typecheck` (`tsc --noEmit`) for verification. After making changes, run `cd ~/coding/spex-web-viewer && npm run typecheck` to confirm zero type errors before considering the change done.
 
 ## Research Before Implementation
 
@@ -56,6 +57,13 @@ cd android && ./gradlew clean && ./gradlew assembleRelease
 ```
 
 **Cloudflare Worker:** Source at `cloudflare-workers/`. Deploy with `cd cloudflare-workers && npm run deploy`.
+
+**Web Viewer** (`~/coding/spex-web-viewer/`): Separate repo, deployed to Cloudflare Pages. Quick reference:
+```bash
+cd ~/coding/spex-web-viewer && npm run build && npx wrangler pages deploy dist --project-name=spex-viewer --commit-dirty=true
+```
+
+**Backend:** Hosted on Render at `https://REDACTED_BACKEND_URL`. This serves both the AI generate endpoint and the tagging API. Env vars (`EXPO_PUBLIC_BACKEND_URL`, `EXPO_PUBLIC_TAGGING_API_URL`) in `.env` must point here for emulator/device builds. See `docs/maintenance/web-deployment.md` for the full services table.
 
 ## Documentation
 
@@ -81,3 +89,4 @@ Read these when relevant — don't load them all upfront:
 | Backend source & API | `~/coding/backend-with-testing-frontend/SuperSpexWins` |
 | Cloudflare Worker source | `cloudflare-workers/src/index.ts` |
 | Error reporting setup | `src/services/errorReporting.ts` (native), `errorReporting.web.ts` (web) |
+| Web viewer source & deploy | `~/coding/spex-web-viewer/` (see its `CLAUDE.md`) |
