@@ -105,6 +105,7 @@
                 <action android:name="expo.modules.xrglasses.STREAM_STOPPED" />
                 <action android:name="expo.modules.xrglasses.STREAM_ERROR" />
                 <action android:name="expo.modules.xrglasses.VIEWER_UPDATE" />
+                <action android:name="expo.modules.xrglasses.PROJECTED_PERMISSIONS_COMPLETED" />
             </intent-filter>
         </receiver>
     </application>

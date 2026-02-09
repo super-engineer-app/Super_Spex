@@ -64,8 +64,8 @@ class XRGlassesModule : Module() {
                 // Timer expired (alarm!)
                 "onParkingTimerExpired",
                 "onParkingTimerCancelled",
-                // UI events - hint to refresh UI (after XR permission flow)
-                "onUiRefreshNeeded",
+                // Projected permissions completed (glasses mic/camera access granted/denied)
+                "onProjectedPermissionsCompleted",
                 // Native Kotlin/Android error events (for error reporting)
                 "onNativeError",
             )

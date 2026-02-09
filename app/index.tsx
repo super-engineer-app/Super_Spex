@@ -1,5 +1,8 @@
 import { useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
+	Linking,
+	PermissionsAndroid,
 	Platform,
 	Pressable,
 	StyleSheet,
@@ -9,17 +12,52 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useXRGlasses } from "../src/hooks/useXRGlasses";
+import { prefetchLocation } from "../src/services/taggingApi";
 import logger from "../src/utils/logger";
 
 const TAG = "HomeScreen";
 
-/**
- * Home Screen - Simplified
- *
- * Two options:
- * - Connect to real XR Glasses
- * - Demo Mode (for testing without real glasses)
- */
+/** Permissions we need before the app is usable */
+type Permission =
+	(typeof PermissionsAndroid.PERMISSIONS)[keyof typeof PermissionsAndroid.PERMISSIONS];
+
+function getRequiredPermissions(): Permission[] {
+	if (Platform.OS !== "android") return [];
+	const perms: Permission[] = [
+		PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+		PermissionsAndroid.PERMISSIONS.CAMERA,
+		PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+	];
+	if (Platform.Version >= 31) {
+		perms.push(
+			PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+			PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+		);
+	}
+	return perms;
+}
+
+/** Check if all required permissions are already granted */
+async function checkAllGranted(): Promise<boolean> {
+	if (Platform.OS !== "android") return true;
+	const perms = getRequiredPermissions();
+	for (const p of perms) {
+		if (!(await PermissionsAndroid.check(p))) return false;
+	}
+	return true;
+}
+
+/** Request all permissions, returns true if all granted */
+async function requestAll(): Promise<boolean> {
+	if (Platform.OS !== "android") return true;
+	const perms = getRequiredPermissions();
+	const results = await PermissionsAndroid.requestMultiple(perms);
+	logger.debug(TAG, "Permission results:", results);
+	return Object.values(results).every(
+		(s) => s === PermissionsAndroid.RESULTS.GRANTED,
+	);
+}
+
 export default function HomeScreen() {
 	const router = useRouter();
 	const { width: screenWidth } = useWindowDimensions();
@@ -27,12 +65,46 @@ export default function HomeScreen() {
 	const {
 		connected,
 		loading,
-		emulationMode: demoMode, // Renamed for clarity (vs Android Emulator)
+		emulationMode: demoMode,
 		connect,
 		setEmulationMode: setDemoMode,
 	} = useXRGlasses();
 
-	// Connect to real glasses
+	const [permissionsGranted, setPermissionsGranted] = useState(
+		Platform.OS !== "android",
+	);
+	const [permissionsChecked, setPermissionsChecked] = useState(false);
+
+	// Check permissions on mount
+	useEffect(() => {
+		checkAllGranted().then((granted) => {
+			setPermissionsGranted(granted);
+			setPermissionsChecked(true);
+			if (granted) {
+				prefetchLocation().catch((err) =>
+					logger.error(TAG, "GPS prefetch failed:", err),
+				);
+			}
+		});
+	}, []);
+
+	const handleGrantPermissions = useCallback(async () => {
+		const granted = await requestAll();
+		setPermissionsGranted(granted);
+		if (granted) {
+			prefetchLocation().catch((err) =>
+				logger.error(TAG, "GPS prefetch failed:", err),
+			);
+		} else {
+			// Some were denied — user may need to open settings
+			logger.debug(TAG, "Some permissions denied, may need settings");
+		}
+	}, []);
+
+	const handleOpenSettings = useCallback(() => {
+		Linking.openSettings();
+	}, []);
+
 	const handleConnectGlasses = async () => {
 		try {
 			await setDemoMode(false);
@@ -43,7 +115,6 @@ export default function HomeScreen() {
 		}
 	};
 
-	// Connect in demo mode (no real glasses)
 	const handleConnectDemoMode = async () => {
 		try {
 			await setDemoMode(true);
@@ -54,10 +125,47 @@ export default function HomeScreen() {
 		}
 	};
 
-	// Already connected - go to dashboard
 	const handleGoToDashboard = () => {
 		router.push("/glasses");
 	};
+
+	// Show permissions screen if not yet granted (Android only)
+	if (!permissionsGranted && permissionsChecked) {
+		return (
+			<SafeAreaView style={styles.container}>
+				<View
+					style={[
+						styles.content,
+						isWeb && {
+							maxWidth: Math.min(screenWidth * 0.9, 720),
+							alignSelf: "center" as const,
+							width: "100%" as const,
+						},
+					]}
+				>
+					<Text style={styles.title}>Permissions Needed</Text>
+					<Text style={styles.subtitle}>
+						This app needs camera, microphone, location, and Bluetooth access to
+						work with XR glasses.
+					</Text>
+
+					<Pressable
+						style={styles.primaryButton}
+						onPress={handleGrantPermissions}
+					>
+						<Text style={styles.buttonText}>Grant Permissions</Text>
+					</Pressable>
+
+					<Pressable
+						style={styles.secondaryButton}
+						onPress={handleOpenSettings}
+					>
+						<Text style={styles.buttonText}>Open Settings</Text>
+					</Pressable>
+				</View>
+			</SafeAreaView>
+		);
+	}
 
 	return (
 		<SafeAreaView style={styles.container}>
@@ -135,6 +243,7 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		color: "#888",
 		marginBottom: 40,
+		textAlign: "center",
 	},
 	connectedBadge: {
 		backgroundColor: "#1a3a1a",

@@ -174,9 +174,3 @@ export type ParkingTimerExpiredEvent = {
 export type ParkingTimerCancelledEvent = {
 	timestamp: number;
 };
-
-/** Event emitted when UI may need refresh (after XR permission flow on cold start) */
-export type UiRefreshNeededEvent = {
-	reason: string;
-	timestamp: number;
-};

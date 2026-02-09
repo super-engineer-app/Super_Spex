@@ -47,6 +47,8 @@ class GlassesActivity : ComponentActivity() {
 
         // Broadcast actions from phone (incoming)
         const val ACTION_CLOSE_GLASSES = "expo.modules.xrglasses.CLOSE_GLASSES"
+        const val ACTION_PROJECTED_PERMISSIONS_COMPLETED = "expo.modules.xrglasses.PROJECTED_PERMISSIONS_COMPLETED"
+        const val EXTRA_PERMISSIONS_GRANTED = "permissions_granted"
         const val ACTION_START_LISTENING = "expo.modules.xrglasses.CMD_START_LISTENING"
         const val ACTION_STOP_LISTENING = "expo.modules.xrglasses.CMD_STOP_LISTENING"
 
@@ -158,6 +160,7 @@ class GlassesActivity : ComponentActivity() {
 
         if (isPermissionGranted) {
             Log.d(TAG, "RECORD_AUDIO permission granted, initializing speech")
+            notifyProjectedPermissionsCompleted(true)
             initSpeechRecognizer()
             handleIntent(intent)
         } else {
@@ -257,6 +260,9 @@ class GlassesActivity : ComponentActivity() {
                     Log.w(TAG, "Projected permissions denied")
                     updateUiState { copy(error = "Mic permission denied") }
                 }
+
+                // Notify the phone-side UI that the projected permission overlay has dismissed
+                notifyProjectedPermissionsCompleted(granted)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling permission results: ${e.message}")
@@ -543,6 +549,16 @@ class GlassesActivity : ComponentActivity() {
                 setPackage(packageName)
             }
         sendBroadcast(intent)
+    }
+
+    private fun notifyProjectedPermissionsCompleted(granted: Boolean) {
+        val intent =
+            Intent(ACTION_PROJECTED_PERMISSIONS_COMPLETED).apply {
+                putExtra(EXTRA_PERMISSIONS_GRANTED, granted)
+                setPackage(packageName)
+            }
+        sendBroadcast(intent)
+        Log.d(TAG, "Sent projected permissions completed broadcast (granted=$granted)")
     }
 
     override fun onNewIntent(intent: Intent) {

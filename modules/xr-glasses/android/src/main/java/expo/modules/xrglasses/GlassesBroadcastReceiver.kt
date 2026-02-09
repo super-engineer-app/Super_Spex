@@ -131,6 +131,18 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
                 )
             }
 
+            GlassesActivity.ACTION_PROJECTED_PERMISSIONS_COMPLETED -> {
+                val granted = intent.getBooleanExtra(GlassesActivity.EXTRA_PERMISSIONS_GRANTED, false)
+                Log.d(TAG, "Projected permissions completed: granted=$granted")
+                callback(
+                    "onProjectedPermissionsCompleted",
+                    mapOf(
+                        "granted" to granted,
+                        "timestamp" to System.currentTimeMillis(),
+                    ),
+                )
+            }
+
             else -> {
                 Log.w(TAG, "Unknown action: ${intent.action}")
             }

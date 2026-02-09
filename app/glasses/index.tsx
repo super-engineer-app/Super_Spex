@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+	ActivityIndicator,
 	Image,
 	Platform,
 	Pressable,
@@ -12,6 +13,7 @@ import {
 	View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getXRGlassesService } from "../../modules/xr-glasses";
 import { QualitySelector } from "../../src/components/QualitySelector";
 import { TaggingMode } from "../../src/components/TaggingMode";
 import { TimePicker } from "../../src/components/TimePicker";
@@ -27,21 +29,63 @@ import logger from "../../src/utils/logger";
 
 const TAG = "GlassesDashboard";
 
-/**
- * Simplified Glasses Dashboard
- *
- * Core features only:
- * - Capture Audio (with transcript display)
- * - Capture Image (with preview)
- * - Send to AI buttons
- * - Disconnect
- */
-export default function GlassesDashboard() {
-	const router = useRouter();
-	const { connected, emulationMode, disconnect, refreshKey } = useXRGlasses();
-	const { width: screenWidth } = useWindowDimensions();
-	const initialRefreshKey = useRef(refreshKey);
+// Fallback timeout in case the projected permission event never fires
+// (e.g. permissions already granted from a previous session)
+const FALLBACK_TIMEOUT_MS = 2000;
 
+/**
+ * Wrapper that shows a loading screen while XR projected permissions complete,
+ * then mounts the real dashboard with fresh native views.
+ *
+ * On first cold-boot connection, the XR SDK overlays RequestPermissionsOnHostActivity
+ * on the phone which corrupts RN's text rendering. By deferring the real dashboard
+ * until after that overlay dismisses (signaled by onProjectedPermissionsCompleted),
+ * all native views are created fresh and uncorrupted.
+ */
+export default function GlassesDashboardWrapper() {
+	const [ready, setReady] = useState(Platform.OS === "web");
+
+	useEffect(() => {
+		if (ready) return;
+
+		const service = getXRGlassesService();
+
+		// Listen for projected permissions to complete (event-driven, no guessing)
+		const sub = service.onProjectedPermissionsCompleted(() => {
+			logger.debug(TAG, "Projected permissions completed — mounting dashboard");
+			setReady(true);
+		});
+
+		// Fallback: if the event never fires (permissions already granted), mount anyway
+		const timer = setTimeout(() => {
+			logger.debug(TAG, "Fallback timeout — mounting dashboard");
+			setReady(true);
+		}, FALLBACK_TIMEOUT_MS);
+
+		return () => {
+			sub.remove();
+			clearTimeout(timer);
+		};
+	}, [ready]);
+
+	if (!ready) {
+		return (
+			<SafeAreaView style={styles.container}>
+				<View style={styles.center}>
+					<ActivityIndicator size="large" color="#07f" />
+					<Text style={styles.initText}>Initializing glasses...</Text>
+				</View>
+			</SafeAreaView>
+		);
+	}
+
+	return <GlassesDashboard />;
+}
+
+function GlassesDashboard() {
+	const router = useRouter();
+	const { connected, emulationMode, disconnect } = useXRGlasses();
+	const { width: screenWidth } = useWindowDimensions();
 	// Responsive web layout: scale content width with screen, cap at 720px
 	const isWeb = Platform.OS === "web";
 	const webContentStyle = isWeb
@@ -192,42 +236,6 @@ export default function GlassesDashboard() {
 	const [aiStatus, setAiStatus] = useState<string | null>(null);
 	const [aiError, setAiError] = useState<string | null>(null);
 	const [copiedUrl, setCopiedUrl] = useState(false);
-
-	// Track whether a UI refresh is pending but deferred due to active operations
-	const pendingRefreshRef = useRef(false);
-
-	// Check if any operation is active that would be disrupted by a page refresh
-	const hasActiveOperation =
-		isStreaming ||
-		isRecording ||
-		recordingState.recordingState === "stopped" ||
-		recordingState.transcriptionState === "loading" ||
-		isTaggingActive ||
-		isTaggingSaving;
-
-	// When refreshKey changes (after XR SDK corrupts RN UI), do a navigation refresh.
-	// Deferred if any operation (streaming, recording, tagging) is active.
-	useEffect(() => {
-		if (refreshKey > initialRefreshKey.current) {
-			if (hasActiveOperation) {
-				logger.debug(TAG, "UI refresh deferred - operation in progress");
-				pendingRefreshRef.current = true;
-			} else {
-				logger.debug(TAG, "UI refresh triggered, doing navigation refresh");
-				pendingRefreshRef.current = false;
-				router.replace("/glasses");
-			}
-		}
-	}, [refreshKey, router, hasActiveOperation]);
-
-	// Apply deferred refresh when all operations complete
-	useEffect(() => {
-		if (pendingRefreshRef.current && !hasActiveOperation) {
-			logger.debug(TAG, "Applying deferred UI refresh");
-			pendingRefreshRef.current = false;
-			router.replace("/glasses");
-		}
-	}, [hasActiveOperation, router]);
 
 	// Share link — on web, copies to clipboard and shows feedback
 	const handleShareLink = useCallback(async () => {
@@ -948,6 +956,11 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 20,
+	},
+	initText: {
+		color: "#888",
+		fontSize: 16,
+		marginTop: 16,
 	},
 	nativeWrapper: {
 		flex: 1,

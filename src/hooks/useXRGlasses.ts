@@ -25,8 +25,6 @@ export interface GlassesState {
 	capabilities: DeviceCapabilities | null;
 	/** Whether emulation mode is enabled */
 	emulationMode: boolean;
-	/** Key that changes when UI needs full remount (after XR SDK corrupts RN views) */
-	refreshKey: number;
 }
 
 /**
@@ -93,7 +91,6 @@ export function useXRGlasses(): UseXRGlassesReturn {
 		engagementMode: { visualsOn: false, audioOn: false },
 		capabilities: null,
 		emulationMode: false,
-		refreshKey: 0,
 	});
 
 	const [error, setError] = useState<Error | null>(null);
@@ -179,44 +176,11 @@ export function useXRGlasses(): UseXRGlassesReturn {
 			}
 		});
 
-		// Subscribe to UI refresh hints (after XR permission flow on cold start)
-		const uiRefreshSub = service.onUiRefreshNeeded(async (event) => {
-			if (mounted) {
-				logger.debug(TAG, "UI refresh needed:", event.reason);
-				// Increment refreshKey to force full component remount
-				// This is necessary because XR SDK's RequestPermissionsOnHostActivity overlay
-				// corrupts React Native's native text rendering, and state updates alone
-				// don't fix the visual corruption - a full unmount/remount is required.
-				try {
-					const [isConnected, engagementMode, capabilities] = await Promise.all(
-						[
-							service.isGlassesConnected(),
-							service.getEngagementMode(),
-							service.getDeviceCapabilities(),
-						],
-					);
-					if (mounted) {
-						setState((prev) => ({
-							...prev,
-							connected: isConnected,
-							engagementMode,
-							capabilities,
-							refreshKey: prev.refreshKey + 1, // Force remount of components using this key
-						}));
-						logger.debug(TAG, "Incremented refreshKey to force UI remount");
-					}
-				} catch (err) {
-					logger.warn(TAG, "Failed to refresh state:", err);
-				}
-			}
-		});
-
 		return () => {
 			mounted = false;
 			connectionSub.remove();
 			engagementSub.remove();
 			deviceStateSub.remove();
-			uiRefreshSub.remove();
 		};
 	}, [initialize]);
 
@@ -333,7 +297,6 @@ export function useXRGlasses(): UseXRGlassesReturn {
 			engagementMode: { visualsOn: false, audioOn: false },
 			capabilities: null,
 			emulationMode: false,
-			refreshKey: 0,
 		});
 		await initialize();
 	}, [initialize]);

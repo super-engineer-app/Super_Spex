@@ -47,7 +47,6 @@ export type {
 	StreamStoppedEvent,
 	TranscriptionResponse,
 	TranscriptionSegment,
-	UiRefreshNeededEvent,
 	ViewerUpdateEvent,
 } from "./types";
 
