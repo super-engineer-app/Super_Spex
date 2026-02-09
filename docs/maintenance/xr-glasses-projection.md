@@ -43,11 +43,15 @@ The Android XR SDK (Jetpack XR) corrupts React Native's rendering context when c
 ### Connection/Disconnection Flow
 
 **Connect Flow:**
-1. User taps "Connect" in React Native UI
-2. `XRGlassesService.connect()` sends Intent to `ProjectionLauncherActivity`
-3. `ProjectionLauncherActivity` (in `:xr_process`) creates `ProjectedContext` and launches `GlassesActivity`
-4. After 2 seconds, emits `onUiRefreshNeeded` event to help React Native recover from any XR permission overlays
-5. `GlassesActivity` appears on glasses display
+1. User taps "Connect" in React Native UI (phone permissions already granted on home screen)
+2. `GlassesDashboardWrapper` mounts, shows "Initializing glasses..." spinner, listens for `onProjectedPermissionsCompleted`
+3. `XRGlassesService.connect()` sends Intent to `ProjectionLauncherActivity`
+4. `ProjectionLauncherActivity` (in `:xr_process`) creates `ProjectedContext` and launches `GlassesActivity`
+5. `GlassesActivity.onCreate()` checks `checkAudioPermission()`:
+   - **Already granted**: Immediately sends `PROJECTED_PERMISSIONS_COMPLETED` broadcast → wrapper unmounts instantly
+   - **Not granted**: XR SDK shows `RequestPermissionsOnHostActivity` on phone → user grants → `handleProjectedPermissionResults()` sends broadcast → wrapper unmounts
+6. `GlassesDashboardWrapper` receives `onProjectedPermissionsCompleted` event → mounts real `GlassesDashboard` with fresh views (2s fallback timeout as safety net)
+7. `GlassesActivity` appears on glasses display
 
 **Disconnect Flow:**
 1. User taps "Disconnect" in React Native UI
@@ -136,39 +140,23 @@ context.sendBroadcast(closeIntent)
 
 ### Issue: React Native UI corrupted on first connection after cold start
 
-**Cause**: The XR SDK launches `RequestPermissionsOnHostActivity` on the phone display during first connection, which overlays React Native's MainActivity and corrupts native text rendering.
+**Cause**: The XR SDK launches `RequestPermissionsOnHostActivity` on the phone display during first connection, which overlays React Native's MainActivity and corrupts native text rendering at the GPU level.
 
 **Symptoms**: Button text disappears (buttons show as solid colored rectangles without text), section titles may still render correctly.
 
-**Fix**: A two-part solution:
+**Fix**: Loading screen wrapper (`GlassesDashboardWrapper` in `app/glasses/index.tsx`) defers mounting the real dashboard until the XR permission overlay has dismissed. Fresh native views = no corruption.
 
-1. **Native side** (`XRGlassesService.kt`): Emits `onUiRefreshNeeded` event **once per app session** (first connection only) after 2 seconds:
-```kotlin
-// Only fires once per app session (hasEmittedInitialRefresh flag)
-if (!hasEmittedInitialRefresh) {
-    hasEmittedInitialRefresh = true
-    mainHandler.postDelayed({
-        module.emitEvent("onUiRefreshNeeded", mapOf("reason" to "post_glasses_launch"))
-    }, 2000)
-}
-```
+1. **Native side** (`GlassesActivity.kt`): Sends `ACTION_PROJECTED_PERMISSIONS_COMPLETED` broadcast in two cases:
+   - **Permissions already granted**: Immediately in `onCreate()` when `checkAudioPermission()` returns true
+   - **Permissions just granted**: In `handleProjectedPermissionResults()` after user grants via XR SDK overlay
 
-2. **React side** (`useXRGlasses.ts` + `GlassesDashboard`): Increments `refreshKey` which triggers a navigation refresh to fix corrupted UI:
-```typescript
-// In useXRGlasses.ts - increment refreshKey
-setState(prev => ({ ...prev, refreshKey: prev.refreshKey + 1 }));
+2. **Broadcast chain**: `GlassesActivity` → `GlassesBroadcastReceiver` → `XRGlassesModule.sendEvent("onProjectedPermissionsCompleted")` → JS
 
-// In GlassesDashboard - do navigation refresh (skip if streaming)
-useEffect(() => {
-  if (refreshKey > initialRefreshKey.current && !isStreaming) {
-    router.replace('/glasses');  // Full remount fixes corrupted native views
-  }
-}, [refreshKey, router, isStreaming]);
-```
+3. **React side** (`app/glasses/index.tsx`): `GlassesDashboardWrapper` shows a loading spinner and listens for `onProjectedPermissionsCompleted`. When the event fires, it sets `ready=true` and mounts the real `GlassesDashboard` with uncorrupted native views. A 2-second fallback timeout exists as a safety net.
 
-**Why navigation refresh?** Simple state updates don't fix corrupted native text views - a full component unmount/remount is required. The navigation refresh simulates what users do manually (back + reopen).
+**Why not a simple remount/refresh?** Tried React `key` remount and native GPU repair (`setLayerType` toggle + `invalidate()`) — neither fixes corruption at the Android GPU rendering level. Only fresh views created after the overlay dismisses work.
 
-**Why only once?** The corruption only happens on **first connection after cold start** when the XR permission overlay appears. Subsequent connections don't cause corruption, and we don't want to disrupt active streaming sessions.
+See [xr-permission-loading-optimization.md](xr-permission-loading-optimization.md) for full history of approaches tried.
 
 ---
 

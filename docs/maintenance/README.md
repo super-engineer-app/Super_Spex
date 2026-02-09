@@ -7,6 +7,7 @@ This folder contains troubleshooting guides and maintenance documentation for ea
 | Document | Description | When to Read |
 |----------|-------------|--------------|
 | [xr-glasses-projection.md](xr-glasses-projection.md) | **CRITICAL** - How projection works with separate process | Phone UI broken after connecting |
+| [xr-permission-loading-optimization.md](xr-permission-loading-optimization.md) | XR permission loading screen & text corruption fix | Loading screen too slow or UI corruption |
 | [speech-recognition.md](speech-recognition.md) | Speech recognition architecture & troubleshooting | Speech not working |
 | [camera-capture.md](camera-capture.md) | Camera capture system & issues | Camera not capturing |
 | [remote-view-streaming.md](remote-view-streaming.md) | Remote View (Agora) streaming & troubleshooting | Video streaming grey/black |
@@ -60,10 +61,9 @@ See [xr-glasses-projection.md](xr-glasses-projection.md) for full details.
 | Connect fails | Pairing lost | Re-pair in Glasses companion app |
 | Build fails | Stale cache | Run `./gradlew clean` |
 | Glasses show UI after disconnect | Close broadcast not received | Check `CLOSE_GLASSES` broadcast in GlassesActivity |
-| UI corrupted on first cold start | XR permission overlay | `onUiRefreshNeeded` event triggers re-render (deferred during active operations) |
+| UI corrupted on first cold start | XR permission overlay corrupts RN text rendering | `GlassesDashboardWrapper` defers mounting until `onProjectedPermissionsCompleted` fires |
 | Transcription "Missing channel parameter" | Request sent to Cloudflare Worker instead of backend | Set `TRANSCRIPTION_API_URL` in `.env` (emulator: `http://10.0.2.2:8000`) |
 | Save Transcript fails | `expo-file-system` v19 deprecated old API | Use `File`/`Paths` from `expo-file-system/next` |
-| Recording killed by UI refresh | `onUiRefreshNeeded` fires during recording | Refresh is auto-deferred while recording/streaming/tagging is active |
 | Web: speech "not available" | Firefox lacks Web Speech API | Network fallback activates; set `EXPO_PUBLIC_BACKEND_URL` |
 | Web: white screen | React version mismatch | `react` + `react-dom` must be 19.1.0 (match `react-native` 0.81.5) |
 | Web: `.web.ts` not picked up | `"main"` field has file extension | Use `"main": "index"` (no `.ts`) in module `package.json` |

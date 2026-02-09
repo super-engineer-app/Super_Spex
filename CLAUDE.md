@@ -53,6 +53,7 @@ Read the relevant doc before working in an area — don't load them all:
 | Key files & commands | `docs/reference.md` |
 | Troubleshooting | `docs/maintenance/README.md` |
 | XR / projection | `docs/maintenance/xr-glasses-projection.md` |
+| XR permissions / loading | `docs/maintenance/xr-permission-loading-optimization.md` |
 | Speech | `docs/maintenance/speech-recognition.md` |
 | Camera | `docs/maintenance/camera-capture.md` |
 | Streaming | `docs/maintenance/remote-view-streaming.md` |
