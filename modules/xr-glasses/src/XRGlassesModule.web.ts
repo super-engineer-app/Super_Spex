@@ -899,6 +899,7 @@ class WebXRGlassesService {
 
 		const formData = new FormData();
 		formData.append("audio", this.lastRecordingBlob, "recording.webm");
+		formData.append("user_id", "web-user");
 		formData.append("language", language);
 
 		const response = await fetch(`${BACKEND_URL}/transcribe-dia`, {
