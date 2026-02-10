@@ -1,12 +1,14 @@
-import { useCallback, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
+import { useCallback, useState } from "react";
+import { captureFromCamera } from "../utils/cameraCapture";
 import {
 	appendImageFileToFormData,
 	cleanupTempFile,
 } from "../utils/formDataHelper";
 
 const BACKEND_URL =
-	process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+	process.env.EXPO_PUBLIC_BACKEND_URL ||
+	"https://spex-backend-demo.onrender.com";
 
 export interface PickedImage {
 	base64: string;
@@ -36,22 +38,24 @@ export function useTeaChecker() {
 	const [checkMessages, setCheckMessages] = useState<string[]>([]);
 	const [checkError, setCheckError] = useState("");
 
-	const pickImage = useCallback(
-		async (setter: (img: PickedImage) => void) => {
-			const result = await ImagePicker.launchImageLibraryAsync({
-				mediaTypes: "images",
-				base64: true,
-				quality: 0.8,
+	const pickImage = useCallback(async (setter: (img: PickedImage) => void) => {
+		const result = await ImagePicker.launchImageLibraryAsync({
+			mediaTypes: "images",
+			base64: true,
+			quality: 0.8,
+		});
+		if (!result.canceled && result.assets[0]?.base64) {
+			setter({
+				base64: result.assets[0].base64,
+				uri: result.assets[0].uri,
 			});
-			if (!result.canceled && result.assets[0]?.base64) {
-				setter({
-					base64: result.assets[0].base64,
-					uri: result.assets[0].uri,
-				});
-			}
-		},
-		[],
-	);
+		}
+	}, []);
+
+	const takePhoto = useCallback(async (setter: (img: PickedImage) => void) => {
+		const result = await captureFromCamera();
+		if (result) setter(result);
+	}, []);
 
 	// --- Left panel: submit tea preference ---
 	const submitPreference = useCallback(async () => {
@@ -71,17 +75,12 @@ export function useTeaChecker() {
 			formData.append("user_id", prefUserId);
 			if (prefOrgId) formData.append("organization_id", prefOrgId);
 
-			const res = await fetch(
-				`${BACKEND_URL}/memes/tea-colour-preference`,
-				{
-					method: "POST",
-					body: formData,
-				},
-			);
+			const res = await fetch(`${BACKEND_URL}/memes/tea-colour-preference`, {
+				method: "POST",
+				body: formData,
+			});
 			if (!res.ok) {
-				const err = await res
-					.json()
-					.catch(() => ({ detail: res.statusText }));
+				const err = await res.json().catch(() => ({ detail: res.statusText }));
 				throw new Error(err.detail || "Request failed");
 			}
 			const data = await res.json();
@@ -94,10 +93,9 @@ export function useTeaChecker() {
 		}
 	}, [prefImage, prefUserId, prefOrgId]);
 
-	// --- Right panel: check someone's tea (SSE) ---
+	// --- Right panel: check someone's tea (SSE via XHR for cross-platform) ---
 	const submitCheckTea = useCallback(async () => {
-		if (!checkImage || !checkUserId || !checkWhoseTea || !checkOrgId)
-			return;
+		if (!checkImage || !checkUserId || !checkWhoseTea || !checkOrgId) return;
 		setCheckLoading(true);
 		setCheckError("");
 		setCheckMessages([]);
@@ -114,51 +112,62 @@ export function useTeaChecker() {
 			formData.append("whose_tea", checkWhoseTea);
 			formData.append("organization_id", checkOrgId);
 
-			const res = await fetch(`${BACKEND_URL}/memes/checking-tea`, {
-				method: "POST",
-				body: formData,
-			});
-			if (!res.ok) {
-				const err = await res
-					.json()
-					.catch(() => ({ detail: res.statusText }));
-				throw new Error(err.detail || "Request failed");
-			}
+			await new Promise<void>((resolve, reject) => {
+				const xhr = new XMLHttpRequest();
+				let processedLength = 0;
+				let lineBuffer = "";
 
-			const reader = res.body!.getReader();
-			const decoder = new TextDecoder();
-			let buffer = "";
+				function processLines(raw: string) {
+					lineBuffer += raw;
+					const lines = lineBuffer.split("\n");
+					lineBuffer = lines.pop() ?? "";
 
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				buffer += decoder.decode(value, { stream: true });
-
-				const lines = buffer.split("\n");
-				buffer = lines.pop() || "";
-
-				for (const line of lines) {
-					if (!line.startsWith("data: ")) continue;
-					try {
-						const data = JSON.parse(line.slice(6));
-						if (data.event === "checking") {
-							setCheckMessages((prev) => [
-								...prev,
-								data.message,
-							]);
-						} else if (data.event === "success") {
-							setCheckMessages((prev) => [
-								...prev,
-								data.detail,
-							]);
-						} else if (data.event === "error") {
-							setCheckError(data.detail);
+					for (const line of lines) {
+						if (!line.startsWith("data: ")) continue;
+						try {
+							const data = JSON.parse(line.slice(6));
+							if (data.event === "checking") {
+								setCheckMessages((prev) => [...prev, data.message]);
+							} else if (data.event === "success") {
+								setCheckMessages((prev) => [...prev, data.detail]);
+							} else if (data.event === "error") {
+								setCheckError(data.detail);
+							}
+						} catch {
+							// skip malformed SSE line
 						}
-					} catch {
-						// skip malformed SSE line
 					}
 				}
-			}
+
+				// biome-ignore lint/suspicious/noExplicitAny: RN-specific non-standard property
+				(xhr as any)._incrementalEvents = true;
+
+				xhr.open("POST", `${BACKEND_URL}/memes/checking-tea`);
+
+				xhr.onprogress = () => {
+					const newData = xhr.responseText.slice(processedLength);
+					processedLength = xhr.responseText.length;
+					if (newData) processLines(newData);
+				};
+
+				xhr.onload = () => {
+					const remaining = xhr.responseText.slice(processedLength);
+					if (remaining) processLines(remaining);
+					if (lineBuffer.trim()) {
+						processLines(`${lineBuffer}\n`);
+						lineBuffer = "";
+					}
+
+					if (xhr.status >= 200 && xhr.status < 300) {
+						resolve();
+					} else {
+						reject(new Error(`Request failed: ${xhr.status}`));
+					}
+				};
+
+				xhr.onerror = () => reject(new Error("Network error"));
+				xhr.send(formData);
+			});
 		} catch (e: unknown) {
 			setCheckError(e instanceof Error ? e.message : "Unknown error");
 		} finally {
@@ -196,5 +205,6 @@ export function useTeaChecker() {
 
 		// Shared
 		pickImage,
+		takePhoto,
 	};
 }

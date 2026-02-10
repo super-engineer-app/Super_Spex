@@ -64,6 +64,7 @@ Read the relevant doc before working in an area — don't load them all:
 | Emulator setup | `docs/maintenance/emulator-testing.md` |
 | Build failures | `docs/maintenance/build-deploy.md` |
 | Service URLs & env vars | `docs/maintenance/web-deployment.md` |
+| Database & schema | `docs/maintenance/database.md` |
 | Glasses Compose UI | `docs/glasses-display.md` |
 | XR SDK resources & samples | `docs/xr-glasses-resources.md` |
 | Feature TODOs | `docs/TODO-new-features.md` |
