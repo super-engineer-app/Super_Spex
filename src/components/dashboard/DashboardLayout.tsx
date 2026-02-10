@@ -1,0 +1,84 @@
+import { useRouter } from "expo-router";
+import { useEffect } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ContentArea } from "./ContentArea";
+import { DashboardProvider, useDashboard } from "./DashboardContext";
+import { DashboardSidebar } from "./DashboardSidebar";
+
+function DashboardInner() {
+	const router = useRouter();
+	const { glasses, camera } = useDashboard();
+
+	// Cleanup camera on unmount
+	useEffect(() => {
+		return () => {
+			if (camera.isReady) {
+				camera.releaseCamera();
+			}
+		};
+	}, [camera]);
+
+	// Not connected — show message
+	if (!glasses.connected) {
+		return (
+			<SafeAreaView style={styles.container}>
+				<View style={styles.center}>
+					<Text style={styles.title}>Not Connected</Text>
+					<Pressable style={styles.button} onPress={() => router.replace("/")}>
+						<Text style={styles.buttonText}>Go to Connect</Text>
+					</Pressable>
+				</View>
+			</SafeAreaView>
+		);
+	}
+
+	return (
+		<SafeAreaView style={styles.container}>
+			<View style={styles.row}>
+				<DashboardSidebar />
+				<ContentArea />
+			</View>
+		</SafeAreaView>
+	);
+}
+
+export function DashboardLayout() {
+	return (
+		<DashboardProvider>
+			<DashboardInner />
+		</DashboardProvider>
+	);
+}
+
+const styles = StyleSheet.create({
+	container: {
+		flex: 1,
+		backgroundColor: "#111",
+	},
+	row: {
+		flex: 1,
+		flexDirection: "row",
+	},
+	center: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+		padding: 20,
+	},
+	title: {
+		fontSize: 20,
+		color: "#fff",
+		marginBottom: 20,
+	},
+	button: {
+		backgroundColor: "#07f",
+		borderRadius: 8,
+		padding: 14,
+		alignItems: "center",
+	},
+	buttonText: {
+		color: "#fff",
+		fontSize: 16,
+	},
+});
