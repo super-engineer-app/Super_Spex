@@ -153,55 +153,105 @@ export async function submitTaggingSession(
 	try {
 		onStatus?.({ type: "tagging_status", content: "Connecting to server..." });
 
-		const response = await fetch(TAGGING_ENDPOINT, {
-			method: "POST",
-			body: formData,
-		});
+		const result = await new Promise<SubmitTaggingSessionResult>((resolve) => {
+			const xhr = new XMLHttpRequest();
+			let processedLength = 0;
+			let lineBuffer = "";
+			let finalMessage = "";
+			let hasError = false;
 
-		if (!response.ok) {
-			const errorText = await response.text();
-			throw new Error(`Server error (${response.status}): ${errorText}`);
-		}
+			function processLines(raw: string) {
+				lineBuffer += raw;
+				const lines = lineBuffer.split("\n");
+				lineBuffer = lines.pop() ?? "";
 
-		// Parse SSE response
-		const responseText = await response.text();
-		logger.debug(TAG, "Raw response:", responseText.substring(0, 500));
+				for (const line of lines) {
+					if (!line.startsWith("data: ")) continue;
+					const data = line.slice(6);
+					try {
+						const event = JSON.parse(data) as TaggingStatusEvent;
+						onStatus?.(event);
 
-		let finalMessage = "";
-		let hasError = false;
-
-		// Parse SSE format: "data: {...}\n\n"
-		const lines = responseText.split("\n");
-		for (const line of lines) {
-			if (line.startsWith("data: ")) {
-				const data = line.slice(6);
-				try {
-					const event = JSON.parse(data) as TaggingStatusEvent;
-					onStatus?.(event);
-
-					if (event.type === "done") {
-						finalMessage = event.content;
-					} else if (event.type === "error") {
-						hasError = true;
-						finalMessage = event.content;
+						if (event.type === "done") {
+							finalMessage = event.content;
+						} else if (event.type === "error") {
+							hasError = true;
+							finalMessage = event.content;
+						}
+					} catch {
+						logger.debug(TAG, "Non-JSON SSE line:", data);
 					}
-				} catch {
-					// Not JSON, ignore
-					logger.debug(TAG, "Non-JSON SSE line:", data);
 				}
 			}
-		}
 
-		if (hasError) {
-			const error = new Error(finalMessage || "Unknown server error");
-			onError?.(error);
-			return { success: false, error: error.message };
-		}
+			// RN needs this for incremental onprogress events
+			// biome-ignore lint/suspicious/noExplicitAny: RN-specific non-standard property
+			(xhr as any)._incrementalEvents = true;
 
-		const successMessage = finalMessage || "Tagging session saved successfully";
-		logger.debug(TAG, "Success:", successMessage);
-		onComplete?.(successMessage);
-		return { success: true, message: successMessage };
+			xhr.open("POST", TAGGING_ENDPOINT);
+
+			xhr.onprogress = () => {
+				const newData = xhr.responseText.slice(processedLength);
+				processedLength = xhr.responseText.length;
+				if (newData) processLines(newData);
+			};
+
+			xhr.onload = () => {
+				const remaining = xhr.responseText.slice(processedLength);
+				if (remaining) processLines(remaining);
+				if (lineBuffer.trim()) {
+					const line = lineBuffer.trim();
+					if (line.startsWith("data: ")) {
+						const data = line.slice(6);
+						try {
+							const event = JSON.parse(data) as TaggingStatusEvent;
+							onStatus?.(event);
+							if (event.type === "done") finalMessage = event.content;
+							else if (event.type === "error") {
+								hasError = true;
+								finalMessage = event.content;
+							}
+						} catch {
+							logger.debug(TAG, "Non-JSON SSE line:", data);
+						}
+					}
+					lineBuffer = "";
+				}
+
+				if (xhr.status >= 200 && xhr.status < 300) {
+					if (hasError) {
+						const error = new Error(finalMessage || "Unknown server error");
+						onError?.(error);
+						resolve({ success: false, error: error.message });
+					} else {
+						const successMessage =
+							finalMessage || "Tagging session saved successfully";
+						logger.debug(TAG, "Success:", successMessage);
+						onComplete?.(successMessage);
+						resolve({ success: true, message: successMessage });
+					}
+				} else {
+					const error = new Error(
+						`Server error (${xhr.status}): ${xhr.responseText.substring(0, 200)}`,
+					);
+					onError?.(error);
+					resolve({ success: false, error: error.message });
+				}
+			};
+
+			xhr.onerror = () => {
+				const error = new Error(
+					"Network error communicating with tagging backend",
+				);
+				logger.error(TAG, "XHR error");
+				onError?.(error);
+				resolve({ success: false, error: error.message });
+			};
+
+			xhr.send(formData);
+		});
+
+		return result;
 	} catch (err) {
 		const error = err instanceof Error ? err : new Error(String(err));
 		logger.error(TAG, "Error:", error.message);
