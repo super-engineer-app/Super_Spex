@@ -1,15 +1,14 @@
 import {
 	Image,
-	Platform,
 	ScrollView,
 	StyleSheet,
 	Text,
 	TextInput,
 	View,
 } from "react-native";
-import { ModeHeader } from "../shared/ModeHeader";
-import { ActionButton } from "../shared/ActionButton";
 import { useTeaChecker } from "../../hooks/useTeaChecker";
+import { ActionButton } from "../shared/ActionButton";
+import { ModeHeader } from "../shared/ModeHeader";
 
 export function TeaCheckerMode() {
 	const {
@@ -38,25 +37,8 @@ export function TeaCheckerMode() {
 		submitCheckTea,
 
 		pickImage,
+		takePhoto,
 	} = useTeaChecker();
-
-	// Platform guard — getReader() only available in browsers
-	if (Platform.OS !== "web") {
-		return (
-			<ScrollView
-				style={styles.scroll}
-				contentContainerStyle={styles.scrollContent}
-			>
-				<ModeHeader title="Tea Checker" subtitle="Analyze your tea" />
-				<View style={styles.placeholder}>
-					<Text style={styles.placeholderText}>Web Only</Text>
-					<Text style={styles.placeholderSubtext}>
-						This feature is only available in the browser
-					</Text>
-				</View>
-			</ScrollView>
-		);
-	}
 
 	return (
 		<ScrollView
@@ -69,16 +51,20 @@ export function TeaCheckerMode() {
 				<View style={styles.panel}>
 					<Text style={styles.panelTitle}>Tea Preference</Text>
 
-					<ActionButton
-						label={prefImage ? "Change Image" : "Pick Image"}
-						onPress={() => pickImage(setPrefImage)}
-						variant="secondary"
-					/>
-					{prefImage && (
-						<Image
-							source={{ uri: prefImage.uri }}
-							style={styles.thumbnail}
+					<View style={styles.buttonRow}>
+						<ActionButton
+							label={prefImage ? "Change Image" : "Pick Image"}
+							onPress={() => pickImage(setPrefImage)}
+							variant="secondary"
 						/>
+						<ActionButton
+							label="Take Photo"
+							onPress={() => takePhoto(setPrefImage)}
+							variant="secondary"
+						/>
+					</View>
+					{prefImage && (
+						<Image source={{ uri: prefImage.uri }} style={styles.thumbnail} />
 					)}
 
 					<TextInput
@@ -114,41 +100,35 @@ export function TeaCheckerMode() {
 										{ backgroundColor: prefResult.hex },
 									]}
 								/>
-								<Text style={styles.resultValue}>
-									{prefResult.hex}
-								</Text>
+								<Text style={styles.resultValue}>{prefResult.hex}</Text>
 							</View>
 							<View style={styles.resultRow}>
-								<Text style={styles.resultLabel}>
-									Lightness:
-								</Text>
-								<Text style={styles.resultValue}>
-									{prefResult.lightness}
-								</Text>
+								<Text style={styles.resultLabel}>Lightness:</Text>
+								<Text style={styles.resultValue}>{prefResult.lightness}</Text>
 							</View>
 						</View>
 					)}
-					{prefError ? (
-						<Text style={styles.errorText}>{prefError}</Text>
-					) : null}
+					{prefError ? <Text style={styles.errorText}>{prefError}</Text> : null}
 				</View>
 
 				{/* Right Panel — Check Someone's Tea */}
 				<View style={styles.panel}>
-					<Text style={styles.panelTitle}>
-						Check Someone's Tea
-					</Text>
+					<Text style={styles.panelTitle}>Check Someone's Tea</Text>
 
-					<ActionButton
-						label={checkImage ? "Change Image" : "Pick Image"}
-						onPress={() => pickImage(setCheckImage)}
-						variant="secondary"
-					/>
-					{checkImage && (
-						<Image
-							source={{ uri: checkImage.uri }}
-							style={styles.thumbnail}
+					<View style={styles.buttonRow}>
+						<ActionButton
+							label={checkImage ? "Change Image" : "Pick Image"}
+							onPress={() => pickImage(setCheckImage)}
+							variant="secondary"
 						/>
+						<ActionButton
+							label="Take Photo"
+							onPress={() => takePhoto(setCheckImage)}
+							variant="secondary"
+						/>
+					</View>
+					{checkImage && (
+						<Image source={{ uri: checkImage.uri }} style={styles.thumbnail} />
 					)}
 
 					<TextInput
@@ -189,11 +169,8 @@ export function TeaCheckerMode() {
 
 					{checkMessages.length > 0 && (
 						<View style={styles.resultBox}>
-							{checkMessages.map((msg, i) => (
-								<Text
-									key={`msg-${i}`}
-									style={styles.resultValue}
-								>
+							{checkMessages.map((msg) => (
+								<Text key={msg} style={styles.resultValue}>
 									{msg}
 								</Text>
 							))}
@@ -215,23 +192,6 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		padding: 20,
 	},
-	placeholder: {
-		backgroundColor: "#222",
-		borderRadius: 12,
-		padding: 40,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	placeholderText: {
-		color: "#888",
-		fontSize: 24,
-		fontWeight: "600",
-	},
-	placeholderSubtext: {
-		color: "#666",
-		fontSize: 14,
-		marginTop: 8,
-	},
 	panels: {
 		flexDirection: "row",
 		gap: 16,
@@ -248,6 +208,10 @@ const styles = StyleSheet.create({
 		fontSize: 18,
 		fontWeight: "700",
 		marginBottom: 4,
+	},
+	buttonRow: {
+		flexDirection: "row",
+		gap: 8,
 	},
 	thumbnail: {
 		width: "100%",
