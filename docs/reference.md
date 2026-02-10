@@ -46,12 +46,29 @@
 | `src/components/QualitySelector.tsx` | Stream quality UI component |
 | `src/components/TaggingMode.tsx` | Tagging session UI (transcript, images, capture buttons) |
 | `src/components/TimePicker.tsx` | Scrollable wheel time picker for parking timer |
+| `src/components/dashboard/DashboardLayout.tsx` | Root dashboard wrapper (connection guard + providers) |
+| `src/components/dashboard/DashboardContext.tsx` | Context provider for dashboard state (active mode, glasses, speech, camera) |
+| `src/components/dashboard/DashboardSidebar.tsx` | Responsive sidebar navigation (6 mode buttons) |
+| `src/components/dashboard/ContentArea.tsx` | Routes active mode to the correct mode component |
+| `src/components/modes/IdentifyMode.tsx` | Take photo → AI identifies object (SSE streaming) |
+| `src/components/modes/HelpMode.tsx` | Photo + voice/text → AI help response |
+| `src/components/modes/NotesMode.tsx` | Two tabs: photo tagging session, video recording + transcription |
+| `src/components/modes/LiveStreamMode.tsx` | Stream glasses camera to web viewers via Agora |
+| `src/components/modes/TeaCheckerMode.tsx` | Tea analysis mode (placeholder) |
+| `src/components/modes/ConfigMode.tsx` | Parking timer + disconnect button |
+| `src/components/shared/ModeHeader.tsx` | Title + subtitle header for each mode |
+| `src/components/shared/CameraPreview.tsx` | Displays base64 captured image or placeholder |
+| `src/components/shared/AIResponseDisplay.tsx` | Shows AI response with status, error, and clear button |
+| `src/components/shared/RecordingIndicator.tsx` | Red dot + "Recording..." label |
+| `src/components/shared/ActionButton.tsx` | Reusable button (primary, secondary, danger, success variants) |
+| `src/types/dashboard.ts` | `DashboardMode` type definition |
 | `src/types/tagging.ts` | TaggedImage type + keyword detection functions |
+| `src/types/reactNativeFile.ts` | Interface for React Native FormData file objects |
 | `src/utils/formDataHelper.ts` | Native FormData file handling (expo-file-system) |
 | `src/utils/logger.ts` | Development-gated logging utility |
 | `app/index.tsx` | Home screen (connect or demo mode) |
 | `app/connect.tsx` | Connection management screen |
-| `app/glasses/index.tsx` | Glasses dashboard (all features) |
+| `app/glasses/index.tsx` | Glasses dashboard wrapper (loading screen → mounts `DashboardLayout`) |
 | `app/glasses/display.tsx` | Display settings (brightness, always-on) |
 | `app/glasses/input.tsx` | Input event monitor + emulation controls |
 

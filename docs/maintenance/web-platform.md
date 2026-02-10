@@ -73,7 +73,7 @@ See `formDataHelper.web.ts:34` (`appendImageFileToFormData`) and `formDataHelper
 On native, `captureFromPhone()` uses `expo-image-picker` with `launchCameraAsync()`.
 On web, it delegates to `getUserMedia` (same as glasses capture) since expo-image-picker camera is unavailable in browsers.
 
-See `src/hooks/useTaggingSession.ts:356–419` — platform check at `:383`.
+See `src/hooks/useTaggingSession.ts:356` — platform check at `:363`.
 
 ### Video Recording on Web
 
@@ -96,12 +96,12 @@ Web requires `EXPO_PUBLIC_` prefix for env vars to be embedded in the bundle:
 
 ### Responsive Web Layout
 
-The dashboard uses `useWindowDimensions()` for responsive scaling on web:
+The home and connect screens use `useWindowDimensions()` for responsive scaling on web:
 
-- Content width: `Math.min(screenWidth * 0.9, 720)` — see `app/glasses/index.tsx:47–54`
-- Image preview grows taller on wider screens (>600px) — see `:493–496`
-- Native layout is untouched (`styles.nativeWrapper` at `:921`)
-- Home and connect screens apply same responsive constraint — `app/index.tsx:67` and `app/connect.tsx:72`
+- Content width: `Math.min(screenWidth * 0.9, 720)` — see `app/index.tsx:63` and `app/connect.tsx:23`
+- The glasses dashboard (`app/glasses/index.tsx`) is a loading wrapper that mounts `DashboardLayout` (`src/components/dashboard/DashboardLayout.tsx`)
+- `DashboardLayout` contains a responsive sidebar (160px wide on >600px screens, 56px narrow on mobile) + content area
+- Mode components handle their own scrolling within the content area
 
 ## Running the Web Version
 
@@ -140,4 +140,5 @@ npm run web          # or: npx expo start --web
 | `src/utils/formDataHelper.web.ts` | Blob/download helpers for web FormData |
 | `src/services/backendApi.ts` | AI backend service — cross-platform (uses formDataHelper) |
 | `src/services/errorReporting.web.ts` | Web error reporting (Discord webhook) |
-| `app/glasses/index.tsx` | Dashboard with responsive web wrapper |
+| `app/glasses/index.tsx` | Loading wrapper (mounts `DashboardLayout` after XR permissions) |
+| `src/components/dashboard/DashboardLayout.tsx` | Dashboard with sidebar + content area |

@@ -117,13 +117,13 @@ SharedCameraProvider handles this automatically based on emulation mode.
 2. Camera initialization still in progress
 3. Camera was released
 
-**Fix**: Check `isCameraReady()` before capturing:
+**Fix**: The hook has **auto-reinitialize** built in (`useGlassesCamera.ts:184`): if `captureImage()` is called when the camera isn't ready but was previously initialized, it automatically re-initializes and retries. Manual check:
 ```typescript
-const { isCameraReady, initializeCamera, captureImage } = useGlassesCamera();
+const { isReady, initializeCamera, captureImage } = useGlassesCamera();
 
 // Wait for camera ready
 await initializeCamera(false);
-if (isCameraReady) {
+if (isReady) {
   await captureImage();
 }
 ```
@@ -163,6 +163,13 @@ ImageCapture.Builder()
     .setTargetResolution(Size(1920, 1080))  // Higher resolution
     .build()
 ```
+
+## Hook Return Values
+
+The `useGlassesCamera()` hook also provides:
+- `isReady` — whether camera is initialized and ready to capture
+- `imageHistory: ImageCapturedEvent[]` — array of all captured images in the session
+- `clearHistory()` — clears the image history
 
 ## Events
 

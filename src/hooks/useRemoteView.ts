@@ -64,11 +64,11 @@ export const QUALITY_OPTIONS: Record<
 	},
 	balanced: {
 		label: "Balanced",
-		description: "720p - Recommended",
+		description: "480p 15fps - Recommended",
 	},
 	high_quality: {
 		label: "High Quality",
-		description: "720p 30fps - Best visual",
+		description: "480p 30fps - Best visual",
 	},
 };
 
