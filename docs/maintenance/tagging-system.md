@@ -84,14 +84,14 @@ All image sources produce `TaggedImage` objects (defined at `src/types/tagging.t
 
 ### GPS Tagging
 
-Each image gets GPS coordinates instantly via `createTaggedImageSync()` (`src/services/taggingApi.ts:375`):
+Each image gets GPS coordinates instantly via `createTaggedImageSync()` (`src/services/taggingApi.ts:421`):
 
-1. On app launch, `prefetchLocation()` caches GPS coords with a 5-minute TTL (`taggingApi.ts:294`)
-2. `getCachedLocation()` provides instant retrieval — no async wait (`taggingApi.ts:344`)
-3. `refreshLocationCache()` runs in background if cache is stale (>1 min) (`taggingApi.ts:352`)
+1. On app launch, `prefetchLocation()` caches GPS coords with a 5-minute TTL (`taggingApi.ts:340`)
+2. `getCachedLocation()` provides instant retrieval — no async wait (`taggingApi.ts:390`)
+3. `refreshLocationCache()` runs in background if cache is stale (>1 min) (`taggingApi.ts:398`)
 4. Falls back to `{lat: 0, long: 0}` if permission denied or location unavailable
 
-The older async `createTaggedImage()` (`taggingApi.ts:399`) is deprecated — `createTaggedImageSync()` is used for responsive captures.
+The older async `createTaggedImage()` (`taggingApi.ts:445`) is deprecated — `createTaggedImageSync()` is used for responsive captures.
 
 ### Async Save Pattern
 
@@ -164,7 +164,7 @@ Event types and callbacks:
 
 ## Web Platform Differences
 
-On web, `captureFromPhone()` delegates to `getUserMedia` (same as glasses capture) instead of `expo-image-picker`, since `launchCameraAsync()` is unavailable in browsers. See `src/hooks/useTaggingSession.ts:383` for the platform check.
+On web, `captureFromPhone()` delegates to `getUserMedia` (same as glasses capture) instead of `expo-image-picker`, since `launchCameraAsync()` is unavailable in browsers. See `src/hooks/useTaggingSession.ts:363` for the platform check.
 
 Gallery picking via `expo-image-picker` works on web (browser file dialog).
 

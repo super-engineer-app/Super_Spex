@@ -39,13 +39,26 @@ Speech recognition runs **ON THE GLASSES** using Android's `SpeechRecognizer` AP
 
 ## How It Works
 
-1. **User taps MIC button** on phone → sends intent to GlassesActivity
-2. **GlassesActivity** starts SpeechRecognizer with `startListening()`
-3. **SpeechRecognizer** captures audio from glasses mic, processes locally
-4. **Results** sent via broadcast: `ACTION_SPEECH_RESULT`, `ACTION_SPEECH_PARTIAL`
-5. **GlassesBroadcastReceiver** receives in main process
-6. **XRGlassesModule** emits events to React Native
-7. **useSpeechRecognition hook** updates UI
+1. **User taps MIC button** on phone → calls `XRGlassesService.startSpeechRecognition()`
+2. **Routing decision** (`XRGlassesService.kt:997`):
+   - If glasses connected and not in emulation mode → glasses-side ASR
+   - Otherwise → phone-side ASR directly
+3. **Glasses path**: Broadcast to GlassesActivity → SpeechRecognizer on glasses → results broadcast back
+4. **Phone path**: Phone's SpeechRecognizer runs directly in the main process
+5. **Results** sent via broadcast: `ACTION_SPEECH_RESULT`, `ACTION_SPEECH_PARTIAL`
+6. **GlassesBroadcastReceiver** receives in main process (glasses path only)
+7. **XRGlassesModule** emits events to React Native
+8. **useSpeechRecognition hook** updates UI
+
+### Glasses-First Routing with Phone Fallback
+
+When glasses are connected, `XRGlassesService` uses a **glasses-first strategy** with automatic phone fallback (`XRGlassesService.kt:1014`):
+
+1. Sends `ACTION_START_LISTENING` broadcast to GlassesActivity
+2. Starts a **5-second timeout** — if glasses don't confirm they're listening, falls back to phone ASR
+3. On glasses confirmation (`handleGlassesSpeechEvent` at `:1085`), cancels the timeout
+4. On non-recoverable glasses ASR error, immediately falls back to phone ASR
+5. `SpeechSource` enum tracks the active source: `NONE`, `GLASSES`, or `PHONE`
 
 ## Speech Recognizer Modes
 
