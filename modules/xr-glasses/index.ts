@@ -1,4 +1,8 @@
-import { type NativeModule, requireNativeModule } from "expo-modules-core";
+import {
+	type NativeModule,
+	requireNativeModule,
+	requireNativeViewManager,
+} from "expo-modules-core";
 import type { ParkingTimerState, TranscriptionResponse } from "./types";
 
 /** Event subscription returned by addListener */
@@ -150,6 +154,13 @@ export type {
 	TranscriptionSegment,
 	ViewerUpdateEvent,
 } from "./types";
+
+// Native camera preview view (Android CameraX PreviewView + VideoView)
+export const NativeCameraPreview = requireNativeViewManager<{
+	active?: boolean;
+	playbackUri?: string | null;
+	style?: object;
+}>("XRGlasses");
 
 // Re-export video recording event listener helpers
 export function addRecordingStateChangedListener(

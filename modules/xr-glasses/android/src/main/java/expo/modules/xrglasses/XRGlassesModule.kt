@@ -505,6 +505,24 @@ class XRGlassesModule : Module() {
                 }
             }
 
+            // ============================================================
+            // Native Camera Preview View
+            // ============================================================
+
+            View(CameraPreviewView::class) {
+                Prop("active") { view: CameraPreviewView, active: Boolean ->
+                    view.setActive(active)
+                }
+
+                Prop("playbackUri") { view: CameraPreviewView, uri: String? ->
+                    view.setPlaybackUri(uri)
+                }
+
+                OnViewDestroys { view: CameraPreviewView ->
+                    view.onViewDestroy()
+                }
+            }
+
             // Cleanup on module destroy
             OnDestroy {
                 scope.cancel()
