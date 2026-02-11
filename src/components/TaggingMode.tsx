@@ -10,6 +10,7 @@ import {
 import { COLORS } from "../theme";
 import type { TaggedImage } from "../types/tagging";
 import { ActionButton } from "./shared/ActionButton";
+import { RecordingIndicator } from "./shared/RecordingIndicator";
 
 const MAX_IMAGES = 6;
 
@@ -22,6 +23,7 @@ interface TaggingModeProps {
 	statusMessage: string | null;
 	isGlassesCameraReady: boolean;
 	isGlassesCapturing: boolean;
+	isRecordingAudio: boolean;
 	onStartTagging: () => void;
 	onCancelTagging: () => void;
 	onSaveTagging: () => void;
@@ -30,6 +32,7 @@ interface TaggingModeProps {
 	onPickFromGallery: () => void;
 	onRemoveImage: (index: number) => void;
 	onEditTranscript: (text: string) => void;
+	onToggleRecordNote: () => void;
 }
 
 export function TaggingMode({
@@ -40,13 +43,14 @@ export function TaggingMode({
 	error,
 	statusMessage,
 	isGlassesCapturing,
+	isRecordingAudio,
 	onStartTagging,
 	onCancelTagging,
 	onSaveTagging,
 	onCaptureFromPhone,
-	onPickFromGallery,
 	onRemoveImage,
 	onEditTranscript,
+	onToggleRecordNote,
 }: TaggingModeProps) {
 	// Auto-start tagging if not active
 	if (!isActive) {
@@ -97,10 +101,13 @@ export function TaggingMode({
 
 				<View style={styles.buttonsColumn}>
 					<ActionButton
-						label="Record note"
-						onPress={onStartTagging}
-						variant="secondary"
+						label={isRecordingAudio ? "Stop" : "Record note"}
+						onPress={onToggleRecordNote}
+						variant={isRecordingAudio ? "danger" : "secondary"}
 					/>
+					{isRecordingAudio ? (
+						<RecordingIndicator label="Recording..." />
+					) : null}
 					<ActionButton
 						label={
 							isGlassesCapturing
@@ -123,7 +130,7 @@ export function TaggingMode({
 							</View>
 						) : (
 							<ActionButton
-								label={hasPhotos && transcript.trim() ? "Save" : "Save"}
+								label="Save"
 								onPress={onSaveTagging}
 								variant="secondary"
 								disabled={!hasPhotos || !transcript.trim()}

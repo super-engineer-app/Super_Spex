@@ -143,6 +143,7 @@ export function IdentifyMode() {
 				status={aiStatus}
 				error={aiError}
 				isSending={isSending}
+				alwaysShow
 				onClear={() => {
 					setAiResponse("");
 					setAiStatus(null);
@@ -163,13 +164,13 @@ const styles = StyleSheet.create({
 	row: {
 		flexDirection: "row",
 		gap: 16,
-		alignItems: "flex-start",
+		alignItems: "center",
 	},
 	previewColumn: {
-		flex: 3,
+		flex: 1,
 	},
 	buttonsColumn: {
-		flex: 2,
+		flex: 1,
 		gap: 12,
 	},
 });

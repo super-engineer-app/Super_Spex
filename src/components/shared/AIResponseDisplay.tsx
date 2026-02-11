@@ -7,6 +7,7 @@ interface AIResponseDisplayProps {
 	error: string | null;
 	isSending: boolean;
 	onClear: () => void;
+	alwaysShow?: boolean;
 }
 
 export function AIResponseDisplay({
@@ -15,16 +16,18 @@ export function AIResponseDisplay({
 	error,
 	isSending,
 	onClear,
+	alwaysShow = false,
 }: AIResponseDisplayProps) {
-	// Nothing to show
-	if (!response && !error && !status && !isSending) return null;
+	const hasContent = response || error || status || isSending;
+
+	if (!hasContent && !alwaysShow) return null;
 
 	return (
 		<View style={styles.section}>
 			<Text style={styles.sectionTitle}>Response</Text>
 			{error ? (
 				<Text style={styles.error}>{error}</Text>
-			) : (
+			) : hasContent ? (
 				<>
 					{status && !response ? (
 						<Text style={styles.statusText}>{status}</Text>
@@ -37,6 +40,10 @@ export function AIResponseDisplay({
 						<Text style={styles.loadingText}>Waiting for response...</Text>
 					) : null}
 				</>
+			) : (
+				<View style={styles.resultBox}>
+					<Text style={styles.placeholderText}>Thinking . . .</Text>
+				</View>
 			)}
 			{response ? (
 				<Pressable style={styles.clearButton} onPress={onClear}>
@@ -68,10 +75,15 @@ const styles = StyleSheet.create({
 		padding: 12,
 		borderWidth: 1,
 		borderColor: COLORS.border,
+		minHeight: 80,
 	},
 	resultText: {
 		color: COLORS.textPrimary,
 		fontSize: 16,
+	},
+	placeholderText: {
+		color: COLORS.textMuted,
+		fontSize: 14,
 	},
 	error: {
 		color: COLORS.destructive,

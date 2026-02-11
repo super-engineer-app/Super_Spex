@@ -12,6 +12,7 @@ import { useVideoRecording } from "../../hooks/useVideoRecording";
 import { COLORS } from "../../theme";
 import { useDashboard } from "../dashboard/DashboardContext";
 import { ActionButton } from "../shared/ActionButton";
+import { LiveCameraPreview } from "../shared/LiveCameraPreview";
 import { ModeHeader } from "../shared/ModeHeader";
 import { RecordingIndicator } from "../shared/RecordingIndicator";
 import { TaggingMode } from "../TaggingMode";
@@ -58,16 +59,32 @@ export function NotesMode() {
 	const [videoNoteText, setVideoNoteText] = useState("");
 	const [videoNoteSaved, setVideoNoteSaved] = useState(false);
 
-	// Track if tagging was active before recording for auto-resume
-	const wasTaggingBeforeRecordingRef = useRef(false);
+	// Photo mode audio recording state
+	const [isPhotoAudioRecording, setIsPhotoAudioRecording] = useState(false);
 
 	// Process speech results for tagging keyword detection
 	useEffect(() => {
 		if (!speech.transcript) return;
 		if (speech.transcript === lastProcessedTranscriptRef.current) return;
 		lastProcessedTranscriptRef.current = speech.transcript;
-		processSpeechResult(speech.transcript);
-	}, [speech.transcript, processSpeechResult]);
+
+		if (activeTab === "photo") {
+			// In photo mode, append speech to tagging transcript
+			editTranscript(
+				taggingTranscript
+					? `${taggingTranscript} ${speech.transcript}`
+					: speech.transcript,
+			);
+		} else {
+			processSpeechResult(speech.transcript);
+		}
+	}, [
+		speech.transcript,
+		processSpeechResult,
+		activeTab,
+		editTranscript,
+		taggingTranscript,
+	]);
 
 	// Live transcription: populate video note text while recording
 	useEffect(() => {
@@ -78,59 +95,60 @@ export function NotesMode() {
 		}
 	}, [speech.partialTranscript, speech.transcript, isRecording, activeTab]);
 
+	// Photo mode: update transcript with partial speech results in real-time
+	useEffect(() => {
+		if (activeTab !== "photo" || !isPhotoAudioRecording) return;
+		const partial = speech.partialTranscript;
+		if (partial) {
+			// Show partial as preview in transcript field
+			const base = taggingTranscript || "";
+			editTranscript(base ? `${base} ${partial}` : partial);
+		}
+	}, [
+		speech.partialTranscript,
+		activeTab,
+		isPhotoAudioRecording,
+		editTranscript,
+		taggingTranscript,
+	]);
+
 	const handleRecordNote = useCallback(async () => {
 		if (isRecording) {
 			await stopRecording();
 			await speech.stopListening();
 		} else {
-			if (isTaggingActive) {
-				wasTaggingBeforeRecordingRef.current = true;
-				cancelTagging();
-			}
 			setVideoNoteSaved(false);
-			// Start both video recording and speech recognition for live transcription
 			await startRecording();
 			await speech.startListening(true);
 		}
-	}, [
-		isRecording,
-		stopRecording,
-		startRecording,
-		isTaggingActive,
-		cancelTagging,
-		speech,
-	]);
+	}, [isRecording, stopRecording, startRecording, speech]);
+
+	// Photo mode: toggle audio recording (speech only, no video)
+	const handlePhotoRecordNote = useCallback(async () => {
+		if (isPhotoAudioRecording) {
+			await speech.stopListening();
+			setIsPhotoAudioRecording(false);
+		} else {
+			await speech.startListening(true);
+			setIsPhotoAudioRecording(true);
+		}
+	}, [isPhotoAudioRecording, speech]);
 
 	const handleSaveVideoNote = useCallback(async () => {
 		await saveVideo();
 		setVideoNoteSaved(true);
-		if (wasTaggingBeforeRecordingRef.current) {
-			wasTaggingBeforeRecordingRef.current = false;
-			startTagging();
-		}
-	}, [saveVideo, startTagging]);
+	}, [saveVideo]);
 
-	const handleNewNote = useCallback(() => {
+	const handleClearVideoNote = useCallback(() => {
 		dismissRecording();
 		setVideoNoteText("");
 		setVideoNoteSaved(false);
 		speech.clearTranscript();
 	}, [dismissRecording, speech]);
 
-	const handleDiscardVideoNote = useCallback(() => {
-		dismissRecording();
-		setVideoNoteText("");
-		setVideoNoteSaved(false);
-		speech.clearTranscript();
-		if (wasTaggingBeforeRecordingRef.current) {
-			wasTaggingBeforeRecordingRef.current = false;
-			startTagging();
-		}
-	}, [dismissRecording, speech, startTagging]);
-
-	const hasVideoRecording =
-		recordingState.recordingState === "stopped" ||
-		recordingState.recordingState === "recording";
+	const isStopped = recordingState.recordingState === "stopped";
+	const hasVideoContent = isStopped || videoNoteText.trim();
+	const playbackUrl = isStopped ? (recordingState.fileUri ?? null) : null;
 
 	return (
 		<ScrollView
@@ -141,9 +159,12 @@ export function NotesMode() {
 				<View style={styles.headerLeft}>
 					<ModeHeader title="Notes" subtitle="Make a video or photo note" />
 				</View>
-				{isRecording || speech.isListening ? (
+				{isRecording || isPhotoAudioRecording || speech.isListening ? (
 					<RecordingIndicator label="" />
 				) : null}
+			</View>
+
+			<View style={styles.toggleRow}>
 				<View style={styles.tabToggle}>
 					<Pressable
 						style={[
@@ -184,11 +205,7 @@ export function NotesMode() {
 				<>
 					<View style={styles.row}>
 						<View style={styles.previewColumn}>
-							<View style={styles.placeholder}>
-								<Text style={styles.placeholderText}>
-									{isRecording ? "Recording..." : "Video preview"}
-								</Text>
-							</View>
+							<LiveCameraPreview active playbackUrl={playbackUrl} />
 						</View>
 
 						<View style={styles.buttonsColumn}>
@@ -197,30 +214,30 @@ export function NotesMode() {
 								onPress={handleRecordNote}
 								variant={isRecording ? "danger" : "secondary"}
 							/>
-							<View style={styles.saveRow}>
-								{videoNoteSaved ? (
-									<ActionButton
-										label="New note"
-										onPress={handleNewNote}
-										variant="secondary"
-										style={styles.saveButton}
-									/>
-								) : (
-									<ActionButton
-										label="Save"
-										onPress={handleSaveVideoNote}
-										variant="secondary"
-										disabled={!hasVideoRecording || isRecording}
-										style={styles.saveButton}
-									/>
-								)}
-								<Pressable
-									style={styles.trashButton}
-									onPress={handleDiscardVideoNote}
-								>
-									<Text style={styles.trashIcon}>🗑</Text>
-								</Pressable>
-							</View>
+							{isStopped ? (
+								<>
+									{videoNoteSaved ? (
+										<ActionButton
+											label="New note"
+											onPress={handleClearVideoNote}
+											variant="secondary"
+										/>
+									) : (
+										<ActionButton
+											label="Save"
+											onPress={handleSaveVideoNote}
+											variant="secondary"
+										/>
+									)}
+								</>
+							) : null}
+							{hasVideoContent && !isRecording ? (
+								<ActionButton
+									label="Clear"
+									onPress={handleClearVideoNote}
+									variant="secondary"
+								/>
+							) : null}
 						</View>
 					</View>
 
@@ -247,6 +264,7 @@ export function NotesMode() {
 					statusMessage={taggingStatus}
 					isGlassesCameraReady={taggingCameraReady}
 					isGlassesCapturing={taggingCameraCapturing}
+					isRecordingAudio={isPhotoAudioRecording}
 					onStartTagging={startTagging}
 					onCancelTagging={cancelTagging}
 					onSaveTagging={saveTaggingSession}
@@ -255,6 +273,7 @@ export function NotesMode() {
 					onPickFromGallery={pickFromGallery}
 					onRemoveImage={removeTaggingImage}
 					onEditTranscript={editTranscript}
+					onToggleRecordNote={handlePhotoRecordNote}
 				/>
 			)}
 		</ScrollView>
@@ -271,10 +290,12 @@ const styles = StyleSheet.create({
 	headerRow: {
 		flexDirection: "row",
 		alignItems: "flex-start",
-		marginBottom: 8,
 	},
 	headerLeft: {
 		flex: 1,
+	},
+	toggleRow: {
+		marginBottom: 12,
 	},
 	tabToggle: {
 		flexDirection: "row",
@@ -282,10 +303,11 @@ const styles = StyleSheet.create({
 		overflow: "hidden",
 		borderWidth: 1,
 		borderColor: COLORS.border,
+		alignSelf: "flex-start",
 	},
 	tabButton: {
-		paddingHorizontal: 16,
-		paddingVertical: 8,
+		paddingHorizontal: 24,
+		paddingVertical: 12,
 		backgroundColor: COLORS.secondary,
 	},
 	tabButtonActive: {
@@ -293,7 +315,7 @@ const styles = StyleSheet.create({
 	},
 	tabButtonText: {
 		color: COLORS.textSecondary,
-		fontSize: 14,
+		fontSize: 16,
 		fontWeight: "600",
 	},
 	tabButtonTextActive: {
@@ -302,50 +324,14 @@ const styles = StyleSheet.create({
 	row: {
 		flexDirection: "row",
 		gap: 16,
-		alignItems: "flex-start",
+		alignItems: "center",
 	},
 	previewColumn: {
-		flex: 3,
-	},
-	buttonsColumn: {
-		flex: 2,
-		gap: 12,
-	},
-	placeholder: {
-		backgroundColor: COLORS.backgroundSecondary,
-		borderRadius: 8,
-		padding: 32,
-		alignItems: "center",
-		justifyContent: "center",
-		marginVertical: 8,
-		borderWidth: 1,
-		borderColor: COLORS.input,
-		borderStyle: "dashed",
-		minHeight: 160,
-	},
-	placeholderText: {
-		color: COLORS.textMuted,
-		fontSize: 14,
-	},
-	saveRow: {
-		flexDirection: "row",
-		gap: 8,
-	},
-	saveButton: {
 		flex: 1,
 	},
-	trashButton: {
-		backgroundColor: COLORS.secondary,
-		borderRadius: 6,
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		alignItems: "center",
-		justifyContent: "center",
-		borderWidth: 1,
-		borderColor: COLORS.border,
-	},
-	trashIcon: {
-		fontSize: 18,
+	buttonsColumn: {
+		flex: 1,
+		gap: 12,
 	},
 	noteSection: {
 		marginTop: 16,
