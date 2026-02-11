@@ -123,6 +123,11 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 		const imageSub = service.onImageCaptured((event: ImageCapturedEvent) => {
 			if (!mountedRef.current) return;
 
+			logger.debug(
+				TAG,
+				`onImageCaptured: ${event.width}x${event.height}, base64Len=${event.imageBase64?.length ?? 0}`,
+			);
+
 			setLastImage(event.imageBase64);
 			setLastImageSize({ width: event.width, height: event.height });
 			setIsEmulated(event.isEmulated);
@@ -136,6 +141,7 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 		const errorSub = service.onCameraError((event: CameraErrorEvent) => {
 			if (!mountedRef.current) return;
 
+			logger.debug(TAG, `onCameraError: ${event.message}`);
 			setError(event.message);
 			setIsCapturing(false);
 		});
@@ -143,6 +149,10 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 		const stateSub = service.onCameraStateChanged((event: CameraStateEvent) => {
 			if (!mountedRef.current) return;
 
+			logger.debug(
+				TAG,
+				`onCameraStateChanged: isReady=${event.isReady}, isEmulated=${event.isEmulated}`,
+			);
 			setIsReady(event.isReady);
 			setIsEmulated(event.isEmulated);
 		});
@@ -176,35 +186,55 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 	);
 
 	const captureImage = useCallback(async () => {
+		logger.debug(
+			TAG,
+			`captureImage called: isReady=${isReady}, isCapturing=${isCapturing}`,
+		);
+
 		if (isCapturing) {
 			return; // Already capturing
 		}
 
-		// Auto-reinitialize camera if it was previously initialized but is no longer ready
-		if (!isReady && wasInitializedRef.current) {
-			logger.debug(TAG, "Camera not ready, auto-reinitializing...");
+		const service = getXRGlassesService();
+
+		// Always ensure camera is initialized before capturing
+		if (!isReady) {
+			logger.debug(TAG, "Camera not ready, initializing before capture...");
 			setError(null);
 			try {
-				const service = getXRGlassesService();
 				await service.initializeCamera(lastLowPowerModeRef.current);
-				// Wait a bit for camera to be ready
-				await new Promise((resolve) => setTimeout(resolve, 500));
+				wasInitializedRef.current = true;
+				// Wait for camera to become ready (onCameraStateChanged event)
+				await new Promise<void>((resolve, reject) => {
+					let resolved = false;
+					const sub = service.onCameraStateChanged(() => {
+						if (!resolved) {
+							resolved = true;
+							sub.remove();
+							resolve();
+						}
+					});
+					// Timeout after 3s
+					setTimeout(() => {
+						if (!resolved) {
+							resolved = true;
+							sub.remove();
+							reject(new Error("Camera initialization timed out"));
+						}
+					}, 3000);
+				});
 			} catch (e) {
 				const errorMessage =
-					e instanceof Error ? e.message : "Failed to reinitialize camera";
+					e instanceof Error ? e.message : "Failed to initialize camera";
 				setError(errorMessage);
 				return;
 			}
-		} else if (!isReady) {
-			setError("Camera not ready. Call initializeCamera first.");
-			return;
 		}
 
 		setIsCapturing(true);
 		setError(null);
 
 		try {
-			const service = getXRGlassesService();
 			await service.captureImage();
 			// Result will be delivered via onImageCaptured event
 		} catch (e) {

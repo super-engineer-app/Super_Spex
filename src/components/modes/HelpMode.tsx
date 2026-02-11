@@ -30,11 +30,10 @@ export function HelpMode() {
 	}, [speech.partialTranscript, speech.transcript]);
 
 	// Auto-initialize camera on mode entry
+	const initCamera = camera.initializeCamera;
 	useEffect(() => {
-		if (!camera.isReady) {
-			camera.initializeCamera(false);
-		}
-	}, [camera]);
+		initCamera(false);
+	}, [initCamera]);
 
 	const handleTakePhoto = useCallback(async () => {
 		await camera.captureImage();
@@ -164,6 +163,7 @@ export function HelpMode() {
 			<View style={styles.row}>
 				<View style={styles.previewColumn}>
 					<CameraPreview
+						key={camera.lastImage ? "captured" : "empty"}
 						base64Image={camera.lastImage}
 						imageSize={camera.lastImageSize}
 						placeholder="Take a photo of what you need help with"
