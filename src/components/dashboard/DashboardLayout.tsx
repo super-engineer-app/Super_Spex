@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { UseGlassesCameraReturn } from "../../hooks/useGlassesCamera";
 import { COLORS } from "../../theme";
 import { ContentArea } from "./ContentArea";
 import { DashboardProvider, useDashboard } from "./DashboardContext";
@@ -11,14 +12,19 @@ function DashboardInner() {
 	const router = useRouter();
 	const { glasses, camera } = useDashboard();
 
-	// Cleanup camera on unmount
+	// Keep a ref to camera so the unmount cleanup always sees latest values
+	const cameraRef = useRef<UseGlassesCameraReturn>(camera);
+	cameraRef.current = camera;
+
+	// Cleanup camera on unmount only
 	useEffect(() => {
 		return () => {
-			if (camera.isReady) {
-				camera.releaseCamera();
+			const cam = cameraRef.current;
+			if (cam.isReady) {
+				cam.releaseCamera();
 			}
 		};
-	}, [camera]);
+	}, []);
 
 	// Not connected — show message
 	if (!glasses.connected) {
