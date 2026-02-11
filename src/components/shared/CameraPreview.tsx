@@ -58,19 +58,21 @@ const styles = StyleSheet.create({
 		overflow: "hidden",
 		marginVertical: 8,
 		backgroundColor: COLORS.backgroundSecondary,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	placeholderInner: {
 		flex: 1,
 		alignItems: "center",
 		justifyContent: "center",
 		borderWidth: 1,
-		borderColor: COLORS.input,
+		borderColor: COLORS.border,
 		borderStyle: "dashed",
 		borderRadius: 8,
 	},
 	placeholderText: {
 		color: COLORS.textMuted,
-		fontSize: 14,
+		fontSize: 13,
 	},
 	image: {
 		width: "100%",

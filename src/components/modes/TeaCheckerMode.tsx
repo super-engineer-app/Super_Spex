@@ -205,11 +205,16 @@ const styles = StyleSheet.create({
 		gap: 12,
 		borderWidth: 1,
 		borderColor: COLORS.border,
+		shadowColor: COLORS.shadow,
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.05,
+		shadowRadius: 8,
+		elevation: 3,
 	},
 	panelTitle: {
 		color: COLORS.textPrimary,
-		fontSize: 18,
-		fontWeight: "700",
+		fontSize: 15,
+		fontWeight: "600",
 		marginBottom: 4,
 	},
 	buttonRow: {
@@ -245,8 +250,8 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	resultLabel: {
-		color: COLORS.textSecondary,
-		fontSize: 14,
+		color: COLORS.textTertiary,
+		fontSize: 13,
 	},
 	resultValue: {
 		color: COLORS.textPrimary,

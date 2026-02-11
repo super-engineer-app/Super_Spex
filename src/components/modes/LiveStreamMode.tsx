@@ -106,7 +106,13 @@ export function LiveStreamMode() {
 						<Text style={styles.linkText} numberOfLines={1}>
 							{viewerUrl || "[LINK]"}
 						</Text>
-						<Pressable style={styles.copyButton} onPress={handleCopyUrl}>
+						<Pressable
+							style={({ pressed }) => [
+								styles.copyButton,
+								pressed && styles.copyButtonPressed,
+							]}
+							onPress={handleCopyUrl}
+						>
 							<Text style={styles.copyButtonText}>
 								{copiedUrl ? "Copied!" : "Copy"}
 							</Text>
@@ -141,13 +147,13 @@ const styles = StyleSheet.create({
 		maxWidth: 500,
 	},
 	streamButton: {
-		paddingVertical: 16,
+		paddingVertical: 12,
 	},
 	section: {
 		marginTop: 16,
 	},
 	sectionLabel: {
-		fontSize: 16,
+		fontSize: 14,
 		fontWeight: "600",
 		color: COLORS.textPrimary,
 		marginBottom: 8,
@@ -163,8 +169,8 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	linkText: {
-		color: COLORS.textSecondary,
-		fontSize: 14,
+		color: COLORS.textTertiary,
+		fontSize: 13,
 		fontFamily: Platform.OS === "web" ? "monospace" : undefined,
 		flex: 1,
 	},
@@ -172,14 +178,17 @@ const styles = StyleSheet.create({
 		backgroundColor: COLORS.secondary,
 		borderRadius: 6,
 		paddingHorizontal: 16,
-		paddingVertical: 8,
+		paddingVertical: 6,
 		borderWidth: 1,
-		borderColor: COLORS.border,
+		borderColor: "#D1D5DB",
+	},
+	copyButtonPressed: {
+		opacity: 0.8,
 	},
 	copyButtonText: {
 		color: COLORS.textPrimary,
-		fontSize: 14,
-		fontWeight: "600",
+		fontSize: 12,
+		fontWeight: "500",
 	},
 	viewerBox: {
 		backgroundColor: COLORS.backgroundSecondary,

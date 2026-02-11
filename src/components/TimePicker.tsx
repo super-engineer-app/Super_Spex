@@ -346,10 +346,11 @@ export function TimePicker({
 
 			{/* Start button */}
 			<Pressable
-				style={[
+				style={({ pressed }) => [
 					styles.startButton,
 					!isValid && styles.startButtonDisabled,
 					disabled && styles.disabled,
+					pressed && isValid && !disabled && styles.startButtonPressed,
 				]}
 				onPress={handleConfirm}
 				disabled={disabled || !isValid}
@@ -372,20 +373,20 @@ const styles = StyleSheet.create({
 	},
 	presetButton: {
 		backgroundColor: COLORS.secondary,
-		borderRadius: 6,
-		paddingVertical: 8,
+		borderRadius: 8,
+		paddingVertical: 6,
 		paddingHorizontal: 14,
 		borderWidth: 1,
-		borderColor: COLORS.border,
+		borderColor: "#D1D5DB",
 	},
 	presetButtonActive: {
 		backgroundColor: COLORS.primary,
 		borderColor: COLORS.primary,
 	},
 	presetButtonText: {
-		color: COLORS.sidebarText,
+		color: COLORS.secondaryForeground,
 		fontSize: 13,
-		fontWeight: "600",
+		fontWeight: "500",
 	},
 	presetButtonTextActive: {
 		color: COLORS.primaryForeground,
@@ -423,7 +424,7 @@ const styles = StyleSheet.create({
 		position: "absolute",
 		left: 4,
 		right: 4,
-		backgroundColor: COLORS.secondary,
+		backgroundColor: COLORS.muted,
 		borderRadius: 8,
 		zIndex: 0,
 	},
@@ -462,7 +463,7 @@ const styles = StyleSheet.create({
 		zIndex: 2,
 	},
 	totalText: {
-		color: COLORS.textSecondary,
+		color: COLORS.textTertiary,
 		fontSize: 14,
 		textAlign: "center",
 		marginBottom: 16,
@@ -470,16 +471,20 @@ const styles = StyleSheet.create({
 	startButton: {
 		backgroundColor: COLORS.success,
 		borderRadius: 10,
-		paddingVertical: 16,
+		paddingVertical: 12,
 		alignItems: "center",
 	},
 	startButtonDisabled: {
-		backgroundColor: COLORS.secondary,
+		backgroundColor: COLORS.muted,
+	},
+	startButtonPressed: {
+		opacity: 0.8,
+		transform: [{ scale: 0.98 }],
 	},
 	startButtonText: {
 		color: COLORS.primaryForeground,
-		fontSize: 18,
-		fontWeight: "bold",
+		fontSize: 16,
+		fontWeight: "600",
 	},
 	disabled: {
 		opacity: 0.6,

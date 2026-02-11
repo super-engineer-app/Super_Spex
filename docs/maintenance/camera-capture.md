@@ -98,6 +98,39 @@ SharedCameraProvider handles this automatically based on emulation mode.
 
 ## Common Issues & Fixes
 
+### Issue: Camera released mid-capture ("Camera is closed")
+
+**Symptoms**: `captureImage()` fails with "Camera is closed" CameraX error. Logcat shows `releaseCamera` called immediately after `takePicture`.
+
+**Root cause**: Any `useEffect` cleanup with the camera object as a dependency will fire on every state change (since the hook returns a new object reference each render). This calls `releaseCamera()` mid-capture.
+
+**Fix**: Use a ref-based pattern for unmount cleanup:
+```typescript
+const cameraRef = useRef(camera);
+cameraRef.current = camera;
+useEffect(() => {
+    return () => {
+        const cam = cameraRef.current;
+        if (cam.isReady) cam.releaseCamera();
+    };
+}, []); // empty deps = unmount only
+```
+
+**Key rule**: Never put the full `camera` / `UseGlassesCameraReturn` object in a `useEffect` dependency array.
+
+### Issue: Captured image renders white/blank on Android
+
+**Symptoms**: Image capture succeeds (base64 data present, `onLoad` fires), but the `<Image>` component shows a white rectangle. Switching tabs and back makes it appear.
+
+**Root cause**: React Native Android rendering bug where the native `ImageView` loses pixel content during rapid re-renders caused by camera state changes (`isReady` toggling).
+
+**Fix**: Three-part approach:
+1. **Single container**: `CameraPreview` always renders the same root `<View>`, switching children inside (never swap between two different root Views)
+2. **`key` on `<Image>`**: Use `key={base64.slice(-16)}` to force a clean native view remount per image
+3. **`key` on `<CameraPreview>`**: Parent passes `key={camera.lastImage ? "captured" : "empty"}` to force full component remount
+4. **`fadeDuration={0}`**: Disables Android's default 300ms Image fade animation
+5. **`useMemo` on source**: Memoize the `{ uri: "data:image/jpeg;base64,..." }` object to prevent unnecessary native reloads
+
 ### Issue: Camera stops working after several uses
 
 **Symptoms**: Camera worked initially, now capture always fails

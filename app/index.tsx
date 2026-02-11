@@ -151,14 +151,20 @@ export default function HomeScreen() {
 					</Text>
 
 					<Pressable
-						style={styles.primaryButton}
+						style={({ pressed }) => [
+							styles.primaryButton,
+							pressed && styles.buttonPressed,
+						]}
 						onPress={handleGrantPermissions}
 					>
 						<Text style={styles.buttonText}>Grant Permissions</Text>
 					</Pressable>
 
 					<Pressable
-						style={styles.secondaryButton}
+						style={({ pressed }) => [
+							styles.secondaryButton,
+							pressed && styles.buttonPressed,
+						]}
 						onPress={handleOpenSettings}
 					>
 						<Text style={styles.secondaryButtonText}>Open Settings</Text>
@@ -191,7 +197,10 @@ export default function HomeScreen() {
 							</Text>
 						</View>
 						<Pressable
-							style={styles.primaryButton}
+							style={({ pressed }) => [
+								styles.primaryButton,
+								pressed && styles.buttonPressed,
+							]}
 							onPress={handleGoToDashboard}
 						>
 							<Text style={styles.buttonText}>Open Dashboard</Text>
@@ -200,7 +209,11 @@ export default function HomeScreen() {
 				) : (
 					<>
 						<Pressable
-							style={[styles.primaryButton, loading && styles.buttonDisabled]}
+							style={({ pressed }) => [
+								styles.primaryButton,
+								loading && styles.buttonDisabled,
+								pressed && !loading && styles.buttonPressed,
+							]}
 							onPress={handleConnectGlasses}
 							disabled={loading}
 						>
@@ -210,7 +223,11 @@ export default function HomeScreen() {
 						</Pressable>
 
 						<Pressable
-							style={[styles.secondaryButton, loading && styles.buttonDisabled]}
+							style={({ pressed }) => [
+								styles.secondaryButton,
+								loading && styles.buttonDisabled,
+								pressed && !loading && styles.buttonPressed,
+							]}
 							onPress={handleConnectDemoMode}
 							disabled={loading}
 						>
@@ -235,14 +252,14 @@ const styles = StyleSheet.create({
 		padding: 20,
 	},
 	title: {
-		fontSize: 32,
-		fontWeight: "bold",
-		color: COLORS.primary,
+		fontSize: 28,
+		fontWeight: "700",
+		color: COLORS.textPrimary,
 		marginBottom: 8,
 	},
 	subtitle: {
-		fontSize: 16,
-		color: COLORS.textSecondary,
+		fontSize: 14,
+		color: COLORS.textTertiary,
 		marginBottom: 40,
 		textAlign: "center",
 	},
@@ -259,32 +276,39 @@ const styles = StyleSheet.create({
 	},
 	primaryButton: {
 		backgroundColor: COLORS.primary,
-		borderRadius: 6,
-		padding: 18,
+		borderRadius: 8,
+		paddingVertical: 12,
+		paddingHorizontal: 20,
 		width: "100%",
 		alignItems: "center",
 		marginBottom: 12,
 	},
 	secondaryButton: {
 		backgroundColor: "transparent",
-		borderRadius: 6,
-		padding: 18,
+		borderRadius: 8,
+		paddingVertical: 12,
+		paddingHorizontal: 20,
 		width: "100%",
 		alignItems: "center",
 		borderWidth: 1,
-		borderColor: COLORS.input,
+		borderColor: "#D1D5DB",
 	},
 	buttonDisabled: {
-		opacity: 0.6,
+		backgroundColor: "#F3F4F6",
+		borderColor: "#E5E7EB",
+	},
+	buttonPressed: {
+		opacity: 0.8,
+		transform: [{ scale: 0.98 }],
 	},
 	buttonText: {
 		color: COLORS.primaryForeground,
-		fontSize: 18,
-		fontWeight: "600",
+		fontSize: 16,
+		fontWeight: "500",
 	},
 	secondaryButtonText: {
-		color: COLORS.primary,
-		fontSize: 18,
-		fontWeight: "600",
+		color: COLORS.textPrimary,
+		fontSize: 16,
+		fontWeight: "500",
 	},
 });

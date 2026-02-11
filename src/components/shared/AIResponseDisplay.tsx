@@ -62,9 +62,14 @@ const styles = StyleSheet.create({
 		marginTop: 12,
 		borderWidth: 1,
 		borderColor: COLORS.border,
+		shadowColor: COLORS.shadow,
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.05,
+		shadowRadius: 8,
+		elevation: 3,
 	},
 	sectionTitle: {
-		fontSize: 16,
+		fontSize: 15,
 		fontWeight: "600",
 		color: COLORS.textPrimary,
 		marginBottom: 12,
@@ -79,7 +84,8 @@ const styles = StyleSheet.create({
 	},
 	resultText: {
 		color: COLORS.textPrimary,
-		fontSize: 16,
+		fontSize: 15,
+		lineHeight: 22,
 	},
 	placeholderText: {
 		color: COLORS.textMuted,
@@ -106,10 +112,11 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		marginTop: 12,
 		borderWidth: 1,
-		borderColor: COLORS.border,
+		borderColor: "#D1D5DB",
 	},
 	clearButtonText: {
-		color: COLORS.sidebarText,
+		color: COLORS.secondaryForeground,
 		fontSize: 14,
+		fontWeight: "500",
 	},
 });

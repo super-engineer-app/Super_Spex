@@ -20,13 +20,14 @@ const styles = StyleSheet.create({
 		marginBottom: 16,
 	},
 	title: {
-		fontSize: 22,
-		fontWeight: "bold",
+		fontSize: 18,
+		fontWeight: "700",
 		color: COLORS.textPrimary,
 	},
 	subtitle: {
-		fontSize: 14,
-		color: COLORS.textSecondary,
+		fontSize: 13,
+		color: COLORS.textTertiary,
 		marginTop: 4,
+		lineHeight: 16,
 	},
 });
