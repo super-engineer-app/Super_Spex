@@ -7,6 +7,7 @@ import {
 	View,
 } from "react-native";
 import { useTeaChecker } from "../../hooks/useTeaChecker";
+import { COLORS } from "../../theme";
 import { ActionButton } from "../shared/ActionButton";
 import { ModeHeader } from "../shared/ModeHeader";
 
@@ -70,7 +71,7 @@ export function TeaCheckerMode() {
 					<TextInput
 						style={styles.input}
 						placeholder="User ID"
-						placeholderTextColor="#666"
+						placeholderTextColor={COLORS.textMuted}
 						value={prefUserId}
 						onChangeText={setPrefUserId}
 						keyboardType="numeric"
@@ -78,7 +79,7 @@ export function TeaCheckerMode() {
 					<TextInput
 						style={styles.input}
 						placeholder="Organization ID (optional)"
-						placeholderTextColor="#666"
+						placeholderTextColor={COLORS.textMuted}
 						value={prefOrgId}
 						onChangeText={setPrefOrgId}
 						keyboardType="numeric"
@@ -134,7 +135,7 @@ export function TeaCheckerMode() {
 					<TextInput
 						style={styles.input}
 						placeholder="User ID"
-						placeholderTextColor="#666"
+						placeholderTextColor={COLORS.textMuted}
 						value={checkUserId}
 						onChangeText={setCheckUserId}
 						keyboardType="numeric"
@@ -142,14 +143,14 @@ export function TeaCheckerMode() {
 					<TextInput
 						style={styles.input}
 						placeholder="Whose tea? (e.g. Check Dev User's tea)"
-						placeholderTextColor="#666"
+						placeholderTextColor={COLORS.textMuted}
 						value={checkWhoseTea}
 						onChangeText={setCheckWhoseTea}
 					/>
 					<TextInput
 						style={styles.input}
 						placeholder="Organization ID"
-						placeholderTextColor="#666"
+						placeholderTextColor={COLORS.textMuted}
 						value={checkOrgId}
 						onChangeText={setCheckOrgId}
 						keyboardType="numeric"
@@ -198,13 +199,15 @@ const styles = StyleSheet.create({
 	},
 	panel: {
 		flex: 1,
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		padding: 16,
 		gap: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	panelTitle: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 18,
 		fontWeight: "700",
 		marginBottom: 4,
@@ -220,17 +223,21 @@ const styles = StyleSheet.create({
 		resizeMode: "cover",
 	},
 	input: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.background,
 		borderRadius: 8,
 		padding: 12,
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 14,
+		borderWidth: 1,
+		borderColor: COLORS.input,
 	},
 	resultBox: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 12,
 		gap: 8,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	resultRow: {
 		flexDirection: "row",
@@ -238,11 +245,11 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	resultLabel: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 14,
 	},
 	resultValue: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 14,
 	},
 	colorSwatch: {
@@ -250,10 +257,10 @@ const styles = StyleSheet.create({
 		height: 20,
 		borderRadius: 4,
 		borderWidth: 1,
-		borderColor: "#555",
+		borderColor: COLORS.border,
 	},
 	errorText: {
-		color: "#f66",
+		color: COLORS.destructive,
 		fontSize: 13,
 	},
 });

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { COLORS } from "../../theme";
 
 interface AIResponseDisplayProps {
 	response: string;
@@ -48,49 +49,55 @@ export function AIResponseDisplay({
 
 const styles = StyleSheet.create({
 	section: {
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		padding: 16,
 		marginTop: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	sectionTitle: {
 		fontSize: 16,
 		fontWeight: "600",
-		color: "#fff",
+		color: COLORS.textPrimary,
 		marginBottom: 12,
 	},
 	resultBox: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	resultText: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 16,
 	},
 	error: {
-		color: "#f66",
+		color: COLORS.destructive,
 		fontSize: 13,
 	},
 	loadingText: {
-		color: "#888",
+		color: COLORS.textMuted,
 		fontSize: 14,
 		fontStyle: "italic",
 	},
 	statusText: {
-		color: "#4af",
+		color: COLORS.accent,
 		fontSize: 14,
 		fontStyle: "italic",
 	},
 	clearButton: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
 		padding: 10,
 		alignItems: "center",
 		marginTop: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	clearButtonText: {
-		color: "#aaa",
+		color: COLORS.sidebarText,
 		fontSize: 14,
 	},
 });

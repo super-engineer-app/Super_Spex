@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { COLORS } from "../../theme";
 
 interface RecordingIndicatorProps {
 	label?: string;
@@ -26,10 +27,10 @@ const styles = StyleSheet.create({
 		width: 12,
 		height: 12,
 		borderRadius: 6,
-		backgroundColor: "#f44",
+		backgroundColor: COLORS.destructive,
 	},
 	text: {
-		color: "#f88",
+		color: COLORS.destructive,
 		fontSize: 16,
 		fontWeight: "600",
 	},

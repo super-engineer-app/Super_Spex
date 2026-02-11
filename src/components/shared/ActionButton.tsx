@@ -3,8 +3,10 @@ import {
 	type StyleProp,
 	StyleSheet,
 	Text,
+	type TextStyle,
 	type ViewStyle,
 } from "react-native";
+import { COLORS } from "../../theme";
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "success";
 
@@ -17,10 +19,21 @@ interface ActionButtonProps {
 }
 
 const variantStyles: Record<ButtonVariant, ViewStyle> = {
-	primary: { backgroundColor: "#07f" },
-	secondary: { backgroundColor: "#444" },
-	danger: { backgroundColor: "#a33" },
-	success: { backgroundColor: "#2a7a2a" },
+	primary: { backgroundColor: COLORS.primary },
+	secondary: {
+		backgroundColor: COLORS.secondary,
+		borderWidth: 1,
+		borderColor: COLORS.input,
+	},
+	danger: { backgroundColor: COLORS.destructive },
+	success: { backgroundColor: COLORS.success },
+};
+
+const variantTextStyles: Record<ButtonVariant, TextStyle> = {
+	primary: { color: COLORS.primaryForeground },
+	secondary: { color: COLORS.sidebarText },
+	danger: { color: COLORS.destructiveForeground },
+	success: { color: COLORS.successForeground },
 };
 
 export function ActionButton({
@@ -41,7 +54,7 @@ export function ActionButton({
 			onPress={onPress}
 			disabled={disabled}
 		>
-			<Text style={styles.text}>{label}</Text>
+			<Text style={[styles.text, variantTextStyles[variant]]}>{label}</Text>
 		</Pressable>
 	);
 }
@@ -49,14 +62,13 @@ export function ActionButton({
 const styles = StyleSheet.create({
 	button: {
 		borderRadius: 8,
-		padding: 14,
+		padding: 12,
 		alignItems: "center",
 	},
 	disabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 	text: {
-		color: "#fff",
 		fontSize: 16,
 		fontWeight: "600",
 	},

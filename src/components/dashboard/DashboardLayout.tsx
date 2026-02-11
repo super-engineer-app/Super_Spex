@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { COLORS } from "../../theme";
 import { ContentArea } from "./ContentArea";
 import { DashboardProvider, useDashboard } from "./DashboardContext";
 import { DashboardSidebar } from "./DashboardSidebar";
@@ -54,7 +55,7 @@ export function DashboardLayout() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#111",
+		backgroundColor: COLORS.background,
 	},
 	row: {
 		flex: 1,
@@ -68,17 +69,17 @@ const styles = StyleSheet.create({
 	},
 	title: {
 		fontSize: 20,
-		color: "#fff",
+		color: COLORS.textPrimary,
 		marginBottom: 20,
 	},
 	button: {
-		backgroundColor: "#07f",
+		backgroundColor: COLORS.primary,
 		borderRadius: 8,
 		padding: 14,
 		alignItems: "center",
 	},
 	buttonText: {
-		color: "#fff",
+		color: COLORS.primaryForeground,
 		fontSize: 16,
 	},
 });

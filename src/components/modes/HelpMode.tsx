@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { sendTextAndImage } from "../../services/backendApi";
+import { COLORS } from "../../theme";
 import logger from "../../utils/logger";
 import { useDashboard } from "../dashboard/DashboardContext";
 import { ActionButton } from "../shared/ActionButton";
@@ -193,7 +194,7 @@ export function HelpMode() {
 					value={typedText}
 					onChangeText={setTypedText}
 					placeholder="Describe what you need help with..."
-					placeholderTextColor="#666"
+					placeholderTextColor={COLORS.textMuted}
 					multiline
 					textAlignVertical="top"
 				/>
@@ -247,34 +248,38 @@ const styles = StyleSheet.create({
 		marginTop: 12,
 	},
 	transcriptBox: {
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 8,
 		padding: 12,
 		marginTop: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	transcriptLabel: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		marginBottom: 4,
 	},
 	transcriptText: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 16,
 	},
 	textInputBox: {
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 8,
 		padding: 12,
 		marginTop: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	textInput: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 15,
 		lineHeight: 22,
 		minHeight: 60,
 	},
 	error: {
-		color: "#f66",
+		color: COLORS.destructive,
 		fontSize: 13,
 		marginTop: 8,
 	},

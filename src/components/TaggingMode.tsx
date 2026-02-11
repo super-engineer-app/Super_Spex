@@ -15,6 +15,7 @@ import {
 	TextInput,
 	View,
 } from "react-native";
+import { COLORS } from "../theme";
 import type { TaggedImage } from "../types/tagging";
 
 interface TaggingModeProps {
@@ -112,7 +113,7 @@ export function TaggingMode({
 					value={transcript}
 					onChangeText={onEditTranscript}
 					placeholder="Speak or type to add notes..."
-					placeholderTextColor="#666"
+					placeholderTextColor={COLORS.textMuted}
 					multiline
 					textAlignVertical="top"
 				/>
@@ -206,7 +207,7 @@ export function TaggingMode({
 					disabled={isSaving || images.length === 0 || !transcript.trim()}
 				>
 					{isSaving ? (
-						<ActivityIndicator color="#fff" size="small" />
+						<ActivityIndicator color={COLORS.primaryForeground} size="small" />
 					) : (
 						<Text style={styles.saveButtonText}>
 							Save Tag ({images.length} img)
@@ -220,15 +221,17 @@ export function TaggingMode({
 
 const styles = StyleSheet.create({
 	section: {
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		padding: 16,
 		marginBottom: 16,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	activeSection: {
-		backgroundColor: "#1a2a1a",
+		backgroundColor: COLORS.successBg,
 		borderWidth: 2,
-		borderColor: "#4a4",
+		borderColor: COLORS.success,
 	},
 	header: {
 		flexDirection: "row",
@@ -239,52 +242,54 @@ const styles = StyleSheet.create({
 	sectionTitle: {
 		fontSize: 16,
 		fontWeight: "600",
-		color: "#fff",
+		color: COLORS.textPrimary,
 	},
 	activeTitle: {
-		color: "#4f4",
+		color: COLORS.success,
 	},
 	badge: {
-		backgroundColor: "#f44",
+		backgroundColor: COLORS.destructive,
 		borderRadius: 4,
 		paddingHorizontal: 8,
 		paddingVertical: 2,
 	},
 	badgeText: {
-		color: "#fff",
+		color: COLORS.destructiveForeground,
 		fontSize: 10,
 		fontWeight: "bold",
 	},
 	hint: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 13,
 		marginBottom: 12,
 	},
 	startButton: {
-		backgroundColor: "#4a4",
+		backgroundColor: COLORS.success,
 		borderRadius: 8,
 		padding: 14,
 		alignItems: "center",
 	},
 	startButtonText: {
-		color: "#fff",
+		color: COLORS.successForeground,
 		fontSize: 16,
 		fontWeight: "600",
 	},
 	transcriptBox: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 12,
 		marginBottom: 12,
 		minHeight: 80,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	transcriptLabel: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		marginBottom: 4,
 	},
 	transcriptText: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 15,
 		lineHeight: 22,
 	},
@@ -292,7 +297,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	imagesLabel: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		marginBottom: 8,
 	},
@@ -307,7 +312,7 @@ const styles = StyleSheet.create({
 		width: 80,
 		height: 80,
 		borderRadius: 8,
-		backgroundColor: "#000",
+		backgroundColor: COLORS.secondary,
 	},
 	imageSource: {
 		position: "absolute",
@@ -324,7 +329,7 @@ const styles = StyleSheet.create({
 		position: "absolute",
 		top: -4,
 		right: -4,
-		backgroundColor: "#f44",
+		backgroundColor: COLORS.destructive,
 		width: 20,
 		height: 20,
 		borderRadius: 10,
@@ -332,12 +337,12 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	removeButtonText: {
-		color: "#fff",
+		color: COLORS.destructiveForeground,
 		fontSize: 12,
 		fontWeight: "bold",
 	},
 	noImagesText: {
-		color: "#666",
+		color: COLORS.textMuted,
 		fontSize: 13,
 		fontStyle: "italic",
 		marginBottom: 8,
@@ -348,37 +353,43 @@ const styles = StyleSheet.create({
 	},
 	captureButton: {
 		flex: 1,
-		backgroundColor: "#444",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
 		padding: 10,
 		alignItems: "center",
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	captureButtonDisabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 	captureButtonText: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 13,
 		fontWeight: "500",
 	},
 	statusBox: {
-		backgroundColor: "#2a3a4a",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 10,
 		marginBottom: 12,
+		borderWidth: 1,
+		borderColor: COLORS.accent,
 	},
 	statusText: {
-		color: "#8af",
+		color: COLORS.accent,
 		fontSize: 13,
 	},
 	errorBox: {
-		backgroundColor: "#4a2a2a",
+		backgroundColor: "#FEF2F2",
 		borderRadius: 8,
 		padding: 10,
 		marginBottom: 12,
+		borderWidth: 1,
+		borderColor: COLORS.destructive,
 	},
 	errorText: {
-		color: "#f88",
+		color: COLORS.destructive,
 		fontSize: 13,
 	},
 	actionButtons: {
@@ -387,29 +398,31 @@ const styles = StyleSheet.create({
 	},
 	cancelButton: {
 		flex: 1,
-		backgroundColor: "#444",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
 		padding: 14,
 		alignItems: "center",
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	cancelButtonText: {
-		color: "#aaa",
+		color: COLORS.textSecondary,
 		fontSize: 15,
 	},
 	saveButton: {
 		flex: 2,
-		backgroundColor: "#4a4",
+		backgroundColor: COLORS.success,
 		borderRadius: 8,
 		padding: 14,
 		alignItems: "center",
 		justifyContent: "center",
 	},
 	saveButtonDisabled: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.secondary,
 		opacity: 0.6,
 	},
 	saveButtonText: {
-		color: "#fff",
+		color: COLORS.successForeground,
 		fontSize: 15,
 		fontWeight: "600",
 	},

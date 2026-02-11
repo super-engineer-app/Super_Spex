@@ -1,4 +1,5 @@
 import { StyleSheet, View } from "react-native";
+import { COLORS } from "../../theme";
 import { ConfigMode } from "../modes/ConfigMode";
 import { HelpMode } from "../modes/HelpMode";
 import { IdentifyMode } from "../modes/IdentifyMode";
@@ -33,5 +34,6 @@ export function ContentArea() {
 const styles = StyleSheet.create({
 	content: {
 		flex: 1,
+		backgroundColor: COLORS.backgroundSecondary,
 	},
 });
