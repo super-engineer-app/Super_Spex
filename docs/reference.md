@@ -49,10 +49,10 @@
 | `src/components/dashboard/DashboardLayout.tsx` | Root dashboard wrapper (connection guard + providers) |
 | `src/components/dashboard/DashboardContext.tsx` | Context provider for dashboard state (active mode, glasses, speech, camera) |
 | `src/components/dashboard/DashboardSidebar.tsx` | Responsive sidebar navigation (6 mode buttons) |
-| `src/components/dashboard/ContentArea.tsx` | Routes active mode to the correct mode component |
+| `src/components/dashboard/ContentArea.tsx` | Routes active mode to the correct mode component; NotesMode stays mounted (`display: "none"`) for state persistence |
 | `src/components/modes/IdentifyMode.tsx` | Take photo → AI identifies object (SSE streaming) |
 | `src/components/modes/HelpMode.tsx` | Photo + voice/text → AI help response |
-| `src/components/modes/NotesMode.tsx` | Two tabs: photo tagging session, video recording + transcription |
+| `src/components/modes/NotesMode.tsx` | Two tabs: photo tagging session, video recording + transcription; state persists across tab switches |
 | `src/components/modes/LiveStreamMode.tsx` | Stream glasses camera to web viewers via Agora |
 | `src/components/modes/TeaCheckerMode.tsx` | Tea analysis mode (placeholder) |
 | `src/components/modes/ConfigMode.tsx` | Parking timer + disconnect button |

@@ -88,7 +88,7 @@ The React Native layer (`app/glasses/index.tsx`) enforces this by checking recor
 | `recordingState` | `'idle' \| 'recording'` | Current recording state from native events |
 | `transcriptionState` | `'idle' \| 'loading' \| 'done' \| 'error'` | Transcription processing state |
 | `transcriptionResult` | `TranscriptionResult \| null` | Parsed diarized segments |
-| `cameraSource` | `'phone' \| 'glasses'` | Which camera to record from |
+| `cameraSource` | `'phone' \| 'glasses'` | Which camera to record from (defaults to `'glasses'`) |
 | `duration` | `number` | Recording duration in seconds (JS timer, ticks every 500ms) |
 
 ### Key Functions
