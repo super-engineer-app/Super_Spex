@@ -157,7 +157,7 @@ Main Process (on phone)               Cloud                    Browser
 | Repository | Location | Description |
 |------------|----------|-------------|
 | **spex** (this repo) | `~/coding/spex` | Main React Native app + native modules |
-| **spex-web-viewer** | `~/coding/spex-web-viewer` | Cloudflare Workers for Remote View (web viewer + token server) |
+| **spex-web-viewer** | `~/coding/spex-web-viewer` | Vite + TS web viewer for Remote View (Cloudflare Pages) |
 | **superspex-backend** | `~/coding/superspex-backend` | AI backend (Fly.dev) |
 
 **Web Viewer Deployment:**

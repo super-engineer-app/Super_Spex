@@ -3,7 +3,9 @@ package expo.modules.xrglasses
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.VideoView
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
@@ -39,8 +41,20 @@ class CameraPreviewView(
 
     private val videoView =
         VideoView(context).apply {
+            layoutParams =
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER,
+                )
+        }
+
+    // FrameLayout wrapper centers VideoView (which auto-sizes to video aspect ratio)
+    private val videoContainer =
+        FrameLayout(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             visibility = View.GONE
+            addView(videoView)
         }
 
     private var isActive = false
@@ -49,7 +63,7 @@ class CameraPreviewView(
 
     init {
         addView(previewView)
-        addView(videoView)
+        addView(videoContainer)
     }
 
     fun setActive(active: Boolean) {
@@ -80,7 +94,7 @@ class CameraPreviewView(
     private fun showPlayback(uri: String) {
         releasePreview()
         previewView.visibility = View.GONE
-        videoView.visibility = View.VISIBLE
+        videoContainer.visibility = View.VISIBLE
 
         val videoUri =
             if (uri.startsWith("/")) {
@@ -92,6 +106,25 @@ class CameraPreviewView(
         videoView.setVideoURI(videoUri)
         videoView.setOnPreparedListener { mp ->
             mp.isLooping = true
+
+            // Scale video to fill container (cover behavior) instead of fit (contain).
+            // VideoView.onMeasure() sizes itself to the video's aspect ratio within
+            // MATCH_PARENT bounds, so it may be smaller than the container.
+            // The FrameLayout wrapper centers it, and this scale fills the rest.
+            val vw = mp.videoWidth.toFloat()
+            val vh = mp.videoHeight.toFloat()
+            val cw = this@CameraPreviewView.width.toFloat()
+            val ch = this@CameraPreviewView.height.toFloat()
+
+            if (vw > 0 && vh > 0 && cw > 0 && ch > 0) {
+                val fitScale = minOf(cw / vw, ch / vh)
+                val coverScale = maxOf(cw / vw, ch / vh)
+                val extraScale = coverScale / fitScale
+                videoView.scaleX = extraScale
+                videoView.scaleY = extraScale
+                Log.d(TAG, "Video cover scale: ${extraScale}x (video: ${vw}x${vh}, container: ${cw}x${ch})")
+            }
+
             mp.start()
         }
         videoView.start()
@@ -99,7 +132,7 @@ class CameraPreviewView(
     }
 
     private fun showLivePreview() {
-        videoView.visibility = View.GONE
+        videoContainer.visibility = View.GONE
         videoView.stopPlayback()
         previewView.visibility = View.VISIBLE
         acquirePreview()
@@ -109,7 +142,7 @@ class CameraPreviewView(
         releasePreview()
         videoView.stopPlayback()
         previewView.visibility = View.GONE
-        videoView.visibility = View.GONE
+        videoContainer.visibility = View.GONE
     }
 
     private fun acquirePreview() {

@@ -164,13 +164,13 @@ const styles = StyleSheet.create({
 	row: {
 		flexDirection: "row",
 		gap: 16,
-		alignItems: "center",
+		alignItems: "flex-start",
 	},
 	previewColumn: {
-		flex: 1,
+		flex: 3,
 	},
 	buttonsColumn: {
-		flex: 1,
+		flex: 2,
 		gap: 12,
 	},
 });

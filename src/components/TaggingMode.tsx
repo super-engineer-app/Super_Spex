@@ -1,3 +1,4 @@
+import { Plus, Trash2, X } from "lucide-react-native";
 import {
 	ActivityIndicator,
 	Image,
@@ -24,6 +25,7 @@ interface TaggingModeProps {
 	isGlassesCameraReady: boolean;
 	isGlassesCapturing: boolean;
 	isRecordingAudio: boolean;
+	tabToggle?: React.ReactNode;
 	onStartTagging: () => void;
 	onCancelTagging: () => void;
 	onSaveTagging: () => void;
@@ -44,6 +46,7 @@ export function TaggingMode({
 	statusMessage,
 	isGlassesCapturing,
 	isRecordingAudio,
+	tabToggle,
 	onStartTagging,
 	onCancelTagging,
 	onSaveTagging,
@@ -85,11 +88,11 @@ export function TaggingMode({
 												style={styles.removeButton}
 												onPress={() => onRemoveImage(i)}
 											>
-												<Text style={styles.removeButtonText}>X</Text>
+												<X size={12} color={COLORS.destructiveForeground} />
 											</Pressable>
 										</>
 									) : i === images.length && canTakeMore ? (
-										<Text style={styles.addIcon}>+</Text>
+										<Plus size={24} color={COLORS.textMuted} />
 									) : (
 										<View style={styles.emptySlot} />
 									)}
@@ -100,6 +103,7 @@ export function TaggingMode({
 				</View>
 
 				<View style={styles.buttonsColumn}>
+					{tabToggle}
 					<ActionButton
 						label={isRecordingAudio ? "Stop" : "Record note"}
 						onPress={onToggleRecordNote}
@@ -138,7 +142,7 @@ export function TaggingMode({
 							/>
 						)}
 						<Pressable style={styles.trashButton} onPress={onCancelTagging}>
-							<Text style={styles.trashIcon}>🗑</Text>
+							<Trash2 size={18} color={COLORS.textSecondary} />
 						</Pressable>
 					</View>
 				</View>
@@ -213,19 +217,10 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 	},
-	removeButtonText: {
-		color: COLORS.destructiveForeground,
-		fontSize: 11,
-		fontWeight: "bold",
-	},
 	emptySlot: {
 		width: "100%",
 		height: "100%",
 		backgroundColor: COLORS.backgroundSecondary,
-	},
-	addIcon: {
-		fontSize: 24,
-		color: COLORS.textMuted,
 	},
 	saveRow: {
 		flexDirection: "row",
@@ -250,9 +245,6 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		borderWidth: 1,
 		borderColor: "#D1D5DB",
-	},
-	trashIcon: {
-		fontSize: 18,
 	},
 	statusText: {
 		color: COLORS.info,

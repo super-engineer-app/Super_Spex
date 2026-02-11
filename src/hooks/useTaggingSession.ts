@@ -329,16 +329,20 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 
 		try {
 			if (!isGlassesCameraReady) {
-				logger.debug(TAG, "Initializing glasses camera...");
+				logger.debug(TAG, "Initializing glasses camera (emulation=false)...");
 				await initGlassesCamera(false);
 			}
 
-			logger.debug(TAG, "Capturing from glasses...");
+			logger.debug(
+				TAG,
+				`Capturing from glasses camera (ready=${isGlassesCameraReady})...`,
+			);
 			await captureGlassesImage();
-			// The useEffect above will handle adding the image when glassesLastImage updates
+			logger.debug(TAG, "Glasses camera capture initiated");
 		} catch (err) {
 			const message =
 				err instanceof Error ? err.message : "Failed to capture from glasses";
+			logger.error(TAG, "Glasses camera capture failed:", message);
 			setError(message);
 		}
 	}, [
@@ -349,9 +353,9 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 	]);
 
 	/**
-	 * Take photo with phone camera.
-	 * On web, ImagePicker.launchCameraAsync opens a file picker (same as gallery),
-	 * so we delegate to the getUserMedia camera path instead.
+	 * Take photo — tries glasses camera first (via ProjectedContext),
+	 * falls back to phone camera if glasses capture fails.
+	 * On web, always uses getUserMedia.
 	 */
 	const captureFromPhone = useCallback(async () => {
 		if (!isTaggingActive) {
@@ -359,14 +363,14 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 			return;
 		}
 
-		// On web, use the same getUserMedia camera as the Glasses button
+		// On web, use getUserMedia camera
 		if (Platform.OS === "web") {
 			try {
 				if (!isGlassesCameraReady) {
-					logger.debug(TAG, "Initializing camera for web phone capture...");
+					logger.debug(TAG, "Initializing camera for web capture...");
 					await initGlassesCamera(false);
 				}
-				logger.debug(TAG, "Capturing from web camera (phone button)...");
+				logger.debug(TAG, "Capturing from web camera...");
 				await captureGlassesImage();
 			} catch (err) {
 				const message =
@@ -376,6 +380,26 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 			return;
 		}
 
+		// On native: try glasses camera first, fall back to phone
+		try {
+			logger.debug(TAG, "Attempting glasses camera capture...");
+			if (!isGlassesCameraReady) {
+				logger.debug(TAG, "Initializing glasses camera (emulation=false)...");
+				await initGlassesCamera(false);
+			}
+			logger.debug(TAG, "Capturing from glasses camera...");
+			await captureGlassesImage();
+			logger.debug(TAG, "Glasses camera capture succeeded");
+			return;
+		} catch (err) {
+			logger.warn(
+				TAG,
+				"Glasses camera failed, falling back to phone camera:",
+				err instanceof Error ? err.message : String(err),
+			);
+		}
+
+		// Fallback: phone camera via ImagePicker
 		try {
 			const permissionResult =
 				await ImagePicker.requestCameraPermissionsAsync();
@@ -384,7 +408,7 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 				return;
 			}
 
-			logger.debug(TAG, "Opening phone camera...");
+			logger.debug(TAG, "Opening phone camera (fallback)...");
 			const result = await ImagePicker.launchCameraAsync({
 				mediaTypes: "images",
 				base64: true,
@@ -393,18 +417,13 @@ export function useTaggingSession(): UseTaggingSessionReturn {
 			});
 
 			if (!result.canceled && result.assets[0]?.base64) {
-				// Use global cached location (instant, no GPS delay)
 				const taggedImage = createTaggedImageSync(
 					result.assets[0].base64,
 					"phone",
 					getCachedLocation(),
 				);
 				setTaggingImages((prev) => [...prev, taggedImage]);
-				logger.debug(TAG, `=== PHONE IMAGE CAPTURED ===`);
-				logger.debug(
-					TAG,
-					`  Using cached location: lat=${taggedImage.lat}, long=${taggedImage.long}`,
-				);
+				logger.debug(TAG, "Phone camera capture succeeded (fallback)");
 			}
 		} catch (err) {
 			const message =

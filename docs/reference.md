@@ -138,7 +138,7 @@ For detailed troubleshooting, see the maintenance docs:
 | Repository | Location | Description |
 |------------|----------|-------------|
 | **spex** (this repo) | `~/coding/spex` | Main React Native app + native modules |
-| **spex-web-viewer** | `~/coding/spex-web-viewer` | Cloudflare Workers (web viewer + token server) |
+| **spex-web-viewer** | `~/coding/spex-web-viewer` | Vite + TS web viewer (Cloudflare Pages) — lobby, participant grid, recording, transcription |
 | **SuperSpexWins** | `~/coding/backend-with-testing-frontend/SuperSpexWins` | FastAPI backend (transcription, tagging, AI) — runs locally during dev |
 | **cloudflare-workers** | `~/coding/spex/cloudflare-workers` | Agora token server + viewer presence (NOT transcription) |
 

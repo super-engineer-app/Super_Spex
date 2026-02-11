@@ -143,6 +143,39 @@ All connected clients receive:
 {"type": "chat", "from": "Name", "role": "viewer", "text": "Hello!", "timestamp": 123456}
 ```
 
+## Idle Channel Auto-Stop
+
+Prevents orphaned Agora sessions from burning minutes when the host forgets to stop streaming.
+
+### Behavior
+
+1. Host starts streaming with **0 viewers** → 5-minute idle timer starts
+2. After 5 minutes → amber warning banner appears: "Still streaming? No viewers for 5 minutes. Stream will auto-stop in 60s."
+3. **Keep Streaming** → dismisses warning, restarts the 5-min timer
+4. **Stop Stream** → stops the stream immediately
+5. No action → stream auto-stops after the 60s countdown
+6. A viewer joins at any point → all idle timers are cleared
+
+### Constants (`useRemoteView.ts`)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `IDLE_TIMEOUT_MS` | 5 min | Time with 0 viewers before warning |
+| `IDLE_AUTO_STOP_S` | 60s | Countdown before auto-stop |
+
+### Edge Cases
+
+| Case | Handling |
+|------|----------|
+| Viewers: 0→1→0 | Timers clear on 0→1, fresh 5-min on 1→0 |
+| Dismiss with 0 viewers | Clears timers, effect restarts 5-min timer |
+| Stream stops during warning | `onStreamStopped` clears everything |
+| Unmount during warning | Effect cleanup clears all timers |
+
+### Host Disconnect Auto-Leave (Web Viewer)
+
+When the host leaves, the web viewer starts a 30-second countdown and then auto-leaves (returns to lobby). If other remote participants are still present, the countdown is skipped. If the host rejoins before the countdown expires, the timer is cleared.
+
 ## Key Files
 
 ### Android (Publisher)
@@ -156,18 +189,29 @@ All connected clients receive:
 
 ### Web Viewer (Subscriber)
 
+Separate repo: `~/coding/spex-web-viewer/` — see its own `CLAUDE.md` and `docs/architecture.md`.
+
 | File | Purpose |
 |------|---------|
-| `viewer.ts` | Agora client, lobby, participant grid, two-way media |
-| `index.html` | Viewer page: lobby screen, participant grid |
-| `styles.css` | Styling: lobby, grid layouts, participant tiles |
+| `src/viewer.ts` | Agora client, lobby, participant grid, controls, two-way media, auto-hide |
+| `src/recorder.ts` | Local WebM recording with multi-track audio mixing |
+| `src/transcription.ts` | Audio transcription via backend API |
+| `index.html` | Viewer page: lobby screen, participant grid, modals |
+| `styles.css` | Styling: Google Meet-inspired layout, grid, controls |
 
 ### Web Viewer Features
 
-- **Lobby**: Pre-join screen for camera/mic setup, name entry, permissions
-- **Participant Grid**: Shows all participants (like Zoom/Google Meet)
-- **Host Priority**: Host camera is larger and centered in grid
-- **Display Names**: Names shown under each participant tile (persisted in localStorage)
+- **Lobby**: Pre-join screen with camera preview, mic/camera toggles, name entry, permission badges
+- **Participant Grid**: Google Meet-style uniform grid (all tiles equal size, host top-left)
+- **Two-Way Audio/Video**: Viewers can publish mic and camera back to host
+- **Display Names**: Shown at bottom-left of each tile (persisted in localStorage)
+- **Mute Indicators**: Mic-off icon on tiles when participant has no audio
+- **Recording**: Local WebM recording of host video + mixed audio from all participants
+- **Transcription**: Post-recording transcription with speaker diarization via backend API
+- **Auto-Hide Controls**: Floating pill-shaped control bar fades after 3s of inactivity
+- **Keyboard Shortcuts**: `m` (speaker mute), `d` (mic), `e` (camera), `f` (fullscreen)
+- **Stats**: Real-time video quality and latency display (bottom-right)
+- **Host Disconnect Auto-Leave**: 30s countdown when host leaves (see above)
 
 ### Token Server (Cloudflare Worker)
 
