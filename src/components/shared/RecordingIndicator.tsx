@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
 	},
 	text: {
 		color: COLORS.destructive,
-		fontSize: 16,
+		fontSize: 14,
 		fontWeight: "600",
 	},
 });

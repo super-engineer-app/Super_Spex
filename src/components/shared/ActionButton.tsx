@@ -9,7 +9,7 @@ import {
 import { COLORS } from "../../theme";
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "success";
-type ButtonSize = "default" | "small";
+type ButtonSize = "small" | "default" | "large";
 
 interface ActionButtonProps {
 	label: string;
@@ -21,19 +21,31 @@ interface ActionButtonProps {
 }
 
 const variantStyles: Record<ButtonVariant, ViewStyle> = {
-	primary: { backgroundColor: COLORS.primary },
+	primary: {
+		backgroundColor: COLORS.primary,
+		borderWidth: 1,
+		borderColor: COLORS.primary,
+	},
 	secondary: {
 		backgroundColor: COLORS.secondary,
 		borderWidth: 1,
-		borderColor: COLORS.input,
+		borderColor: "#D1D5DB",
 	},
-	danger: { backgroundColor: COLORS.destructive },
-	success: { backgroundColor: COLORS.success },
+	danger: {
+		backgroundColor: COLORS.destructive,
+		borderWidth: 1,
+		borderColor: COLORS.destructive,
+	},
+	success: {
+		backgroundColor: COLORS.success,
+		borderWidth: 1,
+		borderColor: COLORS.success,
+	},
 };
 
 const variantTextStyles: Record<ButtonVariant, TextStyle> = {
 	primary: { color: COLORS.primaryForeground },
-	secondary: { color: COLORS.sidebarText },
+	secondary: { color: COLORS.secondaryForeground },
 	danger: { color: COLORS.destructiveForeground },
 	success: { color: COLORS.successForeground },
 };
@@ -46,13 +58,28 @@ export function ActionButton({
 	style,
 	size = "default",
 }: ActionButtonProps) {
+	const sizeStyle =
+		size === "small"
+			? styles.buttonSmall
+			: size === "large"
+				? styles.buttonLarge
+				: styles.buttonMedium;
+
+	const textSizeStyle =
+		size === "small"
+			? styles.textSmall
+			: size === "large"
+				? styles.textLarge
+				: styles.textMedium;
+
 	return (
 		<Pressable
-			style={[
+			style={({ pressed }) => [
 				styles.button,
+				sizeStyle,
 				variantStyles[variant],
-				size === "small" && styles.buttonSmall,
 				disabled && styles.disabled,
+				pressed && !disabled && styles.pressed,
 				style,
 			]}
 			onPress={onPress}
@@ -61,8 +88,9 @@ export function ActionButton({
 			<Text
 				style={[
 					styles.text,
+					textSizeStyle,
 					variantTextStyles[variant],
-					size === "small" && styles.textSmall,
+					disabled && styles.disabledText,
 				]}
 			>
 				{label}
@@ -73,23 +101,46 @@ export function ActionButton({
 
 const styles = StyleSheet.create({
 	button: {
-		borderRadius: 6,
-		paddingVertical: 12,
-		paddingHorizontal: 16,
 		alignItems: "center",
+		justifyContent: "center",
 	},
 	buttonSmall: {
-		paddingVertical: 8,
 		paddingHorizontal: 12,
+		paddingVertical: 6,
+		borderRadius: 6,
+	},
+	buttonMedium: {
+		paddingHorizontal: 16,
+		paddingVertical: 8,
+		borderRadius: 8,
+	},
+	buttonLarge: {
+		paddingHorizontal: 20,
+		paddingVertical: 12,
+		borderRadius: 10,
 	},
 	disabled: {
-		opacity: 0.6,
+		backgroundColor: "#F3F4F6",
+		borderColor: "#E5E7EB",
+	},
+	disabledText: {
+		color: COLORS.textMuted,
+	},
+	pressed: {
+		opacity: 0.8,
+		transform: [{ scale: 0.98 }],
 	},
 	text: {
-		fontSize: 16,
-		fontWeight: "600",
+		fontWeight: "500",
+		textAlign: "center",
 	},
 	textSmall: {
-		fontSize: 13,
+		fontSize: 12,
+	},
+	textMedium: {
+		fontSize: 14,
+	},
+	textLarge: {
+		fontSize: 16,
 	},
 });

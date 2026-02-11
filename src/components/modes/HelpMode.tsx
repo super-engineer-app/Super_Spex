@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
 		gap: 12,
 	},
 	fieldLabel: {
-		fontSize: 16,
+		fontSize: 14,
 		fontWeight: "600",
 		color: COLORS.textPrimary,
 		marginBottom: 8,
@@ -279,8 +279,8 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		color: COLORS.textPrimary,
-		fontSize: 15,
-		lineHeight: 22,
+		fontSize: 14,
+		lineHeight: 20,
 		minHeight: 80,
 	},
 	error: {

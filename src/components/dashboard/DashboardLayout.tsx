@@ -32,7 +32,13 @@ function DashboardInner() {
 			<SafeAreaView style={styles.container}>
 				<View style={styles.center}>
 					<Text style={styles.title}>Not Connected</Text>
-					<Pressable style={styles.button} onPress={() => router.replace("/")}>
+					<Pressable
+						style={({ pressed }) => [
+							styles.button,
+							pressed && styles.buttonPressed,
+						]}
+						onPress={() => router.replace("/")}
+					>
 						<Text style={styles.buttonText}>Go to Connect</Text>
 					</Pressable>
 				</View>
@@ -74,18 +80,25 @@ const styles = StyleSheet.create({
 		padding: 20,
 	},
 	title: {
-		fontSize: 20,
+		fontSize: 18,
+		fontWeight: "700",
 		color: COLORS.textPrimary,
 		marginBottom: 20,
 	},
 	button: {
 		backgroundColor: COLORS.primary,
 		borderRadius: 8,
-		padding: 14,
+		paddingVertical: 12,
+		paddingHorizontal: 20,
 		alignItems: "center",
+	},
+	buttonPressed: {
+		opacity: 0.8,
+		transform: [{ scale: 0.98 }],
 	},
 	buttonText: {
 		color: COLORS.primaryForeground,
-		fontSize: 16,
+		fontSize: 14,
+		fontWeight: "500",
 	},
 });

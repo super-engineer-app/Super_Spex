@@ -47,7 +47,11 @@ export function DashboardSidebar() {
 						style={[styles.item, isActive && styles.itemActive]}
 						onPress={() => setMode(item.mode)}
 					>
-						<Text style={styles.icon}>{item.icon}</Text>
+						<View
+							style={[styles.iconWrapper, isActive && styles.iconWrapperActive]}
+						>
+							<Text style={styles.icon}>{item.icon}</Text>
+						</View>
 						{isWide ? (
 							<Text style={[styles.label, isActive && styles.labelActive]}>
 								{item.label}
@@ -62,6 +66,7 @@ export function DashboardSidebar() {
 
 const styles = StyleSheet.create({
 	sidebar: {
+		height: "100%",
 		backgroundColor: COLORS.sidebarBg,
 		paddingVertical: 12,
 		borderRightWidth: 1,
@@ -69,14 +74,14 @@ const styles = StyleSheet.create({
 	},
 	headerText: {
 		fontSize: 18,
-		fontWeight: "bold",
+		fontWeight: "700",
 		color: COLORS.textPrimary,
 		paddingHorizontal: 12,
 		paddingVertical: 10,
 		marginBottom: 4,
 	},
 	sidebarWide: {
-		width: 240,
+		width: 280,
 	},
 	sidebarNarrow: {
 		width: 64,
@@ -84,9 +89,7 @@ const styles = StyleSheet.create({
 	item: {
 		flexDirection: "row",
 		alignItems: "center",
-		paddingVertical: 8,
-		paddingHorizontal: 10,
-		gap: 12,
+		padding: 6,
 		borderRadius: 6,
 		marginHorizontal: 12,
 		marginBottom: 2,
@@ -95,13 +98,26 @@ const styles = StyleSheet.create({
 	itemActive: {
 		backgroundColor: COLORS.sidebarItemActive,
 	},
+	iconWrapper: {
+		width: 32,
+		height: 32,
+		borderRadius: 8,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: COLORS.sidebarBg,
+		marginRight: 12,
+	},
+	iconWrapperActive: {
+		backgroundColor: "transparent",
+	},
 	icon: {
-		fontSize: 20,
+		fontSize: 18,
 	},
 	label: {
 		color: COLORS.sidebarText,
-		fontSize: 14,
+		fontSize: 13,
 		fontWeight: "500",
+		lineHeight: 16,
 	},
 	labelActive: {
 		color: COLORS.sidebarTextActive,

@@ -72,9 +72,10 @@ export function ConfigMode() {
 							{timerDuration} min timer
 						</Text>
 						<Pressable
-							style={[
+							style={({ pressed }) => [
 								styles.cancelTimerButton,
 								timerLoading && styles.buttonDisabled,
+								pressed && !timerLoading && styles.buttonPressed,
 							]}
 							onPress={cancelTimer}
 							disabled={timerLoading}
@@ -98,7 +99,13 @@ export function ConfigMode() {
 			</View>
 
 			{/* Disconnect */}
-			<Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
+			<Pressable
+				style={({ pressed }) => [
+					styles.disconnectButton,
+					pressed && styles.buttonPressed,
+				]}
+				onPress={handleDisconnect}
+			>
 				<Text style={styles.disconnectText}>Disconnect</Text>
 			</Pressable>
 		</ScrollView>
@@ -124,9 +131,14 @@ const styles = StyleSheet.create({
 		marginBottom: 16,
 		borderWidth: 1,
 		borderColor: COLORS.border,
+		shadowColor: COLORS.shadow,
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.05,
+		shadowRadius: 8,
+		elevation: 3,
 	},
 	sectionTitle: {
-		fontSize: 16,
+		fontSize: 15,
 		fontWeight: "600",
 		color: COLORS.textPrimary,
 		marginBottom: 12,
@@ -146,20 +158,20 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 	},
 	timerExpiredSubtext: {
-		fontSize: 16,
+		fontSize: 14,
 		color: COLORS.destructive,
 		marginBottom: 16,
 	},
 	stopAlarmButton: {
 		backgroundColor: COLORS.destructive,
 		borderRadius: 8,
-		paddingVertical: 14,
+		paddingVertical: 12,
 		paddingHorizontal: 32,
 	},
 	stopAlarmButtonText: {
 		color: COLORS.destructiveForeground,
-		fontSize: 18,
-		fontWeight: "bold",
+		fontSize: 16,
+		fontWeight: "600",
 	},
 	timerActiveContainer: {
 		alignItems: "center",
@@ -175,31 +187,36 @@ const styles = StyleSheet.create({
 		color: COLORS.warning,
 	},
 	timerWarningText: {
-		fontSize: 14,
+		fontSize: 13,
 		color: COLORS.warning,
 		fontWeight: "600",
 		marginTop: 4,
 	},
 	timerDurationText: {
 		fontSize: 13,
-		color: COLORS.textSecondary,
+		color: COLORS.textTertiary,
 		marginTop: 8,
 		marginBottom: 16,
 	},
 	cancelTimerButton: {
 		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
-		paddingVertical: 12,
+		paddingVertical: 8,
 		paddingHorizontal: 24,
 		borderWidth: 1,
-		borderColor: COLORS.border,
+		borderColor: "#D1D5DB",
 	},
 	cancelTimerButtonText: {
-		color: COLORS.textSecondary,
+		color: COLORS.secondaryForeground,
 		fontSize: 14,
+		fontWeight: "500",
 	},
 	buttonDisabled: {
 		opacity: 0.6,
+	},
+	buttonPressed: {
+		opacity: 0.8,
+		transform: [{ scale: 0.98 }],
 	},
 	error: {
 		color: COLORS.destructive,
@@ -211,12 +228,14 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: COLORS.destructive,
 		borderRadius: 8,
-		padding: 14,
+		paddingVertical: 12,
+		paddingHorizontal: 16,
 		alignItems: "center",
 		marginTop: 8,
 	},
 	disconnectText: {
 		color: COLORS.destructive,
-		fontSize: 16,
+		fontSize: 14,
+		fontWeight: "500",
 	},
 });

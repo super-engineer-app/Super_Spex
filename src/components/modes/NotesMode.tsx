@@ -307,16 +307,16 @@ const styles = StyleSheet.create({
 	},
 	tabButton: {
 		paddingHorizontal: 24,
-		paddingVertical: 12,
+		paddingVertical: 8,
 		backgroundColor: COLORS.secondary,
 	},
 	tabButtonActive: {
 		backgroundColor: COLORS.primary,
 	},
 	tabButtonText: {
-		color: COLORS.textSecondary,
-		fontSize: 16,
-		fontWeight: "600",
+		color: COLORS.textTertiary,
+		fontSize: 14,
+		fontWeight: "500",
 	},
 	tabButtonTextActive: {
 		color: COLORS.primaryForeground,
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
 		marginTop: 16,
 	},
 	noteLabel: {
-		fontSize: 16,
+		fontSize: 14,
 		fontWeight: "600",
 		color: COLORS.textPrimary,
 		marginBottom: 8,
@@ -349,8 +349,8 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		color: COLORS.textPrimary,
-		fontSize: 15,
-		lineHeight: 22,
+		fontSize: 14,
+		lineHeight: 20,
 		minHeight: 120,
 	},
 });

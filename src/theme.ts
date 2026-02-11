@@ -7,31 +7,34 @@ export const COLORS = {
 	foreground: "#0A0A0A", // hsl(0, 0%, 3.9%)
 	card: "#FFFFFF", // hsl(0, 0%, 100%)
 	cardForeground: "#0A0A0A", // hsl(0, 0%, 3.9%)
-	primary: "#171717", // hsl(0, 0%, 9%)
+	primary: "#000000", // SE primary buttons use pure black
 	primaryForeground: "#FAFAFA", // hsl(0, 0%, 98%)
-	secondary: "#F5F5F5", // hsl(0, 0%, 96.1%)
-	secondaryForeground: "#171717", // hsl(0, 0%, 9%)
+	secondary: "#F9FAFB", // SE secondary button background
+	secondaryForeground: "#374151", // SE secondary button text
 	muted: "#F5F5F5", // hsl(0, 0%, 96.1%)
 	mutedForeground: "#737373", // hsl(0, 0%, 45.1%)
 	accent: "#F5F5F5", // hsl(0, 0%, 96.1%)
 	accentForeground: "#171717", // hsl(0, 0%, 9%)
 	destructive: "#EF4444", // hsl(0, 84.2%, 60.2%)
 	destructiveForeground: "#FAFAFA", // hsl(0, 0%, 98%)
-	border: "#E5E5E5", // hsl(0, 0%, 89.8%)
-	borderLight: "#F5F5F5", // hsl(0, 0%, 96.1%)
-	input: "#E5E5E5", // hsl(0, 0%, 89.8%)
+	border: "#E5E7EB", // SE uses #E5E7EB consistently
+	borderLight: "#F3F4F6", // SE lighter border
+	input: "#E5E7EB", // hsl(0, 0%, 89.8%)
 	ring: "#0A0A0A", // hsl(0, 0%, 3.9%)
 
 	// Sidebar — exact matches to SE sidebar tokens
 	sidebarBg: "#FAFAFA", // hsl(0, 0%, 98%)
 	sidebarBorder: "#E5E7EB", // hsl(220, 13%, 91%)
-	sidebarItemActive: "#F4F4F5", // hsl(240, 4.8%, 95.9%)
-	sidebarText: "#3F3F46", // hsl(240, 5.3%, 26.1%)
-	sidebarTextActive: "#18181B", // hsl(240, 5.9%, 10%)
+	sidebarItemActive: "#000000", // SE active sidebar item — black bg
+	sidebarItemActiveText: "#FFFFFF", // SE active sidebar item — white text
+	sidebarItemHover: "#F9FAFB", // SE nav item hover
+	sidebarText: "#374151", // SE nav text color
+	sidebarTextActive: "#FFFFFF", // SE active — white on black
 
-	// Text — derived from SE foreground/muted values
-	textPrimary: "#0A0A0A", // hsl(0, 0%, 3.9%) — SE foreground
-	textSecondary: "#737373", // hsl(0, 0%, 45.1%) — SE mutedForeground
+	// Text — matching SE component text colors
+	textPrimary: "#111827", // SE primary text (headings, body)
+	textSecondary: "#374151", // SE secondary text (labels, descriptions)
+	textTertiary: "#6B7280", // SE tertiary text (subtle descriptions)
 	textMuted: "#9CA3AF", // placeholder/disabled text
 	textDisabled: "#D1D5DB", // disabled state
 

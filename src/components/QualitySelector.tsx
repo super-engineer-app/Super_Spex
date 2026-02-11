@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	label: {
-		color: COLORS.textSecondary,
+		color: COLORS.textTertiary,
 		fontSize: 12,
 		marginBottom: 8,
 	},
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
 		color: COLORS.primary,
 	},
 	optionDescription: {
-		color: COLORS.textSecondary,
+		color: COLORS.textTertiary,
 		fontSize: 12,
 		marginTop: 2,
 	},
