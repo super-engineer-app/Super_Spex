@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { sendImage } from "../../services/backendApi";
 import logger from "../../utils/logger";
@@ -18,13 +18,16 @@ export function IdentifyMode() {
 	const [isSending, setIsSending] = useState(false);
 	const [hasPhoto, setHasPhoto] = useState(false);
 
-	const handleTakePhoto = useCallback(async () => {
+	// Auto-initialize camera on mode entry
+	useEffect(() => {
 		if (!camera.isReady) {
-			await camera.initializeCamera(false);
-		} else {
-			await camera.captureImage();
-			setHasPhoto(true);
+			camera.initializeCamera(false);
 		}
+	}, [camera]);
+
+	const handleTakePhoto = useCallback(async () => {
+		await camera.captureImage();
+		setHasPhoto(true);
 	}, [camera]);
 
 	const handleIdentify = useCallback(async () => {
@@ -81,15 +84,49 @@ export function IdentifyMode() {
 			contentContainerStyle={styles.scrollContent}
 		>
 			<ModeHeader
-				title="Identify"
-				subtitle="Take a photo and let AI identify it"
+				title="Auto identify"
+				subtitle="Take a photo and I'll tell you what it is!"
 			/>
 
-			<CameraPreview
-				base64Image={camera.lastImage}
-				imageSize={camera.lastImageSize}
-				placeholder="Take a photo to identify something"
-			/>
+			<View style={styles.row}>
+				<View style={styles.previewColumn}>
+					<CameraPreview
+						base64Image={camera.lastImage}
+						imageSize={camera.lastImageSize}
+						placeholder="Take a photo to identify something"
+					/>
+				</View>
+
+				<View style={styles.buttonsColumn}>
+					<ActionButton
+						label={
+							camera.isCapturing
+								? "Capturing..."
+								: hasPhoto
+									? "Re-take photo"
+									: "Take photo"
+						}
+						onPress={handleTakePhoto}
+						variant="secondary"
+						disabled={camera.isCapturing || !camera.isReady}
+					/>
+
+					{hasResponse ? (
+						<ActionButton
+							label="Re-set"
+							onPress={handleReset}
+							variant="secondary"
+						/>
+					) : (
+						<ActionButton
+							label={isSending ? "Identifying..." : "Identify!"}
+							onPress={handleIdentify}
+							variant="secondary"
+							disabled={isSending || !hasPhoto || !camera.lastImage}
+						/>
+					)}
+				</View>
+			</View>
 
 			{camera.error ? (
 				<AIResponseDisplay
@@ -100,40 +137,6 @@ export function IdentifyMode() {
 					onClear={() => {}}
 				/>
 			) : null}
-
-			<View style={styles.buttons}>
-				<ActionButton
-					label={
-						camera.isCapturing
-							? "Capturing..."
-							: camera.isReady
-								? hasPhoto
-									? "Re-take Photo"
-									: "Take Photo"
-								: "Enable Camera"
-					}
-					onPress={handleTakePhoto}
-					variant="success"
-					disabled={camera.isCapturing}
-				/>
-
-				{hasPhoto && camera.lastImage ? (
-					<ActionButton
-						label={isSending ? "Identifying..." : "Identify!"}
-						onPress={handleIdentify}
-						variant="primary"
-						disabled={isSending}
-					/>
-				) : null}
-
-				{hasResponse ? (
-					<ActionButton
-						label="Reset"
-						onPress={handleReset}
-						variant="secondary"
-					/>
-				) : null}
-			</View>
 
 			<AIResponseDisplay
 				response={aiResponse}
@@ -157,8 +160,16 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		padding: 20,
 	},
-	buttons: {
+	row: {
+		flexDirection: "row",
+		gap: 16,
+		alignItems: "flex-start",
+	},
+	previewColumn: {
+		flex: 3,
+	},
+	buttonsColumn: {
+		flex: 2,
 		gap: 12,
-		marginTop: 12,
 	},
 });

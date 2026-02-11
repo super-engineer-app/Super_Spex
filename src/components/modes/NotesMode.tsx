@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TextInput,
+	View,
+} from "react-native";
 import { useTaggingSession } from "../../hooks/useTaggingSession";
 import { useVideoRecording } from "../../hooks/useVideoRecording";
 import { COLORS } from "../../theme";
 import { useDashboard } from "../dashboard/DashboardContext";
+import { ActionButton } from "../shared/ActionButton";
 import { ModeHeader } from "../shared/ModeHeader";
 import { RecordingIndicator } from "../shared/RecordingIndicator";
 import { TaggingMode } from "../TaggingMode";
@@ -12,7 +20,7 @@ type NotesTab = "photo" | "video";
 
 export function NotesMode() {
 	const { speech } = useDashboard();
-	const [activeTab, setActiveTab] = useState<NotesTab>("photo");
+	const [activeTab, setActiveTab] = useState<NotesTab>("video");
 
 	const {
 		isTaggingActive,
@@ -36,19 +44,19 @@ export function NotesMode() {
 
 	const {
 		state: recordingState,
-		setCameraSource: setRecordingCameraSource,
 		startRecording,
 		stopRecording,
-		transcribe,
 		saveVideo,
-		downloadTranscript,
 		dismiss: dismissRecording,
 		isRecording,
-		canRecord,
 	} = useVideoRecording();
 
 	// Track last processed transcript to avoid duplicates
 	const lastProcessedTranscriptRef = useRef<string>("");
+
+	// Live transcription note text for video mode
+	const [videoNoteText, setVideoNoteText] = useState("");
+	const [videoNoteSaved, setVideoNoteSaved] = useState(false);
 
 	// Track if tagging was active before recording for auto-resume
 	const wasTaggingBeforeRecordingRef = useRef(false);
@@ -61,19 +69,28 @@ export function NotesMode() {
 		processSpeechResult(speech.transcript);
 	}, [speech.transcript, processSpeechResult]);
 
-	const handleRecordPress = useCallback(async () => {
+	// Live transcription: populate video note text while recording
+	useEffect(() => {
+		if (activeTab !== "video") return;
+		const transcript = speech.partialTranscript || speech.transcript || "";
+		if (transcript && isRecording) {
+			setVideoNoteText(transcript);
+		}
+	}, [speech.partialTranscript, speech.transcript, isRecording, activeTab]);
+
+	const handleRecordNote = useCallback(async () => {
 		if (isRecording) {
 			await stopRecording();
-			if (wasTaggingBeforeRecordingRef.current) {
-				wasTaggingBeforeRecordingRef.current = false;
-				startTagging();
-			}
+			await speech.stopListening();
 		} else {
 			if (isTaggingActive) {
 				wasTaggingBeforeRecordingRef.current = true;
 				cancelTagging();
 			}
+			setVideoNoteSaved(false);
+			// Start both video recording and speech recognition for live transcription
 			await startRecording();
+			await speech.startListening(true);
 		}
 	}, [
 		isRecording,
@@ -81,65 +98,146 @@ export function NotesMode() {
 		startRecording,
 		isTaggingActive,
 		cancelTagging,
-		startTagging,
+		speech,
 	]);
 
-	const handleDismissRecording = useCallback(() => {
-		dismissRecording();
+	const handleSaveVideoNote = useCallback(async () => {
+		await saveVideo();
+		setVideoNoteSaved(true);
 		if (wasTaggingBeforeRecordingRef.current) {
 			wasTaggingBeforeRecordingRef.current = false;
 			startTagging();
 		}
-	}, [dismissRecording, startTagging]);
+	}, [saveVideo, startTagging]);
 
-	const formatDuration = (ms: number): string => {
-		const totalSeconds = Math.floor(ms / 1000);
-		const minutes = Math.floor(totalSeconds / 60);
-		const seconds = totalSeconds % 60;
-		return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-	};
+	const handleNewNote = useCallback(() => {
+		dismissRecording();
+		setVideoNoteText("");
+		setVideoNoteSaved(false);
+		speech.clearTranscript();
+	}, [dismissRecording, speech]);
+
+	const handleDiscardVideoNote = useCallback(() => {
+		dismissRecording();
+		setVideoNoteText("");
+		setVideoNoteSaved(false);
+		speech.clearTranscript();
+		if (wasTaggingBeforeRecordingRef.current) {
+			wasTaggingBeforeRecordingRef.current = false;
+			startTagging();
+		}
+	}, [dismissRecording, speech, startTagging]);
+
+	const hasVideoRecording =
+		recordingState.recordingState === "stopped" ||
+		recordingState.recordingState === "recording";
 
 	return (
 		<ScrollView
 			style={styles.scroll}
 			contentContainerStyle={styles.scrollContent}
 		>
-			<ModeHeader
-				title="Notes"
-				subtitle="Capture photos or video with voice notes"
-			/>
-
-			{/* Tab selector */}
-			<View style={styles.tabs}>
-				<Pressable
-					style={[styles.tab, activeTab === "photo" && styles.tabActive]}
-					onPress={() => setActiveTab("photo")}
-				>
-					<Text
+			<View style={styles.headerRow}>
+				<View style={styles.headerLeft}>
+					<ModeHeader title="Notes" subtitle="Make a video or photo note" />
+				</View>
+				{isRecording || speech.isListening ? (
+					<RecordingIndicator label="" />
+				) : null}
+				<View style={styles.tabToggle}>
+					<Pressable
 						style={[
-							styles.tabText,
-							activeTab === "photo" && styles.tabTextActive,
+							styles.tabButton,
+							activeTab === "video" && styles.tabButtonActive,
 						]}
+						onPress={() => setActiveTab("video")}
 					>
-						Photo
-					</Text>
-				</Pressable>
-				<Pressable
-					style={[styles.tab, activeTab === "video" && styles.tabActive]}
-					onPress={() => setActiveTab("video")}
-				>
-					<Text
+						<Text
+							style={[
+								styles.tabButtonText,
+								activeTab === "video" && styles.tabButtonTextActive,
+							]}
+						>
+							Video
+						</Text>
+					</Pressable>
+					<Pressable
 						style={[
-							styles.tabText,
-							activeTab === "video" && styles.tabTextActive,
+							styles.tabButton,
+							activeTab === "photo" && styles.tabButtonActive,
 						]}
+						onPress={() => setActiveTab("photo")}
 					>
-						Video
-					</Text>
-				</Pressable>
+						<Text
+							style={[
+								styles.tabButtonText,
+								activeTab === "photo" && styles.tabButtonTextActive,
+							]}
+						>
+							Photo
+						</Text>
+					</Pressable>
+				</View>
 			</View>
 
-			{activeTab === "photo" ? (
+			{activeTab === "video" ? (
+				<>
+					<View style={styles.row}>
+						<View style={styles.previewColumn}>
+							<View style={styles.placeholder}>
+								<Text style={styles.placeholderText}>
+									{isRecording ? "Recording..." : "Video preview"}
+								</Text>
+							</View>
+						</View>
+
+						<View style={styles.buttonsColumn}>
+							<ActionButton
+								label={isRecording ? "Stop" : "Record note"}
+								onPress={handleRecordNote}
+								variant={isRecording ? "danger" : "secondary"}
+							/>
+							<View style={styles.saveRow}>
+								{videoNoteSaved ? (
+									<ActionButton
+										label="New note"
+										onPress={handleNewNote}
+										variant="secondary"
+										style={styles.saveButton}
+									/>
+								) : (
+									<ActionButton
+										label="Save"
+										onPress={handleSaveVideoNote}
+										variant="secondary"
+										disabled={!hasVideoRecording || isRecording}
+										style={styles.saveButton}
+									/>
+								)}
+								<Pressable
+									style={styles.trashButton}
+									onPress={handleDiscardVideoNote}
+								>
+									<Text style={styles.trashIcon}>🗑</Text>
+								</Pressable>
+							</View>
+						</View>
+					</View>
+
+					<View style={styles.noteSection}>
+						<Text style={styles.noteLabel}>Your note</Text>
+						<TextInput
+							style={styles.noteInput}
+							value={videoNoteText}
+							onChangeText={setVideoNoteText}
+							placeholder="Transcribing . . ."
+							placeholderTextColor={COLORS.textMuted}
+							multiline
+							textAlignVertical="top"
+						/>
+					</View>
+				</>
+			) : (
 				<TaggingMode
 					isActive={isTaggingActive}
 					transcript={taggingTranscript}
@@ -158,180 +256,6 @@ export function NotesMode() {
 					onRemoveImage={removeTaggingImage}
 					onEditTranscript={editTranscript}
 				/>
-			) : (
-				<View style={styles.videoSection}>
-					{/* Camera Source Toggle */}
-					{canRecord && (
-						<View style={styles.cameraSourceToggle}>
-							<Text style={styles.cameraSourceLabel}>Camera:</Text>
-							<View style={styles.segmentedControl}>
-								<Pressable
-									style={[
-										styles.segmentButton,
-										recordingState.cameraSource === "phone" &&
-											styles.segmentButtonActive,
-									]}
-									onPress={() => setRecordingCameraSource("phone")}
-								>
-									<Text
-										style={[
-											styles.segmentButtonText,
-											recordingState.cameraSource === "phone" &&
-												styles.segmentButtonTextActive,
-										]}
-									>
-										Phone
-									</Text>
-								</Pressable>
-								<Pressable
-									style={[
-										styles.segmentButton,
-										recordingState.cameraSource === "glasses" &&
-											styles.segmentButtonActive,
-									]}
-									onPress={() => setRecordingCameraSource("glasses")}
-								>
-									<Text
-										style={[
-											styles.segmentButtonText,
-											recordingState.cameraSource === "glasses" &&
-												styles.segmentButtonTextActive,
-										]}
-									>
-										Glasses
-									</Text>
-								</Pressable>
-							</View>
-						</View>
-					)}
-
-					{/* Record / Stop Button */}
-					{(canRecord || isRecording) && (
-						<Pressable
-							style={[
-								styles.recordButton,
-								isRecording
-									? styles.recordButtonRecording
-									: styles.recordButtonIdle,
-							]}
-							onPress={handleRecordPress}
-						>
-							<Text style={styles.recordButtonText}>
-								{isRecording ? "STOP" : "RECORD"}
-							</Text>
-						</Pressable>
-					)}
-
-					{isRecording && (
-						<>
-							<RecordingIndicator
-								label={`Recording... ${formatDuration(recordingState.durationMs)}`}
-							/>
-							<Text style={styles.mutualExclusionNotice}>
-								Tagging paused during recording
-							</Text>
-						</>
-					)}
-
-					{/* After recording - actions */}
-					{recordingState.recordingState === "stopped" && (
-						<View style={styles.recordingActions}>
-							<Text style={styles.recordingCompleteText}>
-								Recording complete ({formatDuration(recordingState.durationMs)})
-							</Text>
-							<View style={styles.recordingButtonRow}>
-								<Pressable
-									style={styles.recordingActionButton}
-									onPress={saveVideo}
-								>
-									<Text style={styles.recordingActionButtonText}>
-										Save Video
-									</Text>
-								</Pressable>
-								<Pressable
-									style={[
-										styles.recordingActionButton,
-										styles.recordingActionButtonTranscribe,
-										recordingState.transcriptionState === "loading" &&
-											styles.buttonDisabled,
-									]}
-									onPress={() => transcribe()}
-									disabled={recordingState.transcriptionState === "loading"}
-								>
-									<Text style={styles.recordingActionButtonText}>
-										{recordingState.transcriptionState === "loading"
-											? "Transcribing..."
-											: "Transcribe"}
-									</Text>
-								</Pressable>
-							</View>
-							<Pressable
-								style={styles.discardButton}
-								onPress={handleDismissRecording}
-							>
-								<Text style={styles.discardButtonText}>Discard</Text>
-							</Pressable>
-						</View>
-					)}
-
-					{/* Transcription Result */}
-					{recordingState.transcriptionState === "done" &&
-						recordingState.transcriptionResult && (
-							<>
-								<View style={styles.transcriptionResult}>
-									<Text style={styles.transcriptionTitle}>Transcription</Text>
-									<ScrollView
-										style={styles.transcriptionScroll}
-										nestedScrollEnabled
-									>
-										{recordingState.transcriptionResult.segments.map((seg) => (
-											<View
-												key={`${seg.speaker}-${seg.start}-${seg.end}`}
-												style={styles.transcriptionSegment}
-											>
-												<Text style={styles.transcriptionSpeaker}>
-													{seg.speaker}
-												</Text>
-												<Text style={styles.transcriptionText}>{seg.text}</Text>
-												<Text style={styles.transcriptionTime}>
-													{formatDuration(seg.start * 1000)} -{" "}
-													{formatDuration(seg.end * 1000)}
-												</Text>
-											</View>
-										))}
-									</ScrollView>
-								</View>
-								<Pressable
-									style={[styles.recordingActionButton, { marginTop: 12 }]}
-									onPress={downloadTranscript}
-								>
-									<Text style={styles.recordingActionButtonText}>
-										Save Transcript
-									</Text>
-								</Pressable>
-							</>
-						)}
-
-					{/* Transcription Error */}
-					{recordingState.transcriptionState === "error" && (
-						<View style={styles.transcriptionError}>
-							<Text style={styles.error}>
-								{recordingState.transcriptionError ?? "Transcription failed"}
-							</Text>
-							<Pressable
-								style={styles.recordingActionButton}
-								onPress={() => transcribe()}
-							>
-								<Text style={styles.recordingActionButtonText}>Retry</Text>
-							</Pressable>
-						</View>
-					)}
-
-					{/* Stopping indicator */}
-					{recordingState.recordingState === "stopping" && (
-						<Text style={styles.loadingText}>Stopping recording...</Text>
-					)}
-				</View>
 			)}
 		</ScrollView>
 	);
@@ -344,191 +268,103 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		padding: 20,
 	},
-	tabs: {
+	headerRow: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		marginBottom: 8,
+	},
+	headerLeft: {
+		flex: 1,
+	},
+	tabToggle: {
 		flexDirection: "row",
 		borderRadius: 8,
-		borderWidth: 1,
-		borderColor: COLORS.border,
 		overflow: "hidden",
-		marginBottom: 16,
-	},
-	tab: {
-		flex: 1,
-		paddingVertical: 10,
-		alignItems: "center",
-		backgroundColor: COLORS.card,
-	},
-	tabActive: {
-		backgroundColor: COLORS.primary,
-	},
-	tabText: {
-		color: COLORS.textSecondary,
-		fontSize: 15,
-		fontWeight: "600",
-	},
-	tabTextActive: {
-		color: COLORS.primaryForeground,
-	},
-	videoSection: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		padding: 16,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
-	cameraSourceToggle: {
-		flexDirection: "row",
-		alignItems: "center",
-		marginBottom: 12,
-		gap: 12,
-	},
-	cameraSourceLabel: {
-		color: COLORS.textSecondary,
-		fontSize: 14,
-	},
-	segmentedControl: {
-		flexDirection: "row",
-		flex: 1,
-		borderRadius: 8,
-		borderWidth: 1,
-		borderColor: COLORS.border,
-		overflow: "hidden",
-	},
-	segmentButton: {
-		flex: 1,
+	tabButton: {
+		paddingHorizontal: 16,
 		paddingVertical: 8,
-		alignItems: "center",
 		backgroundColor: COLORS.secondary,
 	},
-	segmentButtonActive: {
+	tabButtonActive: {
 		backgroundColor: COLORS.primary,
 	},
-	segmentButtonText: {
+	tabButtonText: {
 		color: COLORS.textSecondary,
 		fontSize: 14,
 		fontWeight: "600",
 	},
-	segmentButtonTextActive: {
+	tabButtonTextActive: {
 		color: COLORS.primaryForeground,
 	},
-	recordButton: {
-		borderRadius: 8,
-		padding: 16,
-		alignItems: "center",
-	},
-	recordButtonIdle: {
-		backgroundColor: COLORS.destructive,
-	},
-	recordButtonRecording: {
-		backgroundColor: COLORS.destructive,
-		opacity: 0.85,
-	},
-	recordButtonText: {
-		color: COLORS.destructiveForeground,
-		fontSize: 18,
-		fontWeight: "bold",
-	},
-	mutualExclusionNotice: {
-		color: COLORS.textSecondary,
-		fontSize: 12,
-		fontStyle: "italic",
-		marginTop: 4,
-	},
-	recordingActions: {
-		marginTop: 12,
-	},
-	recordingCompleteText: {
-		color: COLORS.success,
-		fontSize: 15,
-		fontWeight: "600",
-		marginBottom: 12,
-	},
-	recordingButtonRow: {
+	row: {
 		flexDirection: "row",
+		gap: 16,
+		alignItems: "flex-start",
+	},
+	previewColumn: {
+		flex: 3,
+	},
+	buttonsColumn: {
+		flex: 2,
 		gap: 12,
 	},
-	recordingActionButton: {
-		flex: 1,
-		backgroundColor: COLORS.success,
+	placeholder: {
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
-		padding: 12,
+		padding: 32,
 		alignItems: "center",
+		justifyContent: "center",
+		marginVertical: 8,
+		borderWidth: 1,
+		borderColor: COLORS.input,
+		borderStyle: "dashed",
+		minHeight: 160,
 	},
-	recordingActionButtonTranscribe: {
-		backgroundColor: COLORS.accent,
-	},
-	recordingActionButtonText: {
-		color: COLORS.primaryForeground,
+	placeholderText: {
+		color: COLORS.textMuted,
 		fontSize: 14,
-		fontWeight: "600",
 	},
-	discardButton: {
+	saveRow: {
+		flexDirection: "row",
+		gap: 8,
+	},
+	saveButton: {
+		flex: 1,
+	},
+	trashButton: {
 		backgroundColor: COLORS.secondary,
-		borderRadius: 8,
-		padding: 10,
+		borderRadius: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 12,
 		alignItems: "center",
-		marginTop: 8,
+		justifyContent: "center",
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
-	discardButtonText: {
-		color: COLORS.textSecondary,
-		fontSize: 13,
+	trashIcon: {
+		fontSize: 18,
 	},
-	buttonDisabled: {
-		opacity: 0.6,
+	noteSection: {
+		marginTop: 16,
 	},
-	transcriptionResult: {
+	noteLabel: {
+		fontSize: 16,
+		fontWeight: "600",
+		color: COLORS.textPrimary,
+		marginBottom: 8,
+	},
+	noteInput: {
 		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 12,
-		marginTop: 12,
 		borderWidth: 1,
 		borderColor: COLORS.border,
-	},
-	transcriptionTitle: {
-		color: COLORS.accent,
-		fontSize: 14,
-		fontWeight: "600",
-		marginBottom: 8,
-	},
-	transcriptionScroll: {
-		maxHeight: 200,
-		marginBottom: 8,
-	},
-	transcriptionSegment: {
-		paddingVertical: 6,
-		borderBottomWidth: 1,
-		borderBottomColor: COLORS.borderLight,
-	},
-	transcriptionSpeaker: {
-		color: COLORS.accent,
-		fontSize: 12,
-		fontWeight: "600",
-	},
-	transcriptionText: {
 		color: COLORS.textPrimary,
-		fontSize: 14,
-		marginTop: 2,
-	},
-	transcriptionTime: {
-		color: COLORS.textMuted,
-		fontSize: 11,
-		marginTop: 2,
-		fontFamily: "monospace",
-	},
-	transcriptionError: {
-		marginTop: 12,
-	},
-	error: {
-		color: COLORS.destructive,
-		fontSize: 13,
-		marginBottom: 8,
-	},
-	loadingText: {
-		color: COLORS.textSecondary,
-		fontSize: 14,
-		fontStyle: "italic",
-		marginTop: 8,
+		fontSize: 15,
+		lineHeight: 22,
+		minHeight: 120,
 	},
 });

@@ -61,8 +61,9 @@ export function ActionButton({
 
 const styles = StyleSheet.create({
 	button: {
-		borderRadius: 8,
-		padding: 12,
+		borderRadius: 6,
+		paddingVertical: 12,
+		paddingHorizontal: 16,
 		alignItems: "center",
 	},
 	disabled: {

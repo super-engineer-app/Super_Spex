@@ -11,8 +11,9 @@ import {
 import { useRemoteView } from "../../hooks/useRemoteView";
 import { COLORS } from "../../theme";
 import logger from "../../utils/logger";
-import { QualitySelector } from "../QualitySelector";
+import { ActionButton } from "../shared/ActionButton";
 import { ModeHeader } from "../shared/ModeHeader";
+import { RecordingIndicator } from "../shared/RecordingIndicator";
 
 const TAG = "LiveStreamMode";
 
@@ -21,26 +22,28 @@ export function LiveStreamMode() {
 		isStreaming,
 		viewerUrl,
 		viewerCount,
-		selectedQuality,
 		error: streamError,
 		loading: streamLoading,
-		cameraSource,
-		isDemoMode: streamDemoMode,
 		startStream,
 		stopStream,
-		setQuality,
-		shareLink,
 	} = useRemoteView();
 
 	const [copiedUrl, setCopiedUrl] = useState(false);
+	const [stopped, setStopped] = useState(false);
 
-	const handleShareLink = useCallback(async () => {
-		await shareLink();
-		if (Platform.OS === "web") {
-			setCopiedUrl(true);
-			setTimeout(() => setCopiedUrl(false), 2000);
-		}
-	}, [shareLink]);
+	const handleStartStream = useCallback(async () => {
+		setStopped(false);
+		await startStream();
+	}, [startStream]);
+
+	const handleStopStream = useCallback(async () => {
+		await stopStream();
+		setStopped(true);
+	}, [stopStream]);
+
+	const handleReset = useCallback(() => {
+		setStopped(false);
+	}, []);
 
 	const handleCopyUrl = useCallback(async () => {
 		if (!viewerUrl) return;
@@ -58,98 +61,69 @@ export function LiveStreamMode() {
 			style={styles.scroll}
 			contentContainerStyle={styles.scrollContent}
 		>
-			<ModeHeader
-				title="Live Stream"
-				subtitle="Stream your glasses view to viewers"
-			/>
+			<View style={styles.headerRow}>
+				<ModeHeader
+					title="Live Stream"
+					subtitle="Start & share a live video stream"
+				/>
+				{isStreaming ? <RecordingIndicator label="" /> : null}
+			</View>
 
-			<View style={styles.section}>
-				{!isStreaming ? (
-					<>
-						<QualitySelector
-							value={selectedQuality}
-							onChange={setQuality}
+			<View style={styles.row}>
+				<View style={styles.previewColumn}>
+					<View style={styles.placeholder}>
+						<Text style={styles.placeholderText}>
+							{isStreaming ? "Streaming..." : "Stream preview"}
+						</Text>
+					</View>
+				</View>
+
+				<View style={styles.buttonsColumn}>
+					{isStreaming ? (
+						<ActionButton
+							label={streamLoading ? "Stopping..." : "Stop"}
+							onPress={handleStopStream}
+							variant="danger"
 							disabled={streamLoading}
 						/>
-						<Pressable
-							style={[
-								styles.startButton,
-								streamLoading && styles.buttonDisabled,
-							]}
-							onPress={startStream}
+					) : stopped ? (
+						<ActionButton
+							label="Re-set"
+							onPress={handleReset}
+							variant="secondary"
+						/>
+					) : (
+						<ActionButton
+							label={streamLoading ? "Starting..." : "Start Stream"}
+							onPress={handleStartStream}
+							variant="secondary"
 							disabled={streamLoading}
-						>
-							<Text style={styles.startButtonText}>
-								{streamLoading ? "STARTING..." : "START STREAM"}
-							</Text>
-						</Pressable>
-					</>
-				) : (
-					<>
-						<View style={styles.streamInfo}>
-							<Text style={styles.streamLabel}>Viewers</Text>
-							<Text style={styles.viewerCount}>{viewerCount}</Text>
-						</View>
+						/>
+					)}
+				</View>
+			</View>
 
-						{cameraSource && (
-							<View
-								style={[
-									styles.cameraSourceBox,
-									streamDemoMode && styles.cameraSourceBoxEmulation,
-								]}
-							>
-								<Text style={styles.cameraSourceLabel}>Camera Source:</Text>
-								<Text
-									style={[
-										styles.cameraSourceText,
-										streamDemoMode && styles.cameraSourceTextEmulation,
-									]}
-								>
-									{cameraSource}
-								</Text>
-							</View>
-						)}
+			{streamError ? <Text style={styles.error}>{streamError}</Text> : null}
 
-						{viewerUrl && (
-							<View style={styles.resultBox}>
-								<Text style={styles.resultLabel}>Viewer Link:</Text>
-								<View style={styles.urlRow}>
-									<Text style={styles.linkText} numberOfLines={1}>
-										{viewerUrl}
-									</Text>
-									<Pressable style={styles.copyButton} onPress={handleCopyUrl}>
-										<Text style={styles.copyButtonText}>
-											{copiedUrl ? "✓" : "Copy"}
-										</Text>
-									</Pressable>
-								</View>
-							</View>
-						)}
+			<View style={styles.section}>
+				<Text style={styles.sectionLabel}>Share your Stream</Text>
+				<View style={styles.linkRow}>
+					<Text style={styles.linkText} numberOfLines={1}>
+						{viewerUrl || "[LINK]"}
+					</Text>
+					<Pressable style={styles.copyButton} onPress={handleCopyUrl}>
+						<Text style={styles.copyButtonText}>
+							{copiedUrl ? "Copied!" : "Copy"}
+						</Text>
+					</Pressable>
+				</View>
+			</View>
 
-						<View style={styles.streamButtons}>
-							<Pressable style={styles.shareButton} onPress={handleShareLink}>
-								<Text style={styles.shareButtonText}>
-									{copiedUrl ? "Copied!" : "Share Link"}
-								</Text>
-							</Pressable>
-
-							<Pressable
-								style={[
-									styles.stopButton,
-									streamLoading && styles.buttonDisabled,
-								]}
-								onPress={stopStream}
-								disabled={streamLoading}
-							>
-								<Text style={styles.stopButtonText}>
-									{streamLoading ? "STOPPING..." : "STOP"}
-								</Text>
-							</Pressable>
-						</View>
-					</>
-				)}
-
-				{streamError ? <Text style={styles.error}>{streamError}</Text> : null}
+			<View style={styles.section}>
+				<Text style={styles.sectionLabel}>Number of viewers</Text>
+				<View style={styles.viewerBox}>
+					<Text style={styles.viewerCount}>{viewerCount}</Text>
+				</View>
 			</View>
 		</ScrollView>
 	);
@@ -162,136 +136,88 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		padding: 20,
 	},
-	section: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		padding: 16,
-		borderWidth: 1,
-		borderColor: COLORS.border,
-	},
-	startButton: {
-		backgroundColor: COLORS.primary,
-		borderRadius: 8,
-		padding: 16,
-		alignItems: "center",
-		marginTop: 12,
-	},
-	startButtonText: {
-		color: COLORS.primaryForeground,
-		fontSize: 18,
-		fontWeight: "bold",
-	},
-	buttonDisabled: {
-		opacity: 0.6,
-	},
-	streamInfo: {
+	headerRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		justifyContent: "space-between",
+		gap: 12,
+	},
+	row: {
+		flexDirection: "row",
+		gap: 16,
+		alignItems: "flex-start",
+	},
+	previewColumn: {
+		flex: 3,
+	},
+	buttonsColumn: {
+		flex: 2,
+		gap: 12,
+	},
+	placeholder: {
 		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
-		padding: 12,
-		marginBottom: 12,
+		padding: 32,
+		alignItems: "center",
+		justifyContent: "center",
+		marginVertical: 8,
 		borderWidth: 1,
-		borderColor: COLORS.border,
+		borderColor: COLORS.input,
+		borderStyle: "dashed",
+		minHeight: 160,
 	},
-	streamLabel: {
-		color: COLORS.textSecondary,
+	placeholderText: {
+		color: COLORS.textMuted,
 		fontSize: 14,
 	},
-	viewerCount: {
-		color: COLORS.accent,
-		fontSize: 24,
-		fontWeight: "bold",
+	section: {
+		marginTop: 16,
 	},
-	cameraSourceBox: {
-		backgroundColor: COLORS.successBg,
-		borderRadius: 8,
-		padding: 10,
-		marginBottom: 12,
-		borderWidth: 1,
-		borderColor: COLORS.success,
-	},
-	cameraSourceBoxEmulation: {
-		backgroundColor: "#FFFBEB",
-		borderColor: COLORS.warning,
-	},
-	cameraSourceLabel: {
-		color: COLORS.textSecondary,
-		fontSize: 11,
-		marginBottom: 2,
-	},
-	cameraSourceText: {
-		color: COLORS.success,
-		fontSize: 13,
+	sectionLabel: {
+		fontSize: 16,
 		fontWeight: "600",
+		color: COLORS.textPrimary,
+		marginBottom: 8,
 	},
-	cameraSourceTextEmulation: {
-		color: COLORS.warning,
-	},
-	resultBox: {
-		backgroundColor: COLORS.backgroundSecondary,
-		borderRadius: 8,
-		padding: 12,
-		marginBottom: 12,
-		borderWidth: 1,
-		borderColor: COLORS.border,
-	},
-	resultLabel: {
-		color: COLORS.textSecondary,
-		fontSize: 12,
-		marginBottom: 4,
-	},
-	urlRow: {
+	linkRow: {
 		flexDirection: "row",
 		alignItems: "center",
+		backgroundColor: COLORS.backgroundSecondary,
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		padding: 12,
 		gap: 8,
 	},
 	linkText: {
-		color: COLORS.accent,
+		color: COLORS.textSecondary,
 		fontSize: 14,
-		fontFamily: "monospace",
+		fontFamily: Platform.OS === "web" ? "monospace" : undefined,
 		flex: 1,
 	},
 	copyButton: {
 		backgroundColor: COLORS.secondary,
 		borderRadius: 6,
-		paddingHorizontal: 12,
-		paddingVertical: 6,
+		paddingHorizontal: 16,
+		paddingVertical: 8,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
 	copyButtonText: {
 		color: COLORS.textPrimary,
-		fontSize: 13,
+		fontSize: 14,
 		fontWeight: "600",
 	},
-	streamButtons: {
-		flexDirection: "row",
-		gap: 12,
-	},
-	shareButton: {
-		flex: 1,
-		backgroundColor: COLORS.success,
+	viewerBox: {
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
-		padding: 14,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		padding: 16,
 		alignItems: "center",
 	},
-	shareButtonText: {
-		color: COLORS.successForeground,
-		fontSize: 16,
-		fontWeight: "600",
-	},
-	stopButton: {
-		flex: 1,
-		backgroundColor: COLORS.destructive,
-		borderRadius: 8,
-		padding: 14,
-		alignItems: "center",
-	},
-	stopButtonText: {
-		color: COLORS.destructiveForeground,
-		fontSize: 16,
+	viewerCount: {
+		color: COLORS.textPrimary,
+		fontSize: 24,
 		fontWeight: "bold",
 	},
 	error: {

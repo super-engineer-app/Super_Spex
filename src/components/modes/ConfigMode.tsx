@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
 	timerCountdown: {
 		fontSize: 48,
 		fontWeight: "bold",
-		color: COLORS.accent,
+		color: COLORS.info,
 		fontFamily: "monospace",
 	},
 	timerCountdownWarning: {
