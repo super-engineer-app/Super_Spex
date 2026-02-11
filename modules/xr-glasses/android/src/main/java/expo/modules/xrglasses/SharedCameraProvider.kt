@@ -6,6 +6,7 @@ import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -59,11 +60,13 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
     // CameraX components
     private var cameraProvider: ProcessCameraProvider? = null
+    private var preview: Preview? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
 
     // Reference counts for each use case
+    private val previewRefCount = AtomicInteger(0)
     private val analysisRefCount = AtomicInteger(0)
     private val captureRefCount = AtomicInteger(0)
     private val videoCaptureRefCount = AtomicInteger(0)
@@ -97,6 +100,56 @@ class SharedCameraProvider private constructor(private val context: Context) {
         val height: Int,
         val captureMode: Int = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY,
     )
+
+    /**
+     * Acquire Preview use case for live camera display.
+     * Increments reference count and binds if this is the first consumer.
+     *
+     * @param lifecycleOwner Lifecycle owner for camera binding
+     * @param surfaceProvider Surface provider from PreviewView
+     * @param emulationMode If true, uses phone camera instead of glasses
+     * @return The Preview use case, or null if initialization failed
+     */
+    fun acquirePreview(
+        lifecycleOwner: LifecycleOwner,
+        surfaceProvider: Preview.SurfaceProvider,
+        emulationMode: Boolean,
+    ): Preview? {
+        val count = previewRefCount.incrementAndGet()
+        Log.d(TAG, "acquirePreview: refCount=$count")
+
+        this.isEmulationMode = emulationMode
+
+        if (count == 1 || preview == null) {
+            Log.d(TAG, "First Preview consumer, creating use case")
+            preview =
+                Preview.Builder().build().also {
+                    it.setSurfaceProvider(surfaceProvider)
+                }
+            initAndBind(lifecycleOwner, emulationMode)
+        } else {
+            preview?.setSurfaceProvider(surfaceProvider)
+        }
+
+        return preview
+    }
+
+    /**
+     * Release Preview use case.
+     * Decrements reference count and unbinds if no consumers remain.
+     */
+    fun releasePreview() {
+        val count = previewRefCount.decrementAndGet()
+        Log.d(TAG, "releasePreview: refCount=$count")
+
+        if (count <= 0) {
+            previewRefCount.set(0)
+            preview?.setSurfaceProvider(null)
+            preview = null
+            Log.d(TAG, "Preview released, rebinding remaining use cases")
+            rebindUseCases()
+        }
+    }
 
     /**
      * Acquire ImageAnalysis use case for streaming.
@@ -294,7 +347,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
      * Check if camera is ready (provider initialized and use cases bound).
      */
     fun isCameraReady(): Boolean {
-        return cameraProvider != null && (imageAnalysis != null || imageCapture != null || videoCapture != null)
+        return cameraProvider != null && (preview != null || imageAnalysis != null || imageCapture != null || videoCapture != null)
     }
 
     /**
@@ -404,10 +457,14 @@ class SharedCameraProvider private constructor(private val context: Context) {
             }
 
         // Collect active use cases
+        // CameraX 3-use-case limit: Preview counts as one.
         // MUTUAL EXCLUSION: When VideoCapture is active, exclude ImageAnalysis
-        // CameraX has a 3-use-case limit and VideoCapture + ImageAnalysis cannot coexist reliably
+        // Typical combos:
+        //   Normal:    Preview + ImageCapture + ImageAnalysis = 3
+        //   Recording: Preview + ImageCapture + VideoCapture  = 3  (ImageAnalysis excluded)
         val isVideoCaptureActive = videoCapture != null
         val useCases = mutableListOf<androidx.camera.core.UseCase>()
+        preview?.let { useCases.add(it) }
         if (!isVideoCaptureActive) {
             imageAnalysis?.let { useCases.add(it) }
         } else {
@@ -447,6 +504,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
             Log.d(TAG, "========================================")
             Log.d(TAG, ">>> CAMERA BOUND: ${useCases.size} use cases")
+            Log.d(TAG, ">>>   Preview: ${preview != null}")
             Log.d(TAG, ">>>   ImageAnalysis: ${imageAnalysis != null && !isVideoCaptureActive}")
             Log.d(TAG, ">>>   ImageCapture: ${imageCapture != null}")
             Log.d(TAG, ">>>   VideoCapture: ${videoCapture != null}")
@@ -470,6 +528,8 @@ class SharedCameraProvider private constructor(private val context: Context) {
             Log.w(TAG, "Error unbinding camera: ${e.message}")
         }
 
+        preview?.setSurfaceProvider(null)
+        preview = null
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
         imageCapture = null
@@ -477,6 +537,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
         cameraProvider = null
         currentLifecycleOwner = null
         currentCameraContext = null
+        previewRefCount.set(0)
         analysisRefCount.set(0)
         captureRefCount.set(0)
         videoCaptureRefCount.set(0)

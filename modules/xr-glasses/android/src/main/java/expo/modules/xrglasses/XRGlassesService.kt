@@ -129,6 +129,8 @@ class XRGlassesService(
 
     // Speech recognition
     private var speechRecognizer: SpeechRecognizer? = null
+    private var networkSpeechRecognizer: NetworkSpeechRecognizer? = null
+    private var usingNetworkFallback = false
     private var isListening = false
     private var continuousMode = false
     private var useNetworkRecognizer = false // Falls back to true if on-device fails
@@ -783,7 +785,19 @@ class XRGlassesService(
         Log.d(TAG, "Creating speech recognizer with phone context (connected=$isConnected)")
 
         if (!SpeechRecognizer.isRecognitionAvailable(recognizerContext)) {
-            Log.e(TAG, "Speech recognition not available")
+            Log.w(TAG, "Android SpeechRecognizer not available, trying network fallback")
+
+            // Try network-based speech recognition as fallback (e.g. on emulators)
+            if (networkSpeechRecognizer == null) {
+                networkSpeechRecognizer = NetworkSpeechRecognizer(context, module)
+            }
+            if (networkSpeechRecognizer?.isAvailable() == true) {
+                Log.d(TAG, "Network speech recognizer available as fallback")
+                usingNetworkFallback = true
+                return
+            }
+
+            Log.e(TAG, "Neither Android nor network speech recognition available")
             module.emitEvent(
                 "onSpeechError",
                 mapOf(
@@ -1042,8 +1056,15 @@ class XRGlassesService(
         Log.d(TAG, "Starting phone-side ASR (continuous: $continuous)")
         currentSpeechSource = SpeechSource.PHONE
 
-        if (speechRecognizer == null) {
+        if (speechRecognizer == null && !usingNetworkFallback) {
             initSpeechRecognizer()
+        }
+
+        // Route to network recognizer if using fallback
+        if (usingNetworkFallback) {
+            Log.d(TAG, "Using network speech recognizer fallback")
+            networkSpeechRecognizer?.start(continuous)
+            return
         }
 
         if (speechRecognizer == null) {
@@ -1136,10 +1157,13 @@ class XRGlassesService(
      * Stop speech recognition from whichever source is currently active.
      */
     fun stopSpeechRecognition() {
-        Log.d(TAG, "Stopping speech recognition (source: $currentSpeechSource)")
+        Log.d(TAG, "Stopping speech recognition (source: $currentSpeechSource, networkFallback: $usingNetworkFallback)")
 
         glassesSpeechStartTimeoutJob?.cancel()
         glassesSpeechStartTimeoutJob = null
+
+        // Stop network recognizer if active
+        networkSpeechRecognizer?.stop()
 
         when (currentSpeechSource) {
             SpeechSource.GLASSES -> {
@@ -1180,7 +1204,13 @@ class XRGlassesService(
      * Check if speech recognition is available.
      */
     fun isSpeechRecognitionAvailable(): Boolean {
-        return SpeechRecognizer.isRecognitionAvailable(context)
+        if (SpeechRecognizer.isRecognitionAvailable(context)) return true
+
+        // Check network fallback
+        if (networkSpeechRecognizer == null) {
+            networkSpeechRecognizer = NetworkSpeechRecognizer(context, module)
+        }
+        return networkSpeechRecognizer?.isAvailable() == true
     }
 
     // ============================================================
@@ -2193,6 +2223,9 @@ class XRGlassesService(
         currentSpeechSource = SpeechSource.NONE
         speechRecognizer?.destroy()
         speechRecognizer = null
+        networkSpeechRecognizer?.release()
+        networkSpeechRecognizer = null
+        usingNetworkFallback = false
         isListening = false
 
         // Cleanup video recording
