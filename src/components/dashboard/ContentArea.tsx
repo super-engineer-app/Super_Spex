@@ -18,7 +18,7 @@ export function ContentArea() {
 			case "help":
 				return <HelpMode />;
 			case "notes":
-				return <NotesMode />;
+				return null;
 			case "livestream":
 				return <LiveStreamMode />;
 			case "teachecker":
@@ -28,12 +28,27 @@ export function ContentArea() {
 		}
 	};
 
-	return <View style={styles.content}>{renderMode()}</View>;
+	return (
+		<View style={styles.content}>
+			{renderMode()}
+			<View
+				style={[styles.persistentMode, activeMode !== "notes" && styles.hidden]}
+			>
+				<NotesMode />
+			</View>
+		</View>
+	);
 }
 
 const styles = StyleSheet.create({
 	content: {
 		flex: 1,
 		backgroundColor: COLORS.backgroundSecondary,
+	},
+	persistentMode: {
+		flex: 1,
+	},
+	hidden: {
+		display: "none",
 	},
 });
