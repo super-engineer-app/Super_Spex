@@ -68,10 +68,10 @@ Consumers: `backendApi.ts` (AI image upload) and `taggingApi.ts` (tagging images
 
 See `formDataHelper.web.ts:34` (`appendImageFileToFormData`) and `formDataHelper.web.ts:72` (`shareFileFromUri` triggers browser download).
 
-### Tagging — Phone Camera on Web
+### Tagging — Camera Source on Web vs Native
 
-On native, `captureFromPhone()` uses `expo-image-picker` with `launchCameraAsync()`.
-On web, it delegates to `getUserMedia` (same as glasses capture) since expo-image-picker camera is unavailable in browsers.
+On **native**, `captureFromPhone()` first tries the glasses camera (via `initGlassesCamera` + `captureGlassesImage`). If that fails, it falls back to `expo-image-picker` with `launchCameraAsync()` (phone camera).
+On **web**, it delegates to `getUserMedia` (same as glasses capture) since expo-image-picker camera is unavailable in browsers.
 
 See `src/hooks/useTaggingSession.ts:356` — platform check at `:363`.
 

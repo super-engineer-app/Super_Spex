@@ -161,6 +161,14 @@ if (isReady) {
 }
 ```
 
+### Camera Source Selection (Glasses-First)
+
+Both photo capture and video recording default to the **glasses camera** (via `ProjectedContext`) and fall back to the phone camera only if that fails:
+
+- **Video recording**: `useVideoRecording.ts` defaults `cameraSource: "glasses"`. The native layer (`XRGlassesService.startVideoRecording`) sets `emulationMode = false` when source is `"glasses"`, which triggers `ProjectedContext.createProjectedDeviceContext()` in `SharedCameraProvider`.
+- **Photo capture**: `useTaggingSession.ts` `captureFromPhone()` first tries the glasses camera (`initGlassesCamera(false)` + `captureGlassesImage()`). Only if that throws does it fall back to `ImagePicker.launchCameraAsync()` (phone camera).
+- **Emulator**: The glasses emulator doesn't have a real camera, so `SharedCameraProvider` falls back to the phone camera automatically. This is expected.
+
 ### Issue: Images captured from phone camera instead of glasses
 
 **Symptoms**: In emulator, images show phone's surroundings not glasses view
@@ -223,6 +231,14 @@ val cameraProvider = ProcessCameraProvider.getInstance(glassesContext)
 ```
 
 In emulation/demo mode, it falls back to phone camera for testing.
+
+### Image Preview Scaling
+
+`CameraPreview.tsx` uses `resizeMode="cover"` so captured images fill the preview container (cropping edges if the aspect ratio differs). The preview layout uses a **3:2 flex ratio** (`previewColumn: flex 3`, `buttonsColumn: flex 2`) across Identify, Help, and Notes modes for consistent sizing.
+
+### Video Playback Scaling
+
+`CameraPreviewView.kt` wraps the `VideoView` in a `FrameLayout` with `Gravity.CENTER` to center the video within the container. A cover-scale transform is applied in `onPreparedListener` so the video fills the preview area without letterboxing.
 
 ### Memory Management
 

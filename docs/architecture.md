@@ -119,6 +119,12 @@ ASR runs on the glasses hardware, not the phone. This avoids Bluetooth audio lat
 ### Broadcast-Based IPC
 Communication between processes uses Android broadcasts with `setPackage(packageName)` for security.
 
+### Glasses-First Camera Selection
+Video recording and photo capture default to the glasses camera (via `ProjectedContext`). If unavailable (e.g. emulator, no glasses connected), they fall back to the phone camera automatically. See [maintenance/camera-capture.md](maintenance/camera-capture.md).
+
+### Notes Mode State Persistence
+`ContentArea.tsx` keeps `NotesMode` permanently mounted (hidden with `display: "none"` when another mode is active). This preserves video recordings, captured photos, transcript text, and the active sub-tab across mode switches. Other modes use standard conditional rendering (unmount/remount).
+
 ### Capabilities Validation Only
 Device capabilities are checked internally before connecting but not displayed in UI.
 
