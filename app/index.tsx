@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useXRGlasses } from "../src/hooks/useXRGlasses";
 import { prefetchLocation } from "../src/services/taggingApi";
+import { COLORS } from "../src/theme";
 import logger from "../src/utils/logger";
 
 const TAG = "HomeScreen";
@@ -160,7 +161,7 @@ export default function HomeScreen() {
 						style={styles.secondaryButton}
 						onPress={handleOpenSettings}
 					>
-						<Text style={styles.buttonText}>Open Settings</Text>
+						<Text style={styles.secondaryButtonText}>Open Settings</Text>
 					</Pressable>
 				</View>
 			</SafeAreaView>
@@ -213,7 +214,7 @@ export default function HomeScreen() {
 							onPress={handleConnectDemoMode}
 							disabled={loading}
 						>
-							<Text style={styles.buttonText}>Demo Mode</Text>
+							<Text style={styles.secondaryButtonText}>Demo Mode</Text>
 						</Pressable>
 					</>
 				)}
@@ -225,7 +226,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#111",
+		backgroundColor: COLORS.backgroundSecondary,
 	},
 	content: {
 		flex: 1,
@@ -236,46 +237,53 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 32,
 		fontWeight: "bold",
-		color: "#fff",
+		color: COLORS.primary,
 		marginBottom: 8,
 	},
 	subtitle: {
 		fontSize: 16,
-		color: "#888",
+		color: COLORS.textSecondary,
 		marginBottom: 40,
 		textAlign: "center",
 	},
 	connectedBadge: {
-		backgroundColor: "#1a3a1a",
+		backgroundColor: COLORS.successBg,
 		borderRadius: 8,
 		padding: 12,
 		marginBottom: 20,
 	},
 	connectedText: {
-		color: "#4a4",
+		color: COLORS.success,
 		fontSize: 14,
 		fontWeight: "600",
 	},
 	primaryButton: {
-		backgroundColor: "#07f",
-		borderRadius: 12,
+		backgroundColor: COLORS.primary,
+		borderRadius: 6,
 		padding: 18,
 		width: "100%",
 		alignItems: "center",
 		marginBottom: 12,
 	},
 	secondaryButton: {
-		backgroundColor: "#333",
-		borderRadius: 12,
+		backgroundColor: "transparent",
+		borderRadius: 6,
 		padding: 18,
 		width: "100%",
 		alignItems: "center",
+		borderWidth: 1,
+		borderColor: COLORS.input,
 	},
 	buttonDisabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 	buttonText: {
-		color: "#fff",
+		color: COLORS.primaryForeground,
+		fontSize: 18,
+		fontWeight: "600",
+	},
+	secondaryButtonText: {
+		color: COLORS.primary,
 		fontSize: 18,
 		fontWeight: "600",
 	},

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTaggingSession } from "../../hooks/useTaggingSession";
 import { useVideoRecording } from "../../hooks/useVideoRecording";
+import { COLORS } from "../../theme";
 import { useDashboard } from "../dashboard/DashboardContext";
 import { ModeHeader } from "../shared/ModeHeader";
 import { RecordingIndicator } from "../shared/RecordingIndicator";
@@ -347,7 +348,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		borderRadius: 8,
 		borderWidth: 1,
-		borderColor: "#444",
+		borderColor: COLORS.border,
 		overflow: "hidden",
 		marginBottom: 16,
 	},
@@ -355,23 +356,25 @@ const styles = StyleSheet.create({
 		flex: 1,
 		paddingVertical: 10,
 		alignItems: "center",
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 	},
 	tabActive: {
-		backgroundColor: "#07f",
+		backgroundColor: COLORS.primary,
 	},
 	tabText: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 15,
 		fontWeight: "600",
 	},
 	tabTextActive: {
-		color: "#fff",
+		color: COLORS.primaryForeground,
 	},
 	videoSection: {
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		padding: 16,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	cameraSourceToggle: {
 		flexDirection: "row",
@@ -380,7 +383,7 @@ const styles = StyleSheet.create({
 		gap: 12,
 	},
 	cameraSourceLabel: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 14,
 	},
 	segmentedControl: {
@@ -388,25 +391,25 @@ const styles = StyleSheet.create({
 		flex: 1,
 		borderRadius: 8,
 		borderWidth: 1,
-		borderColor: "#444",
+		borderColor: COLORS.border,
 		overflow: "hidden",
 	},
 	segmentButton: {
 		flex: 1,
 		paddingVertical: 8,
 		alignItems: "center",
-		backgroundColor: "#333",
+		backgroundColor: COLORS.secondary,
 	},
 	segmentButtonActive: {
-		backgroundColor: "#07f",
+		backgroundColor: COLORS.primary,
 	},
 	segmentButtonText: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 14,
 		fontWeight: "600",
 	},
 	segmentButtonTextActive: {
-		color: "#fff",
+		color: COLORS.primaryForeground,
 	},
 	recordButton: {
 		borderRadius: 8,
@@ -414,18 +417,19 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 	},
 	recordButtonIdle: {
-		backgroundColor: "#c44",
+		backgroundColor: COLORS.destructive,
 	},
 	recordButtonRecording: {
-		backgroundColor: "#a33",
+		backgroundColor: COLORS.destructive,
+		opacity: 0.85,
 	},
 	recordButtonText: {
-		color: "#fff",
+		color: COLORS.destructiveForeground,
 		fontSize: 18,
 		fontWeight: "bold",
 	},
 	mutualExclusionNotice: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		fontStyle: "italic",
 		marginTop: 4,
@@ -434,7 +438,7 @@ const styles = StyleSheet.create({
 		marginTop: 12,
 	},
 	recordingCompleteText: {
-		color: "#4a4",
+		color: COLORS.success,
 		fontSize: 15,
 		fontWeight: "600",
 		marginBottom: 12,
@@ -445,41 +449,45 @@ const styles = StyleSheet.create({
 	},
 	recordingActionButton: {
 		flex: 1,
-		backgroundColor: "#2a5a2a",
+		backgroundColor: COLORS.success,
 		borderRadius: 8,
 		padding: 12,
 		alignItems: "center",
 	},
 	recordingActionButtonTranscribe: {
-		backgroundColor: "#2a3a7a",
+		backgroundColor: COLORS.accent,
 	},
 	recordingActionButtonText: {
-		color: "#fff",
+		color: COLORS.primaryForeground,
 		fontSize: 14,
 		fontWeight: "600",
 	},
 	discardButton: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
 		padding: 10,
 		alignItems: "center",
 		marginTop: 8,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	discardButtonText: {
-		color: "#a88",
+		color: COLORS.textSecondary,
 		fontSize: 13,
 	},
 	buttonDisabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 	transcriptionResult: {
-		backgroundColor: "#1a1a2a",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 12,
 		marginTop: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	transcriptionTitle: {
-		color: "#8af",
+		color: COLORS.accent,
 		fontSize: 14,
 		fontWeight: "600",
 		marginBottom: 8,
@@ -491,20 +499,20 @@ const styles = StyleSheet.create({
 	transcriptionSegment: {
 		paddingVertical: 6,
 		borderBottomWidth: 1,
-		borderBottomColor: "#2a2a3a",
+		borderBottomColor: COLORS.borderLight,
 	},
 	transcriptionSpeaker: {
-		color: "#8af",
+		color: COLORS.accent,
 		fontSize: 12,
 		fontWeight: "600",
 	},
 	transcriptionText: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 14,
 		marginTop: 2,
 	},
 	transcriptionTime: {
-		color: "#666",
+		color: COLORS.textMuted,
 		fontSize: 11,
 		marginTop: 2,
 		fontFamily: "monospace",
@@ -513,12 +521,12 @@ const styles = StyleSheet.create({
 		marginTop: 12,
 	},
 	error: {
-		color: "#f66",
+		color: COLORS.destructive,
 		fontSize: 13,
 		marginBottom: 8,
 	},
 	loadingText: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 14,
 		fontStyle: "italic",
 		marginTop: 8,

@@ -6,6 +6,7 @@ import {
 	useWindowDimensions,
 	View,
 } from "react-native";
+import { COLORS } from "../../theme";
 
 interface CameraPreviewProps {
 	base64Image: string | null;
@@ -50,22 +51,22 @@ const styles = StyleSheet.create({
 		marginVertical: 8,
 	},
 	placeholder: {
-		backgroundColor: "#1a1a1a",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 32,
 		alignItems: "center",
 		justifyContent: "center",
 		marginVertical: 8,
 		borderWidth: 1,
-		borderColor: "#333",
+		borderColor: COLORS.input,
 		borderStyle: "dashed",
 	},
 	placeholderText: {
-		color: "#666",
+		color: COLORS.textMuted,
 		fontSize: 14,
 	},
 	imageInfo: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		marginBottom: 4,
 	},
@@ -73,6 +74,6 @@ const styles = StyleSheet.create({
 		width: "100%",
 		height: 200,
 		borderRadius: 8,
-		backgroundColor: "#000",
+		backgroundColor: COLORS.secondary,
 	},
 });

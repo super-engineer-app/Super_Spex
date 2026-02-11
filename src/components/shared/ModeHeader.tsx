@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { COLORS } from "../../theme";
 
 interface ModeHeaderProps {
 	title: string;
@@ -21,11 +22,11 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 22,
 		fontWeight: "bold",
-		color: "#fff",
+		color: COLORS.textPrimary,
 	},
 	subtitle: {
 		fontSize: 14,
-		color: "#888",
+		color: COLORS.textSecondary,
 		marginTop: 4,
 	},
 });

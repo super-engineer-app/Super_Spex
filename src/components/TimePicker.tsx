@@ -9,6 +9,7 @@ import {
 	Text,
 	View,
 } from "react-native";
+import { COLORS } from "../theme";
 
 // ============================================================
 // WheelPicker - Individual scrollable wheel for number selection
@@ -370,24 +371,24 @@ const styles = StyleSheet.create({
 		marginBottom: 20,
 	},
 	presetButton: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 6,
 		paddingVertical: 8,
 		paddingHorizontal: 14,
 		borderWidth: 1,
-		borderColor: "#444",
+		borderColor: COLORS.border,
 	},
 	presetButtonActive: {
-		backgroundColor: "#2a4a6a",
-		borderColor: "#4af",
+		backgroundColor: COLORS.primary,
+		borderColor: COLORS.primary,
 	},
 	presetButtonText: {
-		color: "#888",
+		color: COLORS.sidebarText,
 		fontSize: 13,
 		fontWeight: "600",
 	},
 	presetButtonTextActive: {
-		color: "#4af",
+		color: COLORS.primaryForeground,
 	},
 	wheelsContainer: {
 		flexDirection: "row",
@@ -399,12 +400,12 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 	},
 	wheelLabel: {
-		color: "#666",
+		color: COLORS.textMuted,
 		fontSize: 12,
 		marginTop: 4,
 	},
 	wheelSeparator: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 36,
 		fontWeight: "bold",
 		marginHorizontal: 8,
@@ -422,7 +423,7 @@ const styles = StyleSheet.create({
 		position: "absolute",
 		left: 4,
 		right: 4,
-		backgroundColor: "#2a4a6a",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
 		zIndex: 0,
 	},
@@ -433,23 +434,23 @@ const styles = StyleSheet.create({
 	wheelItemText: {
 		fontSize: 32,
 		fontWeight: "600",
-		color: "#666",
+		color: COLORS.textMuted,
 		fontFamily: "monospace",
 	},
 	wheelItemTextSelected: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 36,
 		fontWeight: "bold",
 	},
 	wheelItemTextDisabled: {
-		color: "#444",
+		color: COLORS.textDisabled,
 	},
 	fadeOverlayTop: {
 		position: "absolute",
 		top: 0,
 		left: 0,
 		right: 0,
-		backgroundColor: "rgba(34, 34, 34, 0.6)",
+		backgroundColor: "rgba(255, 255, 255, 0.6)",
 		zIndex: 2,
 	},
 	fadeOverlayBottom: {
@@ -457,30 +458,30 @@ const styles = StyleSheet.create({
 		bottom: 0,
 		left: 0,
 		right: 0,
-		backgroundColor: "rgba(34, 34, 34, 0.6)",
+		backgroundColor: "rgba(255, 255, 255, 0.6)",
 		zIndex: 2,
 	},
 	totalText: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 14,
 		textAlign: "center",
 		marginBottom: 16,
 	},
 	startButton: {
-		backgroundColor: "#2a6a2a",
+		backgroundColor: COLORS.success,
 		borderRadius: 10,
 		paddingVertical: 16,
 		alignItems: "center",
 	},
 	startButtonDisabled: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.secondary,
 	},
 	startButtonText: {
-		color: "#fff",
+		color: COLORS.primaryForeground,
 		fontSize: 18,
 		fontWeight: "bold",
 	},
 	disabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 });

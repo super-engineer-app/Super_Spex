@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { initializeErrorReporting } from "../src/services";
+import { COLORS } from "../src/theme";
 
 export default function RootLayout() {
 	useEffect(() => {
@@ -13,18 +14,18 @@ export default function RootLayout() {
 	return (
 		<SafeAreaProvider>
 			<View style={styles.container}>
-				<StatusBar style="light" />
+				<StatusBar style="dark" />
 				<Stack
 					screenOptions={{
 						headerStyle: {
-							backgroundColor: "#0a0a0a",
+							backgroundColor: COLORS.background,
 						},
-						headerTintColor: "#ffffff",
+						headerTintColor: COLORS.foreground,
 						headerTitleStyle: {
 							fontWeight: "600",
 						},
 						contentStyle: {
-							backgroundColor: "#0a0a0a",
+							backgroundColor: COLORS.background,
 						},
 						animation: "slide_from_right",
 					}}
@@ -58,6 +59,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#0a0a0a",
+		backgroundColor: COLORS.background,
 	},
 });

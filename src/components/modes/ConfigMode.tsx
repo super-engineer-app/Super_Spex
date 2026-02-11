@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useParkingTimer } from "../../hooks/useParkingTimer";
+import { COLORS } from "../../theme";
 import { useDashboard } from "../dashboard/DashboardContext";
 import { ModeHeader } from "../shared/ModeHeader";
 import { TimePicker } from "../TimePicker";
@@ -112,49 +113,51 @@ const styles = StyleSheet.create({
 		padding: 20,
 	},
 	badge: {
-		color: "#ffd700",
+		color: COLORS.warning,
 		fontSize: 12,
 		marginBottom: 16,
 	},
 	section: {
-		backgroundColor: "#222",
+		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		padding: 16,
 		marginBottom: 16,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	sectionTitle: {
 		fontSize: 16,
 		fontWeight: "600",
-		color: "#fff",
+		color: COLORS.textPrimary,
 		marginBottom: 12,
 	},
 	timerExpiredContainer: {
 		alignItems: "center",
 		padding: 16,
-		backgroundColor: "#4a1a1a",
+		backgroundColor: "#FEF2F2",
 		borderRadius: 12,
 		borderWidth: 2,
-		borderColor: "#f44",
+		borderColor: COLORS.destructive,
 	},
 	timerExpiredText: {
 		fontSize: 28,
 		fontWeight: "bold",
-		color: "#f44",
+		color: COLORS.destructive,
 		marginBottom: 4,
 	},
 	timerExpiredSubtext: {
 		fontSize: 16,
-		color: "#faa",
+		color: COLORS.destructive,
 		marginBottom: 16,
 	},
 	stopAlarmButton: {
-		backgroundColor: "#f44",
+		backgroundColor: COLORS.destructive,
 		borderRadius: 8,
 		paddingVertical: 14,
 		paddingHorizontal: 32,
 	},
 	stopAlarmButtonText: {
-		color: "#fff",
+		color: COLORS.destructiveForeground,
 		fontSize: 18,
 		fontWeight: "bold",
 	},
@@ -165,53 +168,55 @@ const styles = StyleSheet.create({
 	timerCountdown: {
 		fontSize: 48,
 		fontWeight: "bold",
-		color: "#4af",
+		color: COLORS.accent,
 		fontFamily: "monospace",
 	},
 	timerCountdownWarning: {
-		color: "#fa4",
+		color: COLORS.warning,
 	},
 	timerWarningText: {
 		fontSize: 14,
-		color: "#fa4",
+		color: COLORS.warning,
 		fontWeight: "600",
 		marginTop: 4,
 	},
 	timerDurationText: {
 		fontSize: 13,
-		color: "#888",
+		color: COLORS.textSecondary,
 		marginTop: 8,
 		marginBottom: 16,
 	},
 	cancelTimerButton: {
-		backgroundColor: "#444",
+		backgroundColor: COLORS.secondary,
 		borderRadius: 8,
 		paddingVertical: 12,
 		paddingHorizontal: 24,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	cancelTimerButtonText: {
-		color: "#aaa",
+		color: COLORS.textSecondary,
 		fontSize: 14,
 	},
 	buttonDisabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 	error: {
-		color: "#f66",
+		color: COLORS.destructive,
 		fontSize: 13,
 		marginTop: 8,
 	},
 	disconnectButton: {
 		backgroundColor: "transparent",
 		borderWidth: 1,
-		borderColor: "#a33",
+		borderColor: COLORS.destructive,
 		borderRadius: 8,
 		padding: 14,
 		alignItems: "center",
 		marginTop: 8,
 	},
 	disconnectText: {
-		color: "#f66",
+		color: COLORS.destructive,
 		fontSize: 16,
 	},
 });

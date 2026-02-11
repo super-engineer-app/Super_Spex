@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { StreamQuality } from "../../modules/xr-glasses";
 import { QUALITY_OPTIONS } from "../hooks/useRemoteView";
+import { COLORS } from "../theme";
 
 interface QualitySelectorProps {
 	value: StreamQuality;
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	label: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		marginBottom: 8,
 	},
@@ -83,18 +84,18 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	option: {
-		backgroundColor: "#333",
+		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
 		padding: 12,
 		borderWidth: 1,
-		borderColor: "#444",
+		borderColor: COLORS.border,
 	},
 	optionSelected: {
-		borderColor: "#07f",
-		backgroundColor: "#1a3a5a",
+		borderColor: COLORS.primary,
+		backgroundColor: COLORS.secondary,
 	},
 	optionDisabled: {
-		opacity: 0.5,
+		opacity: 0.6,
 	},
 	optionContent: {
 		flexDirection: "row",
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
 		height: 20,
 		borderRadius: 10,
 		borderWidth: 2,
-		borderColor: "#666",
+		borderColor: COLORS.input,
 		marginRight: 12,
 		alignItems: "center",
 		justifyContent: "center",
@@ -114,21 +115,21 @@ const styles = StyleSheet.create({
 		width: 10,
 		height: 10,
 		borderRadius: 5,
-		backgroundColor: "#07f",
+		backgroundColor: COLORS.primary,
 	},
 	textContainer: {
 		flex: 1,
 	},
 	optionLabel: {
-		color: "#fff",
+		color: COLORS.textPrimary,
 		fontSize: 14,
 		fontWeight: "600",
 	},
 	optionLabelSelected: {
-		color: "#4af",
+		color: COLORS.primary,
 	},
 	optionDescription: {
-		color: "#888",
+		color: COLORS.textSecondary,
 		fontSize: 12,
 		marginTop: 2,
 	},

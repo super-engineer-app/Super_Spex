@@ -5,6 +5,7 @@ import {
 	useWindowDimensions,
 	View,
 } from "react-native";
+import { COLORS } from "../../theme";
 import type { DashboardMode } from "../../types/dashboard";
 import { useDashboard } from "./DashboardContext";
 
@@ -60,10 +61,10 @@ export function DashboardSidebar() {
 
 const styles = StyleSheet.create({
 	sidebar: {
-		backgroundColor: "#1a1a1a",
+		backgroundColor: COLORS.sidebarBg,
 		paddingVertical: 12,
 		borderRightWidth: 1,
-		borderRightColor: "#333",
+		borderRightColor: COLORS.sidebarBorder,
 	},
 	sidebarWide: {
 		width: 160,
@@ -82,18 +83,18 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 	},
 	itemActive: {
-		backgroundColor: "#2a2a3a",
+		backgroundColor: COLORS.sidebarItemActive,
 	},
 	icon: {
 		fontSize: 20,
 	},
 	label: {
-		color: "#aaa",
+		color: COLORS.sidebarText,
 		fontSize: 14,
 		fontWeight: "500",
 	},
 	labelActive: {
-		color: "#fff",
+		color: COLORS.sidebarTextActive,
 		fontWeight: "600",
 	},
 });
