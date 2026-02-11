@@ -12,6 +12,7 @@ import { useRemoteView } from "../../hooks/useRemoteView";
 import { COLORS } from "../../theme";
 import logger from "../../utils/logger";
 import { ActionButton } from "../shared/ActionButton";
+import { LiveCameraPreview } from "../shared/LiveCameraPreview";
 import { ModeHeader } from "../shared/ModeHeader";
 import { RecordingIndicator } from "../shared/RecordingIndicator";
 
@@ -69,60 +70,55 @@ export function LiveStreamMode() {
 				{isStreaming ? <RecordingIndicator label="" /> : null}
 			</View>
 
-			<View style={styles.row}>
-				<View style={styles.previewColumn}>
-					<View style={styles.placeholder}>
-						<Text style={styles.placeholderText}>
-							{isStreaming ? "Streaming..." : "Stream preview"}
+			<View style={styles.contentColumn}>
+				<LiveCameraPreview active />
+
+				{isStreaming ? (
+					<ActionButton
+						label={streamLoading ? "Stopping..." : "Stop"}
+						onPress={handleStopStream}
+						variant="danger"
+						disabled={streamLoading}
+						style={styles.streamButton}
+					/>
+				) : stopped ? (
+					<ActionButton
+						label="Reset"
+						onPress={handleReset}
+						variant="secondary"
+						style={styles.streamButton}
+					/>
+				) : (
+					<ActionButton
+						label={streamLoading ? "Starting..." : "Start Stream"}
+						onPress={handleStartStream}
+						variant="secondary"
+						disabled={streamLoading}
+						style={styles.streamButton}
+					/>
+				)}
+
+				{streamError ? <Text style={styles.error}>{streamError}</Text> : null}
+
+				<View style={styles.section}>
+					<Text style={styles.sectionLabel}>Share your Stream</Text>
+					<View style={styles.linkRow}>
+						<Text style={styles.linkText} numberOfLines={1}>
+							{viewerUrl || "[LINK]"}
 						</Text>
+						<Pressable style={styles.copyButton} onPress={handleCopyUrl}>
+							<Text style={styles.copyButtonText}>
+								{copiedUrl ? "Copied!" : "Copy"}
+							</Text>
+						</Pressable>
 					</View>
 				</View>
 
-				<View style={styles.buttonsColumn}>
-					{isStreaming ? (
-						<ActionButton
-							label={streamLoading ? "Stopping..." : "Stop"}
-							onPress={handleStopStream}
-							variant="danger"
-							disabled={streamLoading}
-						/>
-					) : stopped ? (
-						<ActionButton
-							label="Re-set"
-							onPress={handleReset}
-							variant="secondary"
-						/>
-					) : (
-						<ActionButton
-							label={streamLoading ? "Starting..." : "Start Stream"}
-							onPress={handleStartStream}
-							variant="secondary"
-							disabled={streamLoading}
-						/>
-					)}
-				</View>
-			</View>
-
-			{streamError ? <Text style={styles.error}>{streamError}</Text> : null}
-
-			<View style={styles.section}>
-				<Text style={styles.sectionLabel}>Share your Stream</Text>
-				<View style={styles.linkRow}>
-					<Text style={styles.linkText} numberOfLines={1}>
-						{viewerUrl || "[LINK]"}
-					</Text>
-					<Pressable style={styles.copyButton} onPress={handleCopyUrl}>
-						<Text style={styles.copyButtonText}>
-							{copiedUrl ? "Copied!" : "Copy"}
-						</Text>
-					</Pressable>
-				</View>
-			</View>
-
-			<View style={styles.section}>
-				<Text style={styles.sectionLabel}>Number of viewers</Text>
-				<View style={styles.viewerBox}>
-					<Text style={styles.viewerCount}>{viewerCount}</Text>
+				<View style={styles.section}>
+					<Text style={styles.sectionLabel}>Number of viewers</Text>
+					<View style={styles.viewerBox}>
+						<Text style={styles.viewerCount}>{viewerCount}</Text>
+					</View>
 				</View>
 			</View>
 		</ScrollView>
@@ -141,33 +137,11 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		gap: 12,
 	},
-	row: {
-		flexDirection: "row",
-		gap: 16,
-		alignItems: "flex-start",
+	contentColumn: {
+		maxWidth: 500,
 	},
-	previewColumn: {
-		flex: 3,
-	},
-	buttonsColumn: {
-		flex: 2,
-		gap: 12,
-	},
-	placeholder: {
-		backgroundColor: COLORS.backgroundSecondary,
-		borderRadius: 8,
-		padding: 32,
-		alignItems: "center",
-		justifyContent: "center",
-		marginVertical: 8,
-		borderWidth: 1,
-		borderColor: COLORS.input,
-		borderStyle: "dashed",
-		minHeight: 160,
-	},
-	placeholderText: {
-		color: COLORS.textMuted,
-		fontSize: 14,
+	streamButton: {
+		paddingVertical: 16,
 	},
 	section: {
 		marginTop: 16,

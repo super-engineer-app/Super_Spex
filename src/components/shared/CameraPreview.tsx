@@ -1,11 +1,4 @@
-import {
-	Image,
-	Platform,
-	StyleSheet,
-	Text,
-	useWindowDimensions,
-	View,
-} from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { COLORS } from "../../theme";
 
 interface CameraPreviewProps {
@@ -16,12 +9,8 @@ interface CameraPreviewProps {
 
 export function CameraPreview({
 	base64Image,
-	imageSize,
 	placeholder = "No image captured",
 }: CameraPreviewProps) {
-	const { width: screenWidth } = useWindowDimensions();
-	const isWeb = Platform.OS === "web";
-
 	if (!base64Image) {
 		return (
 			<View style={styles.placeholder}>
@@ -32,14 +21,9 @@ export function CameraPreview({
 
 	return (
 		<View style={styles.container}>
-			{imageSize ? (
-				<Text style={styles.imageInfo}>
-					{imageSize.width}x{imageSize.height}
-				</Text>
-			) : null}
 			<Image
 				source={{ uri: `data:image/jpeg;base64,${base64Image}` }}
-				style={[styles.image, isWeb && screenWidth > 600 && { height: 320 }]}
+				style={styles.image}
 				resizeMode="contain"
 			/>
 		</View>
@@ -53,26 +37,22 @@ const styles = StyleSheet.create({
 	placeholder: {
 		backgroundColor: COLORS.backgroundSecondary,
 		borderRadius: 8,
-		padding: 32,
 		alignItems: "center",
 		justifyContent: "center",
 		marginVertical: 8,
 		borderWidth: 1,
 		borderColor: COLORS.input,
 		borderStyle: "dashed",
+		aspectRatio: 640 / 480,
+		width: "100%",
 	},
 	placeholderText: {
 		color: COLORS.textMuted,
 		fontSize: 14,
 	},
-	imageInfo: {
-		color: COLORS.textSecondary,
-		fontSize: 12,
-		marginBottom: 4,
-	},
 	image: {
 		width: "100%",
-		height: 200,
+		aspectRatio: 640 / 480,
 		borderRadius: 8,
 		backgroundColor: COLORS.secondary,
 	},

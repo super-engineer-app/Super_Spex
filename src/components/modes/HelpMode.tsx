@@ -184,31 +184,27 @@ export function HelpMode() {
 						disabled={camera.isCapturing || !camera.isReady}
 					/>
 
-					{speech.isListening ? (
-						<ActionButton
-							label="Stop"
-							onPress={handleTalkToMe}
-							variant="danger"
-						/>
-					) : hasResponse ? (
-						<ActionButton
-							label="Reset"
-							onPress={handleReset}
-							variant="secondary"
-						/>
-					) : hasContent && !isSending ? (
+					<ActionButton
+						label={speech.isListening ? "Stop" : "Talk to me!"}
+						onPress={handleTalkToMe}
+						variant={speech.isListening ? "danger" : "secondary"}
+					/>
+
+					{hasContent && !isSending && !speech.isListening ? (
 						<ActionButton
 							label="Submit"
 							onPress={handleSubmit}
 							variant="secondary"
 						/>
-					) : (
+					) : null}
+
+					{(hasContent || hasResponse) && !speech.isListening ? (
 						<ActionButton
-							label="Talk to me!"
-							onPress={handleTalkToMe}
+							label="Reset"
+							onPress={handleReset}
 							variant="secondary"
 						/>
-					)}
+					) : null}
 				</View>
 			</View>
 
@@ -232,6 +228,7 @@ export function HelpMode() {
 				status={aiStatus}
 				error={aiError}
 				isSending={isSending}
+				alwaysShow
 				onClear={() => {
 					setAiResponse("");
 					setAiStatus(null);
@@ -257,13 +254,13 @@ const styles = StyleSheet.create({
 	row: {
 		flexDirection: "row",
 		gap: 16,
-		alignItems: "flex-start",
+		alignItems: "center",
 	},
 	previewColumn: {
-		flex: 3,
+		flex: 1,
 	},
 	buttonsColumn: {
-		flex: 2,
+		flex: 1,
 		gap: 12,
 	},
 	fieldLabel: {

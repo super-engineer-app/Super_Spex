@@ -9,6 +9,7 @@ import {
 import { COLORS } from "../../theme";
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "success";
+type ButtonSize = "default" | "small";
 
 interface ActionButtonProps {
 	label: string;
@@ -16,6 +17,7 @@ interface ActionButtonProps {
 	variant?: ButtonVariant;
 	disabled?: boolean;
 	style?: StyleProp<ViewStyle>;
+	size?: ButtonSize;
 }
 
 const variantStyles: Record<ButtonVariant, ViewStyle> = {
@@ -42,19 +44,29 @@ export function ActionButton({
 	variant = "primary",
 	disabled = false,
 	style,
+	size = "default",
 }: ActionButtonProps) {
 	return (
 		<Pressable
 			style={[
 				styles.button,
 				variantStyles[variant],
+				size === "small" && styles.buttonSmall,
 				disabled && styles.disabled,
 				style,
 			]}
 			onPress={onPress}
 			disabled={disabled}
 		>
-			<Text style={[styles.text, variantTextStyles[variant]]}>{label}</Text>
+			<Text
+				style={[
+					styles.text,
+					variantTextStyles[variant],
+					size === "small" && styles.textSmall,
+				]}
+			>
+				{label}
+			</Text>
 		</Pressable>
 	);
 }
@@ -66,11 +78,18 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		alignItems: "center",
 	},
+	buttonSmall: {
+		paddingVertical: 8,
+		paddingHorizontal: 12,
+	},
 	disabled: {
 		opacity: 0.6,
 	},
 	text: {
 		fontSize: 16,
 		fontWeight: "600",
+	},
+	textSmall: {
+		fontSize: 13,
 	},
 });
