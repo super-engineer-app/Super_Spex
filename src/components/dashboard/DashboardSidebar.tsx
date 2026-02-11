@@ -19,8 +19,8 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 	{ mode: "identify", icon: "🔍", label: "Identify" },
 	{ mode: "help", icon: "💬", label: "Help" },
 	{ mode: "notes", icon: "📝", label: "Notes" },
-	{ mode: "livestream", icon: "📡", label: "Live" },
-	{ mode: "teachecker", icon: "🍵", label: "Tea" },
+	{ mode: "livestream", icon: "📡", label: "Live Stream" },
+	{ mode: "teachecker", icon: "🍵", label: "Tea checker" },
 	{ mode: "config", icon: "⚙️", label: "Config" },
 ];
 
@@ -38,6 +38,7 @@ export function DashboardSidebar() {
 				isWide ? styles.sidebarWide : styles.sidebarNarrow,
 			]}
 		>
+			{isWide ? <Text style={styles.headerText}>Super Spex</Text> : null}
 			{SIDEBAR_ITEMS.map((item) => {
 				const isActive = activeMode === item.mode;
 				return (
@@ -66,21 +67,30 @@ const styles = StyleSheet.create({
 		borderRightWidth: 1,
 		borderRightColor: COLORS.sidebarBorder,
 	},
+	headerText: {
+		fontSize: 18,
+		fontWeight: "bold",
+		color: COLORS.textPrimary,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		marginBottom: 4,
+	},
 	sidebarWide: {
-		width: 160,
+		width: 240,
 	},
 	sidebarNarrow: {
-		width: 56,
+		width: 64,
 	},
 	item: {
 		flexDirection: "row",
 		alignItems: "center",
-		paddingVertical: 12,
-		paddingHorizontal: 12,
-		gap: 10,
-		borderRadius: 8,
-		marginHorizontal: 6,
-		marginBottom: 4,
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+		gap: 12,
+		borderRadius: 6,
+		marginHorizontal: 12,
+		marginBottom: 2,
+		minHeight: 36,
 	},
 	itemActive: {
 		backgroundColor: COLORS.sidebarItemActive,

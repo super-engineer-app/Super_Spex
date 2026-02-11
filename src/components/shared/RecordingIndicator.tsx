@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import { COLORS } from "../../theme";
 
 interface RecordingIndicatorProps {
@@ -8,9 +9,30 @@ interface RecordingIndicatorProps {
 export function RecordingIndicator({
 	label = "Recording...",
 }: RecordingIndicatorProps) {
+	const opacity = useRef(new Animated.Value(1)).current;
+
+	useEffect(() => {
+		const animation = Animated.loop(
+			Animated.sequence([
+				Animated.timing(opacity, {
+					toValue: 0.2,
+					duration: 500,
+					useNativeDriver: true,
+				}),
+				Animated.timing(opacity, {
+					toValue: 1,
+					duration: 500,
+					useNativeDriver: true,
+				}),
+			]),
+		);
+		animation.start();
+		return () => animation.stop();
+	}, [opacity]);
+
 	return (
 		<View style={styles.container}>
-			<View style={styles.dot} />
+			<Animated.View style={[styles.dot, { opacity }]} />
 			<Text style={styles.text}>{label}</Text>
 		</View>
 	);

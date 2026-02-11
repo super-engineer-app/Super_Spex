@@ -21,7 +21,7 @@ export function AIResponseDisplay({
 
 	return (
 		<View style={styles.section}>
-			<Text style={styles.sectionTitle}>AI Response</Text>
+			<Text style={styles.sectionTitle}>Response</Text>
 			{error ? (
 				<Text style={styles.error}>{error}</Text>
 			) : (
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
 		fontStyle: "italic",
 	},
 	statusText: {
-		color: COLORS.accent,
+		color: COLORS.info,
 		fontSize: 14,
 		fontStyle: "italic",
 	},

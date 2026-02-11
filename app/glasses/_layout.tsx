@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { COLORS } from "../../src/theme";
 
 /**
  * Layout component for the glasses section.
@@ -11,21 +12,21 @@ export default function GlassesLayout() {
 		<Stack
 			screenOptions={{
 				headerStyle: {
-					backgroundColor: "#0a0a0a",
+					backgroundColor: COLORS.background,
 				},
-				headerTintColor: "#ffffff",
+				headerTintColor: COLORS.foreground,
 				headerTitleStyle: {
 					fontWeight: "600",
 				},
 				contentStyle: {
-					backgroundColor: "#0a0a0a",
+					backgroundColor: COLORS.background,
 				},
 			}}
 		>
 			<Stack.Screen
 				name="index"
 				options={{
-					title: "Glasses Dashboard",
+					headerShown: false,
 				}}
 			/>
 			<Stack.Screen
