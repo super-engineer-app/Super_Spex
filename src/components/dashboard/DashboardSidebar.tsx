@@ -1,3 +1,12 @@
+import type { LucideIcon } from "lucide-react-native";
+import {
+	Coffee,
+	Eye,
+	FileText,
+	MessageSquare,
+	Radio,
+	Settings,
+} from "lucide-react-native";
 import {
 	Pressable,
 	StyleSheet,
@@ -11,17 +20,17 @@ import { useDashboard } from "./DashboardContext";
 
 interface SidebarItem {
 	mode: DashboardMode;
-	icon: string;
+	icon: LucideIcon;
 	label: string;
 }
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
-	{ mode: "identify", icon: "🔍", label: "Identify" },
-	{ mode: "help", icon: "💬", label: "Help" },
-	{ mode: "notes", icon: "📝", label: "Notes" },
-	{ mode: "livestream", icon: "📡", label: "Live Stream" },
-	{ mode: "teachecker", icon: "🍵", label: "Tea checker" },
-	{ mode: "config", icon: "⚙️", label: "Config" },
+	{ mode: "identify", icon: Eye, label: "Identify" },
+	{ mode: "help", icon: MessageSquare, label: "Help" },
+	{ mode: "notes", icon: FileText, label: "Notes" },
+	{ mode: "livestream", icon: Radio, label: "Live Stream" },
+	{ mode: "teachecker", icon: Coffee, label: "Tea checker" },
+	{ mode: "config", icon: Settings, label: "Config" },
 ];
 
 const WIDE_BREAKPOINT = 600;
@@ -41,6 +50,7 @@ export function DashboardSidebar() {
 			{isWide ? <Text style={styles.headerText}>Super Spex</Text> : null}
 			{SIDEBAR_ITEMS.map((item) => {
 				const isActive = activeMode === item.mode;
+				const IconComponent = item.icon;
 				return (
 					<Pressable
 						key={item.mode}
@@ -50,7 +60,10 @@ export function DashboardSidebar() {
 						<View
 							style={[styles.iconWrapper, isActive && styles.iconWrapperActive]}
 						>
-							<Text style={styles.icon}>{item.icon}</Text>
+							<IconComponent
+								size={18}
+								color={isActive ? COLORS.sidebarTextActive : COLORS.sidebarText}
+							/>
 						</View>
 						{isWide ? (
 							<Text style={[styles.label, isActive && styles.labelActive]}>
@@ -109,9 +122,6 @@ const styles = StyleSheet.create({
 	},
 	iconWrapperActive: {
 		backgroundColor: "transparent",
-	},
-	icon: {
-		fontSize: 18,
 	},
 	label: {
 		color: COLORS.sidebarText,

@@ -49,7 +49,7 @@ interface VideoRecordingState {
 const INITIAL_STATE: VideoRecordingState = {
 	recordingState: "idle",
 	durationMs: 0,
-	cameraSource: "phone",
+	cameraSource: "glasses",
 	transcriptionState: "idle",
 	transcriptionResult: null,
 	transcriptionError: null,
@@ -145,6 +145,10 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 	}, []);
 
 	const startRecording = useCallback(async () => {
+		logger.debug(
+			TAG,
+			`Starting recording with cameraSource="${state.cameraSource}"`,
+		);
 		try {
 			setState((prev) => ({
 				...prev,
@@ -157,8 +161,16 @@ export function useVideoRecording(): UseVideoRecordingReturn {
 			}));
 			startDurationTimer();
 			await serviceRef.current.startVideoRecording(state.cameraSource);
+			logger.debug(
+				TAG,
+				`Recording started successfully (source: ${state.cameraSource})`,
+			);
 		} catch (error) {
-			logger.error(TAG, "Failed to start recording:", error);
+			logger.error(
+				TAG,
+				`Failed to start recording (source: ${state.cameraSource}):`,
+				error,
+			);
 			stopDurationTimer();
 			setState((prev) => ({ ...prev, recordingState: "idle" }));
 		}

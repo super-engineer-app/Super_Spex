@@ -150,6 +150,43 @@ export function NotesMode() {
 	const hasVideoContent = isStopped || videoNoteText.trim();
 	const playbackUrl = isStopped ? (recordingState.fileUri ?? null) : null;
 
+	const tabToggle = (
+		<View style={styles.tabToggle}>
+			<Pressable
+				style={[
+					styles.tabButton,
+					activeTab === "video" && styles.tabButtonActive,
+				]}
+				onPress={() => setActiveTab("video")}
+			>
+				<Text
+					style={[
+						styles.tabButtonText,
+						activeTab === "video" && styles.tabButtonTextActive,
+					]}
+				>
+					Video
+				</Text>
+			</Pressable>
+			<Pressable
+				style={[
+					styles.tabButton,
+					activeTab === "photo" && styles.tabButtonActive,
+				]}
+				onPress={() => setActiveTab("photo")}
+			>
+				<Text
+					style={[
+						styles.tabButtonText,
+						activeTab === "photo" && styles.tabButtonTextActive,
+					]}
+				>
+					Photo
+				</Text>
+			</Pressable>
+		</View>
+	);
+
 	return (
 		<ScrollView
 			style={styles.scroll}
@@ -164,43 +201,6 @@ export function NotesMode() {
 				) : null}
 			</View>
 
-			<View style={styles.toggleRow}>
-				<View style={styles.tabToggle}>
-					<Pressable
-						style={[
-							styles.tabButton,
-							activeTab === "video" && styles.tabButtonActive,
-						]}
-						onPress={() => setActiveTab("video")}
-					>
-						<Text
-							style={[
-								styles.tabButtonText,
-								activeTab === "video" && styles.tabButtonTextActive,
-							]}
-						>
-							Video
-						</Text>
-					</Pressable>
-					<Pressable
-						style={[
-							styles.tabButton,
-							activeTab === "photo" && styles.tabButtonActive,
-						]}
-						onPress={() => setActiveTab("photo")}
-					>
-						<Text
-							style={[
-								styles.tabButtonText,
-								activeTab === "photo" && styles.tabButtonTextActive,
-							]}
-						>
-							Photo
-						</Text>
-					</Pressable>
-				</View>
-			</View>
-
 			{activeTab === "video" ? (
 				<>
 					<View style={styles.row}>
@@ -209,6 +209,7 @@ export function NotesMode() {
 						</View>
 
 						<View style={styles.buttonsColumn}>
+							{tabToggle}
 							<ActionButton
 								label={isRecording ? "Stop" : "Record note"}
 								onPress={handleRecordNote}
@@ -257,6 +258,7 @@ export function NotesMode() {
 			) : (
 				<TaggingMode
 					isActive={isTaggingActive}
+					tabToggle={tabToggle}
 					transcript={taggingTranscript}
 					images={taggingImages}
 					isSaving={isTaggingSaving}
@@ -294,9 +296,6 @@ const styles = StyleSheet.create({
 	headerLeft: {
 		flex: 1,
 	},
-	toggleRow: {
-		marginBottom: 12,
-	},
 	tabToggle: {
 		flexDirection: "row",
 		borderRadius: 8,
@@ -324,13 +323,13 @@ const styles = StyleSheet.create({
 	row: {
 		flexDirection: "row",
 		gap: 16,
-		alignItems: "center",
+		alignItems: "flex-start",
 	},
 	previewColumn: {
-		flex: 1,
+		flex: 3,
 	},
 	buttonsColumn: {
-		flex: 1,
+		flex: 2,
 		gap: 12,
 	},
 	noteSection: {

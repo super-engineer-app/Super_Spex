@@ -16,6 +16,10 @@ const TAG = "RemoteView";
 // WebSocket URL for real-time channel updates
 const WS_BASE_URL = "wss://REDACTED_TOKEN_SERVER/ws";
 
+// Idle detection: warn after 5 min with 0 viewers, auto-stop 60s later
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_AUTO_STOP_S = 60;
+
 /**
  * State interface for Remote View streaming.
  */
@@ -38,6 +42,10 @@ export interface RemoteViewState {
 	cameraSource: string | null;
 	/** Whether streaming is using demo mode */
 	isDemoMode: boolean;
+	/** Whether the idle warning banner is visible */
+	idleWarningVisible: boolean;
+	/** Seconds until auto-stop (counts down from 60) */
+	idleCountdown: number;
 }
 
 /**
@@ -49,6 +57,7 @@ export interface UseRemoteViewReturn extends RemoteViewState {
 	setQuality: (quality: StreamQuality) => void;
 	shareLink: () => Promise<void>;
 	clearError: () => void;
+	dismissIdleWarning: () => void;
 }
 
 /**
@@ -87,9 +96,61 @@ export function useRemoteView(): UseRemoteViewReturn {
 		loading: false,
 		cameraSource: null,
 		isDemoMode: false,
+		idleWarningVisible: false,
+		idleCountdown: 0,
 	});
 
 	const serviceRef = useRef(getXRGlassesService());
+
+	// Idle detection refs
+	const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+		null,
+	);
+
+	const clearIdleTimers = useCallback(() => {
+		if (idleTimerRef.current !== null) {
+			clearTimeout(idleTimerRef.current);
+			idleTimerRef.current = null;
+		}
+		if (autoStopTimerRef.current !== null) {
+			clearTimeout(autoStopTimerRef.current);
+			autoStopTimerRef.current = null;
+		}
+		if (countdownIntervalRef.current !== null) {
+			clearInterval(countdownIntervalRef.current);
+			countdownIntervalRef.current = null;
+		}
+		setState((prev) =>
+			prev.idleWarningVisible
+				? { ...prev, idleWarningVisible: false, idleCountdown: 0 }
+				: prev,
+		);
+	}, []);
+
+	const startIdleCountdown = useCallback(() => {
+		logger.debug(TAG, "Idle: no viewers for 5 min, showing warning");
+		setState((prev) => ({
+			...prev,
+			idleWarningVisible: true,
+			idleCountdown: IDLE_AUTO_STOP_S,
+		}));
+
+		countdownIntervalRef.current = setInterval(() => {
+			setState((prev) => ({
+				...prev,
+				idleCountdown: Math.max(0, prev.idleCountdown - 1),
+			}));
+		}, 1000);
+
+		autoStopTimerRef.current = setTimeout(() => {
+			logger.debug(TAG, "Idle: auto-stopping stream after countdown");
+			serviceRef.current.stopRemoteView().catch((e) => {
+				logger.error(TAG, "Idle auto-stop failed:", e);
+			});
+		}, IDLE_AUTO_STOP_S * 1000);
+	}, []);
 
 	// Set up event listeners
 	useEffect(() => {
@@ -113,6 +174,7 @@ export function useRemoteView(): UseRemoteViewReturn {
 		const stoppedSub = service.onStreamStopped((_event: StreamStoppedEvent) => {
 			if (mounted) {
 				logger.debug(TAG, "Stream stopped");
+				clearIdleTimers();
 				setState((prev) => ({
 					...prev,
 					isStreaming: false,
@@ -122,6 +184,8 @@ export function useRemoteView(): UseRemoteViewReturn {
 					loading: false,
 					cameraSource: null,
 					isDemoMode: false,
+					idleWarningVisible: false,
+					idleCountdown: 0,
 				}));
 			}
 		});
@@ -180,13 +244,14 @@ export function useRemoteView(): UseRemoteViewReturn {
 
 		return () => {
 			mounted = false;
+			clearIdleTimers();
 			startedSub.remove();
 			stoppedSub.remove();
 			errorSub.remove();
 			viewerSub.remove();
 			cameraSourceSub.remove();
 		};
-	}, []);
+	}, [clearIdleTimers]);
 
 	// WebSocket connection for real-time viewer count updates
 	const wsRef = useRef<WebSocket | null>(null);
@@ -258,6 +323,35 @@ export function useRemoteView(): UseRemoteViewReturn {
 			}
 		};
 	}, [state.isStreaming, state.channelId]);
+
+	// Idle detection: warn when streaming with 0 viewers for too long
+	useEffect(() => {
+		if (!state.isStreaming) {
+			clearIdleTimers();
+			return;
+		}
+		if (state.viewerCount > 0) {
+			clearIdleTimers();
+			return;
+		}
+		// viewerCount === 0 and streaming — start idle timer if not already running
+		if (idleTimerRef.current !== null) return;
+		logger.debug(TAG, "Idle: 0 viewers, starting 5-min timer");
+		idleTimerRef.current = setTimeout(startIdleCountdown, IDLE_TIMEOUT_MS);
+		return () => {
+			clearIdleTimers();
+		};
+	}, [
+		state.isStreaming,
+		state.viewerCount,
+		clearIdleTimers,
+		startIdleCountdown,
+	]);
+
+	const dismissIdleWarning = useCallback(() => {
+		logger.debug(TAG, "Idle: user dismissed warning");
+		clearIdleTimers();
+	}, [clearIdleTimers]);
 
 	const startStream = useCallback(async () => {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -347,5 +441,6 @@ export function useRemoteView(): UseRemoteViewReturn {
 		setQuality,
 		shareLink,
 		clearError,
+		dismissIdleWarning,
 	};
 }

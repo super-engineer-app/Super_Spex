@@ -27,6 +27,9 @@ export function LiveStreamMode() {
 		loading: streamLoading,
 		startStream,
 		stopStream,
+		idleWarningVisible,
+		idleCountdown,
+		dismissIdleWarning,
 	} = useRemoteView();
 
 	const [copiedUrl, setCopiedUrl] = useState(false);
@@ -97,6 +100,30 @@ export function LiveStreamMode() {
 						style={styles.streamButton}
 					/>
 				)}
+
+				{idleWarningVisible ? (
+					<View style={styles.idleWarning}>
+						<Text style={styles.idleWarningTitle}>Still streaming?</Text>
+						<Text style={styles.idleWarningBody}>
+							No viewers for 5 minutes. Stream will auto-stop in {idleCountdown}
+							s.
+						</Text>
+						<View style={styles.idleWarningButtons}>
+							<ActionButton
+								label="Keep Streaming"
+								onPress={dismissIdleWarning}
+								variant="secondary"
+								size="small"
+							/>
+							<ActionButton
+								label="Stop Stream"
+								onPress={handleStopStream}
+								variant="danger"
+								size="small"
+							/>
+						</View>
+					</View>
+				) : null}
 
 				{streamError ? <Text style={styles.error}>{streamError}</Text> : null}
 
@@ -207,5 +234,28 @@ const styles = StyleSheet.create({
 		color: COLORS.destructive,
 		fontSize: 13,
 		marginTop: 8,
+	},
+	idleWarning: {
+		backgroundColor: "#FFFBEB",
+		borderWidth: 1,
+		borderColor: COLORS.warning,
+		borderRadius: 8,
+		padding: 12,
+		marginTop: 12,
+	},
+	idleWarningTitle: {
+		fontSize: 14,
+		fontWeight: "600",
+		color: "#92400E",
+		marginBottom: 4,
+	},
+	idleWarningBody: {
+		fontSize: 13,
+		color: "#78350F",
+		marginBottom: 10,
+	},
+	idleWarningButtons: {
+		flexDirection: "row",
+		gap: 8,
 	},
 });

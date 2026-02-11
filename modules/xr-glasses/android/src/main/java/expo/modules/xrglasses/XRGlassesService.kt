@@ -1648,7 +1648,10 @@ class XRGlassesService(
      * @param cameraSource "phone" or "glasses"
      */
     fun startVideoRecording(cameraSource: String) {
-        Log.d(TAG, "Starting video recording (source: $cameraSource)")
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "Starting video recording")
+        Log.d(TAG, "  cameraSource param: $cameraSource")
+        Log.d(TAG, "  emulationMode: $emulationMode")
 
         recordingCameraSource = cameraSource
 
@@ -1703,6 +1706,8 @@ class XRGlassesService(
 
         // 5. Determine emulation mode based on camera source
         val useEmulationMode = cameraSource == "phone" || emulationMode
+        Log.d(TAG, "  useEmulationMode: $useEmulationMode (source=$cameraSource, globalEmulation=$emulationMode)")
+        Log.d(TAG, "========================================")
 
         // 6. Acquire VideoCapture via SharedCameraProvider
         val vc =

@@ -32,7 +32,7 @@ export function CameraPreview({
 					key={base64Image ? base64Image.slice(-16) : "empty"}
 					source={imageSource}
 					style={styles.image}
-					resizeMode="contain"
+					resizeMode="cover"
 					fadeDuration={0}
 					onLoad={() => setLoaded(true)}
 				/>
