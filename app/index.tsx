@@ -1,314 +1,202 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-	Linking,
-	PermissionsAndroid,
+	ActivityIndicator,
+	Alert,
+	Image,
 	Platform,
 	Pressable,
 	StyleSheet,
 	Text,
+	TextInput,
 	useWindowDimensions,
 	View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useXRGlasses } from "../src/hooks/useXRGlasses";
-import { prefetchLocation } from "../src/services/taggingApi";
 import { COLORS } from "../src/theme";
-import logger from "../src/utils/logger";
+import { getCookie } from "../src/utils/cookies";
 
-const TAG = "HomeScreen";
+const IMAGE_URL =
+	"https://pub-804a3b17f3a543eeaf93c26368b87df3.r2.dev/Spex-2.jpg";
 
-/** Permissions we need before the app is usable */
-type Permission =
-	(typeof PermissionsAndroid.PERMISSIONS)[keyof typeof PermissionsAndroid.PERMISSIONS];
-
-function getRequiredPermissions(): Permission[] {
-	if (Platform.OS !== "android") return [];
-	const perms: Permission[] = [
-		PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-		PermissionsAndroid.PERMISSIONS.CAMERA,
-		PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-	];
-	if (Platform.Version >= 31) {
-		perms.push(
-			PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-			PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-		);
-	}
-	return perms;
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+if (!BACKEND_URL) {
+	throw new Error("EXPO_PUBLIC_BACKEND_URL is not set — check your .env");
 }
 
-/** Check if all required permissions are already granted */
-async function checkAllGranted(): Promise<boolean> {
-	if (Platform.OS !== "android") return true;
-	const perms = getRequiredPermissions();
-	for (const p of perms) {
-		if (!(await PermissionsAndroid.check(p))) return false;
-	}
-	return true;
-}
-
-/** Request all permissions, returns true if all granted */
-async function requestAll(): Promise<boolean> {
-	if (Platform.OS !== "android") return true;
-	const perms = getRequiredPermissions();
-	const results = await PermissionsAndroid.requestMultiple(perms);
-	logger.debug(TAG, "Permission results:", results);
-	return Object.values(results).every(
-		(s) => s === PermissionsAndroid.RESULTS.GRANTED,
-	);
-}
-
-export default function HomeScreen() {
+export default function AuthScreen() {
 	const router = useRouter();
-	const { width: screenWidth } = useWindowDimensions();
-	const isWeb = Platform.OS === "web";
-	const {
-		connected,
-		loading,
-		emulationMode: demoMode,
-		connect,
-		setEmulationMode: setDemoMode,
-	} = useXRGlasses();
+	const { width } = useWindowDimensions();
+	const isWide = width > 800;
 
-	const [permissionsGranted, setPermissionsGranted] = useState(
-		Platform.OS !== "android",
-	);
-	const [permissionsChecked, setPermissionsChecked] = useState(false);
+	const [name, setName] = useState("");
+	const [orgName, setOrgName] = useState("");
+	const [loading, setLoading] = useState(false);
 
-	// Check permissions on mount
+	// If cookies already exist, skip straight to home
 	useEffect(() => {
-		checkAllGranted().then((granted) => {
-			setPermissionsGranted(granted);
-			setPermissionsChecked(true);
-			if (granted) {
-				prefetchLocation().catch((err) =>
-					logger.error(TAG, "GPS prefetch failed:", err),
-				);
-			}
-		});
+		const hasSession =
+			getCookie("name") &&
+			getCookie("user_id") &&
+			getCookie("organisation_id") &&
+			getCookie("organisation_name");
+		if (hasSession) {
+			router.replace("/home");
+		}
 	}, []);
 
-	const handleGrantPermissions = useCallback(async () => {
-		const granted = await requestAll();
-		setPermissionsGranted(granted);
-		if (granted) {
-			prefetchLocation().catch((err) =>
-				logger.error(TAG, "GPS prefetch failed:", err),
-			);
+	const showError = (msg: string) => {
+		if (Platform.OS === "web") {
+			window.alert(msg);
 		} else {
-			// Some were denied — user may need to open settings
-			logger.debug(TAG, "Some permissions denied, may need settings");
+			Alert.alert("Error", msg);
 		}
-	}, []);
+	};
 
-	const handleOpenSettings = useCallback(() => {
-		Linking.openSettings();
-	}, []);
-
-	const handleConnectGlasses = async () => {
+	const handleSignUp = async () => {
+		if (!name.trim() || !orgName.trim()) {
+			showError("Please fill in all fields");
+			return;
+		}
+		setLoading(true);
 		try {
-			await setDemoMode(false);
-			await connect();
-			router.push("/glasses");
-		} catch (error) {
-			logger.error(TAG, "Connection failed:", error);
+			const res = await fetch(`${BACKEND_URL}/auth/signup`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+				body: JSON.stringify({
+					name: name.trim(),
+					organisation_name: orgName.trim(),
+				}),
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				showError(data.detail ?? "Sign up failed");
+				return;
+			}
+			router.replace("/home");
+		} catch (e: any) {
+			showError(e.message ?? "Network error");
+		} finally {
+			setLoading(false);
 		}
 	};
 
-	const handleConnectDemoMode = async () => {
-		try {
-			await setDemoMode(true);
-			await connect();
-			router.push("/glasses");
-		} catch (error) {
-			logger.error(TAG, "Demo mode connection failed:", error);
-		}
-	};
+	return (
+		<View style={styles.root}>
+			{/* Form half */}
+			<View style={[styles.formHalf, !isWide && styles.formFull]}>
+				<View style={styles.formContainer}>
+					<Text style={styles.title}>Create a Demo Account</Text>
 
-	const handleGoToDashboard = () => {
-		router.push("/glasses");
-	};
-
-	// Show permissions screen if not yet granted (Android only)
-	if (!permissionsGranted && permissionsChecked) {
-		return (
-			<SafeAreaView style={styles.container}>
-				<View
-					style={[
-						styles.content,
-						isWeb && {
-							maxWidth: Math.min(screenWidth * 0.9, 720),
-							alignSelf: "center" as const,
-							width: "100%" as const,
-						},
-					]}
-				>
-					<Text style={styles.title}>Permissions Needed</Text>
-					<Text style={styles.subtitle}>
-						This app needs camera, microphone, location, and Bluetooth access to
-						work with XR glasses.
-					</Text>
-
+					<TextInput
+						style={styles.input}
+						placeholder="Name"
+						value={name}
+						onChangeText={setName}
+						placeholderTextColor={COLORS.textMuted}
+						autoCapitalize="words"
+					/>
+					<TextInput
+						style={styles.input}
+						placeholder="Organisation name"
+						value={orgName}
+						onChangeText={setOrgName}
+						placeholderTextColor={COLORS.textMuted}
+						autoCapitalize="words"
+					/>
 					<Pressable
 						style={({ pressed }) => [
 							styles.primaryButton,
 							pressed && styles.buttonPressed,
 						]}
-						onPress={handleGrantPermissions}
+						onPress={handleSignUp}
+						disabled={loading}
 					>
-						<Text style={styles.buttonText}>Grant Permissions</Text>
-					</Pressable>
-
-					<Pressable
-						style={({ pressed }) => [
-							styles.secondaryButton,
-							pressed && styles.buttonPressed,
-						]}
-						onPress={handleOpenSettings}
-					>
-						<Text style={styles.secondaryButtonText}>Open Settings</Text>
+						{loading ? (
+							<ActivityIndicator color={COLORS.primaryForeground} />
+						) : (
+							<Text style={styles.buttonText}>Sign up</Text>
+						)}
 					</Pressable>
 				</View>
-			</SafeAreaView>
-		);
-	}
-
-	return (
-		<SafeAreaView style={styles.container}>
-			<View
-				style={[
-					styles.content,
-					isWeb && {
-						maxWidth: Math.min(screenWidth * 0.9, 720),
-						alignSelf: "center" as const,
-						width: "100%" as const,
-					},
-				]}
-			>
-				<Text style={styles.title}>XR Glasses</Text>
-				<Text style={styles.subtitle}>Connect to get started</Text>
-
-				{connected ? (
-					<>
-						<View style={styles.connectedBadge}>
-							<Text style={styles.connectedText}>
-								Connected {demoMode ? "(Demo Mode)" : "(Real Glasses)"}
-							</Text>
-						</View>
-						<Pressable
-							style={({ pressed }) => [
-								styles.primaryButton,
-								pressed && styles.buttonPressed,
-							]}
-							onPress={handleGoToDashboard}
-						>
-							<Text style={styles.buttonText}>Open Dashboard</Text>
-						</Pressable>
-					</>
-				) : (
-					<>
-						<Pressable
-							style={({ pressed }) => [
-								styles.primaryButton,
-								loading && styles.buttonDisabled,
-								pressed && !loading && styles.buttonPressed,
-							]}
-							onPress={handleConnectGlasses}
-							disabled={loading}
-						>
-							<Text style={styles.buttonText}>
-								{loading ? "Connecting..." : "Connect Glasses"}
-							</Text>
-						</Pressable>
-
-						<Pressable
-							style={({ pressed }) => [
-								styles.secondaryButton,
-								loading && styles.buttonDisabled,
-								pressed && !loading && styles.buttonPressed,
-							]}
-							onPress={handleConnectDemoMode}
-							disabled={loading}
-						>
-							<Text style={styles.secondaryButtonText}>Demo Mode</Text>
-						</Pressable>
-					</>
-				)}
 			</View>
-		</SafeAreaView>
+
+			{/* Image half — only shown on wide screens */}
+			{isWide && (
+				<View style={styles.imageHalf}>
+					<Image
+						source={{ uri: IMAGE_URL }}
+						style={StyleSheet.absoluteFill}
+						resizeMode="contain"
+					/>
+				</View>
+			)}
+		</View>
 	);
 }
 
 const styles = StyleSheet.create({
-	container: {
+	root: {
 		flex: 1,
-		backgroundColor: COLORS.backgroundSecondary,
+		flexDirection: "row",
+		backgroundColor: COLORS.background,
 	},
-	content: {
-		flex: 1,
+	imageHalf: {
+		width: "50%",
+		height: "100%",
+		backgroundColor: "#0A0A0A",
+		overflow: "hidden",
+	},
+	formHalf: {
+		width: "50%",
+		height: "100%",
 		justifyContent: "center",
 		alignItems: "center",
-		padding: 20,
+		padding: 32,
+	},
+	formFull: {
+		width: "100%",
+		flex: 1,
+	},
+	formContainer: {
+		width: "100%",
+		maxWidth: 380,
 	},
 	title: {
 		fontSize: 28,
 		fontWeight: "700",
 		color: COLORS.textPrimary,
-		marginBottom: 8,
+		marginBottom: 32,
 	},
-	subtitle: {
-		fontSize: 14,
-		color: COLORS.textTertiary,
-		marginBottom: 40,
-		textAlign: "center",
-	},
-	connectedBadge: {
-		backgroundColor: COLORS.successBg,
+	input: {
+		borderWidth: 1,
+		borderColor: COLORS.border,
 		borderRadius: 8,
-		padding: 12,
-		marginBottom: 20,
-	},
-	connectedText: {
-		color: COLORS.success,
-		fontSize: 14,
-		fontWeight: "600",
+		paddingVertical: 12,
+		paddingHorizontal: 14,
+		fontSize: 15,
+		color: COLORS.textPrimary,
+		backgroundColor: COLORS.background,
+		marginBottom: 14,
+		...(Platform.OS === "web"
+			? ({ outlineStyle: "none" } as Record<string, string>)
+			: {}),
 	},
 	primaryButton: {
 		backgroundColor: COLORS.primary,
 		borderRadius: 8,
-		paddingVertical: 12,
-		paddingHorizontal: 20,
-		width: "100%",
+		paddingVertical: 13,
 		alignItems: "center",
-		marginBottom: 12,
-	},
-	secondaryButton: {
-		backgroundColor: "transparent",
-		borderRadius: 8,
-		paddingVertical: 12,
-		paddingHorizontal: 20,
-		width: "100%",
-		alignItems: "center",
-		borderWidth: 1,
-		borderColor: "#D1D5DB",
-	},
-	buttonDisabled: {
-		backgroundColor: "#F3F4F6",
-		borderColor: "#E5E7EB",
+		marginTop: 4,
+		marginBottom: 20,
 	},
 	buttonPressed: {
-		opacity: 0.8,
+		opacity: 0.85,
 		transform: [{ scale: 0.98 }],
 	},
 	buttonText: {
 		color: COLORS.primaryForeground,
-		fontSize: 16,
-		fontWeight: "500",
-	},
-	secondaryButtonText: {
-		color: COLORS.textPrimary,
-		fontSize: 16,
-		fontWeight: "500",
+		fontSize: 15,
+		fontWeight: "600",
 	},
 });

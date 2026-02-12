@@ -1,6 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
 import { captureFromCamera } from "../utils/cameraCapture";
+import { getCookie } from "../utils/cookies";
 import {
 	appendImageFileToFormData,
 	cleanupTempFile,
@@ -23,17 +24,13 @@ export interface PreferenceResult {
 export function useTeaChecker() {
 	// --- Left panel state (Tea Preference) ---
 	const [prefImage, setPrefImage] = useState<PickedImage | null>(null);
-	const [prefUserId, setPrefUserId] = useState("");
-	const [prefOrgId, setPrefOrgId] = useState("");
 	const [prefLoading, setPrefLoading] = useState(false);
 	const [prefResult, setPrefResult] = useState<PreferenceResult | null>(null);
 	const [prefError, setPrefError] = useState("");
 
 	// --- Right panel state (Check Tea) ---
 	const [checkImage, setCheckImage] = useState<PickedImage | null>(null);
-	const [checkUserId, setCheckUserId] = useState("");
 	const [checkWhoseTea, setCheckWhoseTea] = useState("");
-	const [checkOrgId, setCheckOrgId] = useState("");
 	const [checkLoading, setCheckLoading] = useState(false);
 	const [checkMessages, setCheckMessages] = useState<string[]>([]);
 	const [checkError, setCheckError] = useState("");
@@ -59,7 +56,9 @@ export function useTeaChecker() {
 
 	// --- Left panel: submit tea preference ---
 	const submitPreference = useCallback(async () => {
-		if (!prefImage || !prefUserId) return;
+		const userId = getCookie("user_id");
+		const orgId = getCookie("organisation_id");
+		if (!prefImage || !userId) return;
 		setPrefLoading(true);
 		setPrefError("");
 		setPrefResult(null);
@@ -72,11 +71,12 @@ export function useTeaChecker() {
 				"image",
 				prefImage.base64,
 			);
-			formData.append("user_id", prefUserId);
-			if (prefOrgId) formData.append("organization_id", prefOrgId);
+			formData.append("user_id", userId);
+			if (orgId) formData.append("organization_id", orgId);
 
 			const res = await fetch(`${BACKEND_URL}/memes/tea-colour-preference`, {
 				method: "POST",
+				credentials: "include",
 				body: formData,
 			});
 			if (!res.ok) {
@@ -91,11 +91,13 @@ export function useTeaChecker() {
 			if (tempUri) await cleanupTempFile(tempUri);
 			setPrefLoading(false);
 		}
-	}, [prefImage, prefUserId, prefOrgId]);
+	}, [prefImage]);
 
 	// --- Right panel: check someone's tea (SSE via XHR for cross-platform) ---
 	const submitCheckTea = useCallback(async () => {
-		if (!checkImage || !checkUserId || !checkWhoseTea || !checkOrgId) return;
+		const userId = getCookie("user_id");
+		const orgId = getCookie("organisation_id");
+		if (!checkImage || !userId || !checkWhoseTea || !orgId) return;
 		setCheckLoading(true);
 		setCheckError("");
 		setCheckMessages([]);
@@ -108,9 +110,9 @@ export function useTeaChecker() {
 				"image",
 				checkImage.base64,
 			);
-			formData.append("user_id", checkUserId);
+			formData.append("user_id", userId);
 			formData.append("whose_tea", checkWhoseTea);
-			formData.append("organization_id", checkOrgId);
+			formData.append("organization_id", orgId);
 
 			await new Promise<void>((resolve, reject) => {
 				const xhr = new XMLHttpRequest();
@@ -174,16 +176,12 @@ export function useTeaChecker() {
 			if (tempUri) await cleanupTempFile(tempUri);
 			setCheckLoading(false);
 		}
-	}, [checkImage, checkUserId, checkWhoseTea, checkOrgId]);
+	}, [checkImage, checkWhoseTea]);
 
 	return {
 		// Left panel
 		prefImage,
 		setPrefImage,
-		prefUserId,
-		setPrefUserId,
-		prefOrgId,
-		setPrefOrgId,
 		prefLoading,
 		prefResult,
 		prefError,
@@ -192,12 +190,8 @@ export function useTeaChecker() {
 		// Right panel
 		checkImage,
 		setCheckImage,
-		checkUserId,
-		setCheckUserId,
 		checkWhoseTea,
 		setCheckWhoseTea,
-		checkOrgId,
-		setCheckOrgId,
 		checkLoading,
 		checkMessages,
 		checkError,

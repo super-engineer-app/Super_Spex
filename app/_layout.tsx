@@ -30,15 +30,21 @@ export default function RootLayout() {
 						animation: "slide_from_right",
 					}}
 				>
-					<Stack.Screen
-						name="index"
-						options={{
-							title: "XR Glasses",
-							headerShown: true,
-						}}
-					/>
-					<Stack.Screen
-						name="connect"
+				<Stack.Screen
+					name="index"
+					options={{
+						headerShown: false,
+					}}
+				/>
+				<Stack.Screen
+					name="home"
+					options={{
+						title: "XR Glasses",
+						headerShown: true,
+					}}
+				/>
+				<Stack.Screen
+					name="connect"
 						options={{
 							title: "Connect",
 							presentation: "modal",
