@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+	Platform,
 	Pressable,
 	ScrollView,
 	StyleSheet,
@@ -327,10 +328,12 @@ const styles = StyleSheet.create({
 	},
 	previewColumn: {
 		flex: 3,
+		...(Platform.OS === "web" ? { maxWidth: 480 } : {}),
 	},
 	buttonsColumn: {
 		flex: 2,
 		gap: 12,
+		...(Platform.OS === "web" ? { maxWidth: 200 } : {}),
 	},
 	noteSection: {
 		marginTop: 16,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { sendImage } from "../../services/backendApi";
 import logger from "../../utils/logger";
 import { useDashboard } from "../dashboard/DashboardContext";
@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
 	},
 	previewColumn: {
 		flex: 3,
+		...(Platform.OS === "web" ? { maxWidth: 480 } : {}),
 	},
 	buttonsColumn: {
 		flex: 2,

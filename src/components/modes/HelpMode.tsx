@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+	Platform,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TextInput,
+	View,
+} from "react-native";
 import { sendTextAndImage } from "../../services/backendApi";
 import { COLORS } from "../../theme";
 import logger from "../../utils/logger";
@@ -258,6 +265,7 @@ const styles = StyleSheet.create({
 	},
 	previewColumn: {
 		flex: 3,
+		...(Platform.OS === "web" ? { maxWidth: 480 } : {}),
 	},
 	buttonsColumn: {
 		flex: 2,
