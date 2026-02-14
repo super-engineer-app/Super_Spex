@@ -48,6 +48,7 @@ export function NotesMode() {
 		startRecording,
 		stopRecording,
 		saveVideo,
+		transcribe,
 		dismiss: dismissRecording,
 		isRecording,
 	} = useVideoRecording();
@@ -59,49 +60,91 @@ export function NotesMode() {
 	const [videoNoteText, setVideoNoteText] = useState("");
 	const [videoNoteSaved, setVideoNoteSaved] = useState(false);
 
+	// Tracks whether we're in a video recording session (start → stop/dismiss).
+	// Used instead of speech.isListening because native speech events can arrive
+	// after stopListening(), leaving speech.isListening stuck on true.
+	const [isVideoSession, setIsVideoSession] = useState(false);
+
 	// Photo mode audio recording state
 	const [isPhotoAudioRecording, setIsPhotoAudioRecording] = useState(false);
 
+	// Base transcript captured when photo audio recording starts (prevents infinite loop)
+	const photoTranscriptBaseRef = useRef("");
+
 	// Process speech results for tagging keyword detection
+	// Uses photoTranscriptBaseRef to avoid re-render loop with taggingTranscript
 	useEffect(() => {
 		if (!speech.transcript) return;
 		if (speech.transcript === lastProcessedTranscriptRef.current) return;
 		lastProcessedTranscriptRef.current = speech.transcript;
 
 		if (activeTab === "photo") {
-			// In photo mode, append speech to tagging transcript
-			editTranscript(
-				taggingTranscript
-					? `${taggingTranscript} ${speech.transcript}`
-					: speech.transcript,
-			);
+			// In photo mode, update the base ref and set full transcript
+			const base = photoTranscriptBaseRef.current;
+			const newTranscript = base
+				? `${base} ${speech.transcript}`
+				: speech.transcript;
+			photoTranscriptBaseRef.current = newTranscript;
+			editTranscript(newTranscript);
 		} else {
 			processSpeechResult(speech.transcript);
 		}
-	}, [
-		speech.transcript,
-		processSpeechResult,
-		activeTab,
-		editTranscript,
-		taggingTranscript,
-	]);
+	}, [speech.transcript, processSpeechResult, activeTab, editTranscript]);
 
-	// Live transcription: populate video note text while recording
+	// Live transcription: populate video note text during video recording session
 	useEffect(() => {
 		if (activeTab !== "video") return;
+		if (!isVideoSession) return;
 		const transcript = speech.partialTranscript || speech.transcript || "";
-		if (transcript && isRecording) {
+		if (transcript) {
 			setVideoNoteText(transcript);
 		}
-	}, [speech.partialTranscript, speech.transcript, isRecording, activeTab]);
+	}, [speech.partialTranscript, speech.transcript, isVideoSession, activeTab]);
+
+	// Auto-transcribe audio when recording stops (server-side, more accurate)
+	const prevRecordingStateRef = useRef(recordingState.recordingState);
+	useEffect(() => {
+		if (activeTab !== "video") return;
+		const prev = prevRecordingStateRef.current;
+		const current = recordingState.recordingState;
+		prevRecordingStateRef.current = current;
+
+		if (
+			(prev === "recording" || prev === "stopping") &&
+			current === "stopped"
+		) {
+			transcribe();
+		}
+	}, [activeTab, recordingState.recordingState, transcribe]);
+
+	// Display server transcription result in note text
+	useEffect(() => {
+		if (activeTab !== "video") return;
+		if (
+			recordingState.transcriptionState === "done" &&
+			recordingState.transcriptionResult
+		) {
+			const text = recordingState.transcriptionResult.segments
+				.map((seg) => seg.text)
+				.join(" ");
+			if (text.trim()) {
+				setVideoNoteText(text.trim());
+			}
+		}
+	}, [
+		activeTab,
+		recordingState.transcriptionState,
+		recordingState.transcriptionResult,
+	]);
 
 	// Photo mode: update transcript with partial speech results in real-time
+	// Uses photoTranscriptBaseRef instead of taggingTranscript to avoid infinite loop
+	// (reading and writing taggingTranscript in the same effect causes re-render cycle)
 	useEffect(() => {
 		if (activeTab !== "photo" || !isPhotoAudioRecording) return;
 		const partial = speech.partialTranscript;
 		if (partial) {
-			// Show partial as preview in transcript field
-			const base = taggingTranscript || "";
+			const base = photoTranscriptBaseRef.current;
 			editTranscript(base ? `${base} ${partial}` : partial);
 		}
 	}, [
@@ -109,15 +152,18 @@ export function NotesMode() {
 		activeTab,
 		isPhotoAudioRecording,
 		editTranscript,
-		taggingTranscript,
 	]);
 
 	const handleRecordNote = useCallback(async () => {
 		if (isRecording) {
+			setIsVideoSession(false);
 			await stopRecording();
 			await speech.stopListening();
 		} else {
 			setVideoNoteSaved(false);
+			setVideoNoteText("");
+			speech.clearTranscript();
+			setIsVideoSession(true);
 			await startRecording();
 			await speech.startListening(true);
 		}
@@ -129,10 +175,11 @@ export function NotesMode() {
 			await speech.stopListening();
 			setIsPhotoAudioRecording(false);
 		} else {
+			photoTranscriptBaseRef.current = taggingTranscript || "";
 			await speech.startListening(true);
 			setIsPhotoAudioRecording(true);
 		}
-	}, [isPhotoAudioRecording, speech]);
+	}, [isPhotoAudioRecording, speech, taggingTranscript]);
 
 	const handleSaveVideoNote = useCallback(async () => {
 		await saveVideo();
@@ -140,6 +187,7 @@ export function NotesMode() {
 	}, [saveVideo]);
 
 	const handleClearVideoNote = useCallback(() => {
+		setIsVideoSession(false);
 		dismissRecording();
 		setVideoNoteText("");
 		setVideoNoteSaved(false);
@@ -196,7 +244,7 @@ export function NotesMode() {
 				<View style={styles.headerLeft}>
 					<ModeHeader title="Notes" subtitle="Make a video or photo note" />
 				</View>
-				{isRecording || isPhotoAudioRecording || speech.isListening ? (
+				{isRecording || isPhotoAudioRecording ? (
 					<RecordingIndicator label="" />
 				) : null}
 			</View>
@@ -251,11 +299,27 @@ export function NotesMode() {
 							style={styles.noteInput}
 							value={videoNoteText}
 							onChangeText={setVideoNoteText}
-							placeholder="Transcribing . . ."
+							placeholder={
+								isRecording
+									? "Listening..."
+									: recordingState.transcriptionState === "loading"
+										? "Transcribing your note..."
+										: "Record a note to transcribe"
+							}
 							placeholderTextColor={COLORS.textMuted}
 							multiline
 							textAlignVertical="top"
 						/>
+						{recordingState.transcriptionState === "loading" ? (
+							<Text style={styles.transcriptionStatus}>
+								Transcribing your note...
+							</Text>
+						) : null}
+						{recordingState.transcriptionError ? (
+							<Text style={styles.transcriptionError}>
+								{recordingState.transcriptionError}
+							</Text>
+						) : null}
 					</View>
 				</>
 			) : (
@@ -354,5 +418,16 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 20,
 		minHeight: 120,
+	},
+	transcriptionStatus: {
+		color: COLORS.textMuted,
+		fontSize: 13,
+		marginTop: 6,
+		fontStyle: "italic",
+	},
+	transcriptionError: {
+		color: COLORS.destructive,
+		fontSize: 13,
+		marginTop: 6,
 	},
 });
