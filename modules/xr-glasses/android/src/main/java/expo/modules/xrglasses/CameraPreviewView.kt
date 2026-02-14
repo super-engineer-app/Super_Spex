@@ -60,6 +60,7 @@ class CameraPreviewView(
     private var isActive = false
     private var playbackUri: String? = null
     private var previewAcquired = false
+    private var pendingPreviewAcquire = false
 
     init {
         addView(previewView)
@@ -69,8 +70,26 @@ class CameraPreviewView(
     fun setActive(active: Boolean) {
         if (isActive == active) return
         isActive = active
-        Log.d(TAG, "setActive: $active")
+        Log.d(TAG, "setActive: $active (width=$width, height=$height, attachedToWindow=$isAttachedToWindow)")
         updateState()
+    }
+
+    override fun onLayout(
+        changed: Boolean,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+    ) {
+        super.onLayout(changed, left, top, right, bottom)
+        val w = right - left
+        val h = bottom - top
+        Log.d(TAG, "onLayout: ${w}x$h (pendingPreview=$pendingPreviewAcquire)")
+        if (pendingPreviewAcquire && w > 0 && h > 0) {
+            pendingPreviewAcquire = false
+            Log.d(TAG, "Deferred acquirePreview now executing (view has valid dimensions)")
+            acquirePreview()
+        }
     }
 
     fun setPlaybackUri(uri: String?) {
@@ -140,6 +159,7 @@ class CameraPreviewView(
 
     private fun showNothing() {
         releasePreview()
+        pendingPreviewAcquire = false
         videoView.stopPlayback()
         previewView.visibility = View.GONE
         videoContainer.visibility = View.GONE
@@ -147,6 +167,15 @@ class CameraPreviewView(
 
     private fun acquirePreview() {
         if (previewAcquired) return
+
+        // Defer acquisition if view has zero dimensions (e.g. parent has display:none).
+        // A zero-size PreviewView can't provide a valid surface, which blocks the
+        // entire CameraX session and prevents ImageCapture from working.
+        if (width == 0 || height == 0) {
+            Log.w(TAG, "acquirePreview DEFERRED: view has zero dimensions (${width}x$height) — will retry on layout")
+            pendingPreviewAcquire = true
+            return
+        }
 
         val activity = appContext.currentActivity
         if (activity !is LifecycleOwner) {
@@ -159,7 +188,7 @@ class CameraPreviewView(
         // When glasses are connected, their camera feed is handled separately.
         sharedCamera.acquirePreview(activity, previewView.surfaceProvider, true)
         previewAcquired = true
-        Log.d(TAG, "Preview acquired")
+        Log.d(TAG, "Preview acquired (${width}x$height)")
     }
 
     private fun releasePreview() {

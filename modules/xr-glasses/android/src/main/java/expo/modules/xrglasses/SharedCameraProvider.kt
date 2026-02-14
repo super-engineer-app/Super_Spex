@@ -90,6 +90,10 @@ class SharedCameraProvider private constructor(private val context: Context) {
     private var providerInitPending = false
     private val pendingOnBoundCallbacks = mutableListOf<(() -> Unit)?>()
 
+    // Diagnostic counters
+    private var rebindCount = 0
+    private var initAndBindCount = 0
+
     /**
      * Configuration for ImageAnalysis use case.
      */
@@ -383,6 +387,16 @@ class SharedCameraProvider private constructor(private val context: Context) {
         emulationMode: Boolean,
         onBound: (() -> Unit)? = null,
     ) {
+        val callNum = ++initAndBindCount
+        val lifecycleState = lifecycleOwner.lifecycle.currentState
+        Log.d(
+            TAG,
+            "initAndBind #$callNum: lifecycle=$lifecycleState, providerCached=${cameraProvider != null}, " +
+                "pending=$providerInitPending, emulation=$emulationMode, " +
+                "useCases=[preview=${preview != null}, analysis=${imageAnalysis != null}, " +
+                "capture=${imageCapture != null}, video=${videoCapture != null}]",
+        )
+
         currentLifecycleOwner = lifecycleOwner
         this.isEmulationMode = emulationMode
 
@@ -392,6 +406,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
         if (cameraProvider != null) {
             // Already have provider, just rebind
+            Log.d(TAG, "initAndBind #$callNum: provider cached, rebinding synchronously")
             rebindUseCases()
             onBound?.invoke()
             return
@@ -399,18 +414,27 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
         // Provider is still initializing — queue the callback and skip duplicate listener
         if (providerInitPending) {
-            Log.d(TAG, "Provider init already pending, coalescing onBound callback")
+            Log.d(TAG, "initAndBind #$callNum: provider init pending, COALESCING (onBound=${onBound != null})")
             pendingOnBoundCallbacks.add(onBound)
             return
         }
 
         providerInitPending = true
+        Log.d(TAG, "initAndBind #$callNum: starting async ProcessCameraProvider.getInstance()")
         val cameraProviderFuture = ProcessCameraProvider.getInstance(cameraContext)
         cameraProviderFuture.addListener({
             try {
                 cameraProvider = cameraProviderFuture.get()
                 providerInitPending = false
-                Log.d(TAG, "ProcessCameraProvider obtained")
+                val resolvedLifecycleState = currentLifecycleOwner?.lifecycle?.currentState
+                Log.d(
+                    TAG,
+                    "ProcessCameraProvider obtained (initAndBind #$callNum). " +
+                        "Lifecycle now=$resolvedLifecycleState. " +
+                        "Coalesced callbacks=${pendingOnBoundCallbacks.size}. " +
+                        "UseCases: preview=${preview != null}, analysis=${imageAnalysis != null}, " +
+                        "capture=${imageCapture != null}, video=${videoCapture != null}",
+                )
                 // Single rebind with ALL use cases accumulated so far
                 rebindUseCases()
                 onBound?.invoke()
@@ -484,17 +508,21 @@ class SharedCameraProvider private constructor(private val context: Context) {
      * Called when use cases are added/removed or when provider is first obtained.
      */
     private fun rebindUseCases() {
+        val callNum = ++rebindCount
         val provider =
             cameraProvider ?: run {
-                Log.w(TAG, "rebindUseCases: no camera provider")
+                Log.w(TAG, "rebindUseCases #$callNum: no camera provider")
                 return
             }
 
         val lifecycleOwner =
             currentLifecycleOwner ?: run {
-                Log.w(TAG, "rebindUseCases: no lifecycle owner")
+                Log.w(TAG, "rebindUseCases #$callNum: no lifecycle owner")
                 return
             }
+
+        val lifecycleState = lifecycleOwner.lifecycle.currentState
+        Log.d(TAG, "rebindUseCases #$callNum: lifecycle=$lifecycleState")
 
         // Collect active use cases
         // CameraX 3-use-case limit: Preview counts as one.
@@ -508,13 +536,13 @@ class SharedCameraProvider private constructor(private val context: Context) {
         if (!isVideoCaptureActive) {
             imageAnalysis?.let { useCases.add(it) }
         } else {
-            Log.d(TAG, "VideoCapture active - excluding ImageAnalysis from binding")
+            Log.d(TAG, "rebindUseCases #$callNum: VideoCapture active - excluding ImageAnalysis from binding")
         }
         imageCapture?.let { useCases.add(it) }
         videoCapture?.let { useCases.add(it) }
 
         if (useCases.isEmpty()) {
-            Log.d(TAG, "No active use cases, unbinding all")
+            Log.d(TAG, "rebindUseCases #$callNum: no active use cases, unbinding all")
             try {
                 provider.unbindAll()
             } catch (e: Exception) {
@@ -527,7 +555,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
         // Check if camera is available
         if (!provider.hasCamera(cameraSelector)) {
-            Log.w(TAG, "Back camera not available")
+            Log.w(TAG, "rebindUseCases #$callNum: back camera not available")
             return
         }
 
@@ -536,22 +564,25 @@ class SharedCameraProvider private constructor(private val context: Context) {
             provider.unbindAll()
 
             // Bind all active use cases together
-            provider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                *useCases.toTypedArray(),
-            )
+            val camera =
+                provider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    *useCases.toTypedArray(),
+                )
 
             Log.d(TAG, "========================================")
-            Log.d(TAG, ">>> CAMERA BOUND: ${useCases.size} use cases")
-            Log.d(TAG, ">>>   Preview: ${preview != null}")
+            Log.d(TAG, ">>> CAMERA BOUND (rebind #$callNum): ${useCases.size} use cases")
+            Log.d(TAG, ">>>   Lifecycle: $lifecycleState")
+            Log.d(TAG, ">>>   Preview: ${preview != null} (refCount=${previewRefCount.get()})")
             Log.d(TAG, ">>>   ImageAnalysis: ${imageAnalysis != null && !isVideoCaptureActive}")
-            Log.d(TAG, ">>>   ImageCapture: ${imageCapture != null}")
+            Log.d(TAG, ">>>   ImageCapture: ${imageCapture != null} (refCount=${captureRefCount.get()})")
             Log.d(TAG, ">>>   VideoCapture: ${videoCapture != null}")
             Log.d(TAG, ">>>   Source: $cameraSource")
+            Log.d(TAG, ">>>   CameraInfo: ${camera.cameraInfo}")
             Log.d(TAG, "========================================")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind camera use cases", e)
+            Log.e(TAG, "rebindUseCases #$callNum: FAILED to bind camera use cases", e)
         }
     }
 

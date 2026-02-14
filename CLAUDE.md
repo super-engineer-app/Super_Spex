@@ -37,6 +37,7 @@ These prevent real breakage. Non-negotiable:
 2. **XR activities run in `:xr_process`.** The XR SDK corrupts React Native rendering if they share a process. Read `docs/maintenance/xr-glasses-projection.md` before touching projection code.
 3. **No web-only APIs in React Native code.** `Blob`, `FormData` with Blob, etc. don't work. Use platform-split files when behavior must differ.
 4. **Commit a save point before risky or large-scale changes.** Don't commit routinely after small changes.
+5. **Never activate `LiveCameraPreview` (or any native CameraX view) inside a hidden container.** A `display: "none"` parent gives native views zero dimensions. CameraX's `PreviewView` can't provide a surface at 0x0, which stalls the entire camera session and blocks ALL use cases (including ImageCapture). Always gate the `active` prop on visibility: `active={isActuallyVisible}`. See `docs/maintenance/camera-initialization-bug.md` for the full postmortem.
 
 ## Linting
 

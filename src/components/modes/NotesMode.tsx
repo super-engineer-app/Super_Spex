@@ -20,7 +20,7 @@ import { TaggingMode } from "../TaggingMode";
 type NotesTab = "photo" | "video";
 
 export function NotesMode() {
-	const { speech } = useDashboard();
+	const { speech, activeMode } = useDashboard();
 	const [activeTab, setActiveTab] = useState<NotesTab>("video");
 
 	const {
@@ -205,7 +205,10 @@ export function NotesMode() {
 				<>
 					<View style={styles.row}>
 						<View style={styles.previewColumn}>
-							<LiveCameraPreview active playbackUrl={playbackUrl} />
+							<LiveCameraPreview
+								active={activeMode === "notes"}
+								playbackUrl={playbackUrl}
+							/>
 						</View>
 
 						<View style={styles.buttonsColumn}>

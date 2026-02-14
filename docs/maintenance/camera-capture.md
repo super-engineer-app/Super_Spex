@@ -98,6 +98,25 @@ SharedCameraProvider handles this automatically based on emulation mode.
 
 ## Common Issues & Fixes
 
+### Issue: Camera capture hangs on first mount / Preview shows black
+
+**Symptoms**: `takePicture()` hangs indefinitely (neither `onCaptureSuccess` nor `onError` fires). `PreviewView` shows black. Both issues resolve after switching modes and back. `isCameraReady=true` but the camera isn't actually working.
+
+**Root cause**: A `CameraPreviewView` with `active=true` inside a **hidden container** (`display: "none"`) has zero dimensions. CameraX's `PreviewView` can't provide a valid surface at 0x0. When `SharedCameraProvider.rebindUseCases()` binds Preview + ImageCapture together, CameraX's camera2 layer waits for **ALL** surfaces before creating the `CaptureSession`. The zero-size Preview surface is never provided, so the entire session stalls — blocking ImageCapture too.
+
+The original trigger was `NotesMode` being always-mounted (hidden with `display: "none"` in `ContentArea.tsx`) with `<LiveCameraPreview active />` in its default video tab.
+
+**Fix (two layers)**:
+1. **JS**: Gate `LiveCameraPreview` `active` prop on actual visibility:
+   ```tsx
+   <LiveCameraPreview active={activeMode === "notes"} />
+   ```
+2. **Native**: `CameraPreviewView.kt` defers `acquirePreview()` until `onLayout()` delivers non-zero dimensions. If `width == 0 || height == 0`, it sets a `pendingPreviewAcquire` flag and retries when the view gets valid dimensions.
+
+**Key rule**: Never set `active={true}` on `LiveCameraPreview` when the component is hidden or has zero dimensions. CameraX session creation is all-or-nothing — one stalled surface blocks every use case.
+
+**Full postmortem**: `docs/maintenance/camera-initialization-bug.md`
+
 ### Issue: Camera released mid-capture ("Camera is closed")
 
 **Symptoms**: `captureImage()` fails with "Camera is closed" CameraX error. Logcat shows `releaseCamera` called immediately after `takePicture`.
