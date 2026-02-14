@@ -1,17 +1,6 @@
-glasses button must load the glasses activity and show the projected ui on the glasses
+in help mode, if you make a transcription then press "stop" and then start making a transcription again -> the old transcription is cleaned up instead of appending to the end of it.
+the clean up should  only happen on the "reset" button. make sure next recordings add on top of existing transcribed text.
 
-Next steps: Native app polish
-- Test full connect → project → dashboard flow on real device / emulator
-- Verify speech recognition works end-to-end (glasses mic → text on phone)
-- Verify camera capture from glasses (ProjectedContext) works in all modes
-- Test Remote View streaming from native (Agora push frames → web viewer)
-- Test video recording + transcription pipeline (record → stop → transcribe)
-- Test tagging flow (voice trigger → capture images → save with GPS)
-- Test parking timer (start → warning at 5 min left → expiry)
-- Check demo mode (phone camera/mic fallback when no glasses connected)
-- Check process separation is stable (no UI corruption after XR permission overlay)
-- Verify keep-screen-on during streaming and recording
-- Check error handling: no glasses connected, camera denied, mic denied, network down
-- Run Kotlin linters: cd android && ./gradlew ktlintCheck detekt
-- Run TypeScript check: npx tsc --noEmit
-- Test release APK build: cd android && ./gradlew assembleRelease
+in the photo mode, there are 2 flashing lights : 1 saying recording.... and one in the top right of the screen just a light with no text. remove the "recording ..." flashlight from photo mode -> only keep the same flash light as in the video mode.
+
+after making a video notes -> it keeps infinitely replaying in the preview, but it should be paused by dedfault and the user should be able to unpause / pause it at any point.

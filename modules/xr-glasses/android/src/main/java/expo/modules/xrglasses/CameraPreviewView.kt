@@ -59,6 +59,8 @@ class CameraPreviewView(
 
     private var isActive = false
     private var playbackUri: String? = null
+    private var isPaused = true
+    private var mediaPlayer: android.media.MediaPlayer? = null
     private var previewAcquired = false
     private var pendingPreviewAcquire = false
 
@@ -99,19 +101,37 @@ class CameraPreviewView(
         updateState()
     }
 
+    fun setPaused(paused: Boolean) {
+        if (isPaused == paused) return
+        isPaused = paused
+        Log.d(TAG, "setPaused: $paused")
+        val mp = mediaPlayer ?: return
+        if (paused) {
+            mp.pause()
+        } else {
+            mp.start()
+        }
+    }
+
     private fun updateState() {
+        // When not active (e.g. mode switched away, view is display:none with zero dimensions),
+        // always stop playback and live preview. VideoView can't play inside a zero-size container
+        // and will show a "Can't play this video" system dialog.
+        if (!isActive) {
+            showNothing()
+            return
+        }
         val uri = playbackUri
         if (!uri.isNullOrBlank()) {
             showPlayback(uri)
-        } else if (isActive) {
-            showLivePreview()
         } else {
-            showNothing()
+            showLivePreview()
         }
     }
 
     private fun showPlayback(uri: String) {
         releasePreview()
+        pendingPreviewAcquire = false // Cancel any deferred live preview from prop-setting race
         previewView.visibility = View.GONE
         videoContainer.visibility = View.VISIBLE
 
@@ -123,7 +143,12 @@ class CameraPreviewView(
             }
 
         videoView.setVideoURI(videoUri)
+        videoView.setOnErrorListener { _, what, extra ->
+            Log.e(TAG, "VideoView playback error: what=$what, extra=$extra")
+            true // consume error to suppress system "Can't play this video" dialog
+        }
         videoView.setOnPreparedListener { mp ->
+            mediaPlayer = mp
             mp.isLooping = true
 
             // Scale video to fill container (cover behavior) instead of fit (contain).
@@ -144,15 +169,28 @@ class CameraPreviewView(
                 Log.d(TAG, "Video cover scale: ${extraScale}x (video: ${vw}x$vh, container: ${cw}x$ch)")
             }
 
+            // Always start playback first to decode frames. seekTo(0)+pause() on a
+            // freshly prepared MediaPlayer can leave it in a broken state (Samsung).
+            // Post the pause to the next frame so the decoder outputs at least one frame.
             mp.start()
+            if (isPaused) {
+                videoView.post {
+                    if (isPaused && mediaPlayer === mp) {
+                        mp.pause()
+                    }
+                }
+            }
         }
-        videoView.start()
-        Log.d(TAG, "Showing playback: $videoUri")
+        // Don't call videoView.start() — we call mp.start() explicitly in onPreparedListener.
+        // videoView.start() sets mTargetState=PLAYING which causes VideoView's internal listener
+        // to call start() AGAIN after ours, conflicting with our pause logic.
+        Log.d(TAG, "Showing playback: $videoUri (paused=$isPaused)")
     }
 
     private fun showLivePreview() {
         videoContainer.visibility = View.GONE
         videoView.stopPlayback()
+        mediaPlayer = null
         previewView.visibility = View.VISIBLE
         acquirePreview()
     }
@@ -161,6 +199,7 @@ class CameraPreviewView(
         releasePreview()
         pendingPreviewAcquire = false
         videoView.stopPlayback()
+        mediaPlayer = null
         previewView.visibility = View.GONE
         videoContainer.visibility = View.GONE
     }

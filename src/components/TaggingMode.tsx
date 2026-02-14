@@ -11,7 +11,6 @@ import {
 import { COLORS } from "../theme";
 import type { TaggedImage } from "../types/tagging";
 import { ActionButton } from "./shared/ActionButton";
-import { RecordingIndicator } from "./shared/RecordingIndicator";
 
 const MAX_IMAGES = 6;
 
@@ -109,9 +108,6 @@ export function TaggingMode({
 						onPress={onToggleRecordNote}
 						variant={isRecordingAudio ? "danger" : "secondary"}
 					/>
-					{isRecordingAudio ? (
-						<RecordingIndicator label="Recording..." />
-					) : null}
 					<ActionButton
 						label={
 							isGlassesCapturing

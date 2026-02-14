@@ -518,6 +518,10 @@ class XRGlassesModule : Module() {
                     view.setPlaybackUri(uri)
                 }
 
+                Prop("paused") { view: CameraPreviewView, paused: Boolean ->
+                    view.setPaused(paused)
+                }
+
                 OnViewDestroys { view: CameraPreviewView ->
                     view.onViewDestroy()
                 }

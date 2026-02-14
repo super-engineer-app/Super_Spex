@@ -159,6 +159,7 @@ export type {
 export const NativeCameraPreview = requireNativeViewManager<{
 	active?: boolean;
 	playbackUri?: string | null;
+	paused?: boolean;
 	style?: object;
 }>("XRGlasses");
 

@@ -40,7 +40,6 @@ export function NotesMode() {
 		pickFromGallery,
 		removeImage: removeTaggingImage,
 		editTranscript,
-		processSpeechResult,
 	} = useTaggingSession();
 
 	const {
@@ -64,31 +63,39 @@ export function NotesMode() {
 	// after stopListening(), leaving speech.isListening stuck on true.
 	const [isVideoSession, setIsVideoSession] = useState(false);
 
+	// Video playback paused state (paused by default after recording)
+	const [isVideoPaused, setIsVideoPaused] = useState(true);
+
 	// Photo mode audio recording state
 	const [isPhotoAudioRecording, setIsPhotoAudioRecording] = useState(false);
 
 	// Base transcript captured when photo audio recording starts (prevents infinite loop)
 	const photoTranscriptBaseRef = useRef("");
 
-	// Process speech results for tagging keyword detection
-	// Uses photoTranscriptBaseRef to avoid re-render loop with taggingTranscript
+	// Process speech final results for photo mode only.
+	// Gated on isPhotoAudioRecording so video-mode transcription never leaks into photo mode.
+	// Video tab uses its own videoNoteText state (effect below).
 	useEffect(() => {
+		if (activeMode !== "notes") return;
+		if (activeTab !== "photo" || !isPhotoAudioRecording) return;
 		if (!speech.transcript) return;
 		if (speech.transcript === lastProcessedTranscriptRef.current) return;
 		lastProcessedTranscriptRef.current = speech.transcript;
 
-		if (activeTab === "photo") {
-			// In photo mode, update the base ref and set full transcript
-			const base = photoTranscriptBaseRef.current;
-			const newTranscript = base
-				? `${base} ${speech.transcript}`
-				: speech.transcript;
-			photoTranscriptBaseRef.current = newTranscript;
-			editTranscript(newTranscript);
-		} else {
-			processSpeechResult(speech.transcript);
-		}
-	}, [speech.transcript, processSpeechResult, activeTab, editTranscript]);
+		// In photo mode, prepend base (text before recording started).
+		// speech.transcript already accumulates all results, so don't update base.
+		const base = photoTranscriptBaseRef.current;
+		const newTranscript = base
+			? `${base} ${speech.transcript}`
+			: speech.transcript;
+		editTranscript(newTranscript);
+	}, [
+		speech.transcript,
+		activeTab,
+		isPhotoAudioRecording,
+		editTranscript,
+		activeMode,
+	]);
 
 	// Live transcription: populate video note text during video recording session
 	useEffect(() => {
@@ -105,9 +112,10 @@ export function NotesMode() {
 	// so SpeechRecognizer gets exclusive mic access.
 
 	// Photo mode: update transcript with partial speech results in real-time
-	// Uses photoTranscriptBaseRef instead of taggingTranscript to avoid infinite loop
-	// (reading and writing taggingTranscript in the same effect causes re-render cycle)
+	// speech.partialTranscript already includes accumulated results + current partial,
+	// so we only prepend the static base (text that existed before recording started).
 	useEffect(() => {
+		if (activeMode !== "notes") return;
 		if (activeTab !== "photo" || !isPhotoAudioRecording) return;
 		const partial = speech.partialTranscript;
 		if (partial) {
@@ -117,6 +125,7 @@ export function NotesMode() {
 	}, [
 		speech.partialTranscript,
 		activeTab,
+		activeMode,
 		isPhotoAudioRecording,
 		editTranscript,
 	]);
@@ -158,6 +167,7 @@ export function NotesMode() {
 		dismissRecording();
 		setVideoNoteText("");
 		setVideoNoteSaved(false);
+		setIsVideoPaused(true);
 		speech.clearTranscript();
 	}, [dismissRecording, speech]);
 
@@ -219,12 +229,23 @@ export function NotesMode() {
 			{activeTab === "video" ? (
 				<>
 					<View style={styles.row}>
-						<View style={styles.previewColumn}>
+						<Pressable
+							style={styles.previewColumn}
+							onPress={
+								isStopped ? () => setIsVideoPaused((p) => !p) : undefined
+							}
+						>
 							<LiveCameraPreview
 								active={activeMode === "notes"}
 								playbackUrl={playbackUrl}
+								paused={isVideoPaused}
 							/>
-						</View>
+							{isStopped && isVideoPaused ? (
+								<View style={styles.playOverlay}>
+									<Text style={styles.playIcon}>▶</Text>
+								</View>
+							) : null}
+						</Pressable>
 
 						<View style={styles.buttonsColumn}>
 							{tabToggle}
@@ -347,6 +368,23 @@ const styles = StyleSheet.create({
 	},
 	previewColumn: {
 		flex: 3,
+		position: "relative",
+	},
+	playOverlay: {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "rgba(0, 0, 0, 0.3)",
+		borderRadius: 8,
+		marginVertical: 8,
+	},
+	playIcon: {
+		fontSize: 40,
+		color: "#fff",
 	},
 	buttonsColumn: {
 		flex: 2,

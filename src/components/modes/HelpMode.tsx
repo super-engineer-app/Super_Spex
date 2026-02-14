@@ -13,7 +13,7 @@ import { RecordingIndicator } from "../shared/RecordingIndicator";
 const TAG = "HelpMode";
 
 export function HelpMode() {
-	const { camera, speech } = useDashboard();
+	const { camera, speech, activeMode } = useDashboard();
 	const [aiResponse, setAiResponse] = useState("");
 	const [aiStatus, setAiStatus] = useState<string | null>(null);
 	const [aiError, setAiError] = useState<string | null>(null);
@@ -21,14 +21,19 @@ export function HelpMode() {
 	const [hasPhoto, setHasPhoto] = useState(false);
 	const [questionText, setQuestionText] = useState("");
 	const abortRef = useRef<AbortController | null>(null);
+	// Text that existed before the current recording session started
+	const questionBaseRef = useRef("");
 
-	// Merge speech transcript into the editable text field
+	// Merge speech transcript into the editable text field (only when this mode is active)
+	// speech.transcript already accumulates within a session, so we prepend the static base.
 	useEffect(() => {
+		if (activeMode !== "help") return;
 		const transcript = speech.partialTranscript || speech.transcript || "";
 		if (transcript) {
-			setQuestionText(transcript);
+			const base = questionBaseRef.current;
+			setQuestionText(base ? `${base} ${transcript}` : transcript);
 		}
-	}, [speech.partialTranscript, speech.transcript]);
+	}, [speech.partialTranscript, speech.transcript, activeMode]);
 
 	// Auto-initialize camera on mode entry
 	const initCamera = camera.initializeCamera;
@@ -45,9 +50,11 @@ export function HelpMode() {
 		if (speech.isListening) {
 			await speech.stopListening();
 		} else {
+			// Save current text so new recording appends to it
+			questionBaseRef.current = questionText;
 			await speech.startListening(true);
 		}
-	}, [speech]);
+	}, [speech, questionText]);
 
 	const handleSubmit = useCallback(async () => {
 		const text = questionText.trim();
@@ -123,6 +130,7 @@ export function HelpMode() {
 		setIsSending(false);
 		setHasPhoto(false);
 		setQuestionText("");
+		questionBaseRef.current = "";
 		camera.clearImage();
 		speech.clearTranscript();
 	}, [camera, speech]);
