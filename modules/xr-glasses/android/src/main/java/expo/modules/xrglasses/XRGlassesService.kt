@@ -893,6 +893,28 @@ class XRGlassesService(
                     return
                 }
 
+                // If Google's network recognizer also failed with a non-recoverable error,
+                // fall through to NetworkSpeechRecognizer (HTTP /transcribe-dia endpoint)
+                val isGoogleRecognizerFatal = useNetworkRecognizer && !usingNetworkFallback &&
+                    (isLanguagePackError || error == SpeechRecognizer.ERROR_SERVER ||
+                        error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_NETWORK)
+                if (isGoogleRecognizerFatal) {
+                    Log.w(TAG, "Google network recognizer failed (error=$error), switching to HTTP transcription fallback")
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+                    if (networkSpeechRecognizer == null) {
+                        networkSpeechRecognizer = NetworkSpeechRecognizer(context, module)
+                    }
+                    if (networkSpeechRecognizer?.isAvailable() == true) {
+                        usingNetworkFallback = true
+                        if (isListening) {
+                            networkSpeechRecognizer?.start(continuousMode)
+                        }
+                        return
+                    }
+                    Log.e(TAG, "HTTP transcription fallback also unavailable")
+                }
+
                 val errorMessage =
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH -> {
@@ -999,9 +1021,12 @@ class XRGlassesService(
         }
 
     private fun isRecoverableError(error: Int): Boolean {
+        val LANGUAGE_PACK_ERROR = 13
         return error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS &&
             error != SpeechRecognizer.ERROR_CLIENT &&
-            error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+            error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY &&
+            error != SpeechRecognizer.ERROR_SERVER &&
+            error != LANGUAGE_PACK_ERROR
     }
 
     /**

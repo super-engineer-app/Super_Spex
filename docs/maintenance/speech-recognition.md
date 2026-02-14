@@ -36,11 +36,12 @@ Speech recognition runs **ON THE GLASSES** using Android's `SpeechRecognizer` AP
 | `GlassesBroadcastReceiver.kt` | Main process | Receives speech results via broadcast |
 | `XRGlassesModule.kt` | Main process | Emits events to React Native |
 | `useSpeechRecognition.ts` | React Native | Hook for speech state/results |
+| `DashboardContext.tsx` | React Native | Provides shared speech instance, clears transcript on mode switch |
 
 ## How It Works
 
 1. **User taps MIC button** on phone → calls `XRGlassesService.startSpeechRecognition()`
-2. **Routing decision** (`XRGlassesService.kt:997`):
+2. **Routing decision** (`XRGlassesService.kt:1011`):
    - If glasses connected and not in emulation mode → glasses-side ASR
    - Otherwise → phone-side ASR directly
 3. **Glasses path**: Broadcast to GlassesActivity → SpeechRecognizer on glasses → results broadcast back
@@ -52,11 +53,11 @@ Speech recognition runs **ON THE GLASSES** using Android's `SpeechRecognizer` AP
 
 ### Glasses-First Routing with Phone Fallback
 
-When glasses are connected, `XRGlassesService` uses a **glasses-first strategy** with automatic phone fallback (`XRGlassesService.kt:1014`):
+When glasses are connected, `XRGlassesService` uses a **glasses-first strategy** with automatic phone fallback (`XRGlassesService.kt:1028`):
 
 1. Sends `ACTION_START_LISTENING` broadcast to GlassesActivity
 2. Starts a **5-second timeout** — if glasses don't confirm they're listening, falls back to phone ASR
-3. On glasses confirmation (`handleGlassesSpeechEvent` at `:1085`), cancels the timeout
+3. On glasses confirmation (`handleGlassesSpeechEvent` at `:1106`), cancels the timeout
 4. On non-recoverable glasses ASR error, immediately falls back to phone ASR
 5. `SpeechSource` enum tracks the active source: `NONE`, `GLASSES`, or `PHONE`
 
@@ -90,6 +91,44 @@ Speech recognition runs **concurrently** with CameraX video recording in Notes m
 The native `XRGlassesService.startVideoRecording()` does **NOT** stop speech recognition. The JS side (`NotesMode.tsx`) starts speech recognition after starting the video recording.
 
 See `docs/maintenance/video-recording.md` for full details on the microphone priority system.
+
+## useSpeechRecognition Hook Internals
+
+**Location:** `src/hooks/useSpeechRecognition.ts`
+
+The hook uses an `accumulatedTranscriptRef` to concatenate all final results within a single session:
+
+- **`startListening()`** resets `accumulatedTranscriptRef` to `""` — each new session starts fresh
+- **`onSpeechResult`** appends new text to the ref, then sets `transcript` to the full accumulated string
+- **`onPartialResult`** combines accumulated text + current partial into `partialTranscript`
+- **`clearTranscript()`** resets both the ref and all state
+
+**Key implication:** Since `startListening()` clears accumulated results, modes that need to preserve text across recording sessions (stop → re-record) must save the current text themselves *before* calling `startListening()`. This is why:
+- HelpMode uses `questionBaseRef` (saves `questionText` before each session)
+- NotesMode photo tab uses `photoTranscriptBaseRef` (saves `taggingTranscript` before each session)
+
+## Mode & Tab Isolation
+
+Speech recognition state is shared via a single `useSpeechRecognition()` instance in `DashboardContext`. To prevent cross-contamination, two isolation mechanisms are in place:
+
+### Cross-Mode Isolation (Help Mode vs Notes Mode)
+
+`DashboardContext.setMode()` calls `speech.clearTranscript()` on every mode switch. Additionally, each mode's speech effects are gated on `activeMode`:
+- HelpMode effects: `if (activeMode !== "help") return`
+- NotesMode effects: `if (activeMode !== "notes") return`
+
+HelpMode also uses a `questionBaseRef` to preserve text across recording sessions — only the "Reset" button clears it.
+
+### Cross-Tab Isolation (Video Notes vs Photo Notes)
+
+Within Notes mode, the video and photo tabs each have session flags that prevent speech from one tab leaking into the other:
+
+| Tab | Session flag | What it gates |
+|-----|-------------|---------------|
+| Video | `isVideoSession` | Live transcription → `videoNoteText` |
+| Photo | `isPhotoAudioRecording` | Final results → `editTranscript()`, partial results → `editTranscript()` |
+
+**Rule**: Every speech effect in NotesMode must be gated on the session flag of the tab that started the recording. Without this, switching tabs mid-recording causes the new tab to pick up the other tab's transcript.
 
 ## Common Issues & Fixes
 
@@ -161,6 +200,12 @@ sendBroadcast(intent)
 - [ ] Result reaches phone UI
 - [ ] Error handling works (no crash on network error)
 - [ ] Continuous mode restarts after each result
+- [ ] Help Mode: stop + re-record appends to existing text (doesn't clear)
+- [ ] Help Mode: "Reset" clears all text
+- [ ] Mode switch clears transcript (Help → Notes and back)
+- [ ] Video tab transcription does NOT appear in Photo tab
+- [ ] Photo tab transcription does NOT appear in Video tab
+- [ ] Switching tabs mid-recording doesn't leak transcript
 
 ## Emulator Limitations
 

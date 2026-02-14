@@ -45,7 +45,7 @@ Recording follows a strict state machine to prevent race conditions:
 IDLE → PREPARING → RECORDING → STOPPING → STOPPED → IDLE
 ```
 
-Only one recording can be active at a time. `startRecording()` guards against non-IDLE state.
+Only one recording can be active at a time. `startRecording()` guards against `RECORDING` or `STOPPING` state.
 
 ### Recording System
 
@@ -72,7 +72,7 @@ A separate `startAudioRecording()` method exists for WebM/Opus audio-only record
 | Event | Data | When |
 |-------|------|------|
 | `RecordingEvent.Started` | — | CameraX recording confirmed active |
-| `RecordingEvent.Finalize` | `{duration, videoUri}` | Recording fully stopped and file ready |
+| `RecordingEvent.Stopped` | `{uri, durationMs}` | Recording fully stopped and file ready (maps from CameraX `VideoRecordEvent.Finalize`) |
 | `RecordingEvent.Status` | `{durationMs}` | Periodic status during recording |
 | `RecordingEvent.Pause/Resume` | — | Logged but not actively used |
 
@@ -96,7 +96,7 @@ Speech recognition is **NOT stopped** during recording — it runs concurrently 
 | `transcriptionState` | `'idle' \| 'loading' \| 'done' \| 'error'` | Transcription processing state |
 | `transcriptionResult` | `TranscriptionResult \| null` | Parsed diarized segments (server-side) |
 | `cameraSource` | `'phone' \| 'glasses'` | Which camera to record from (defaults to `'glasses'`) |
-| `duration` | `number` | Recording duration in seconds (JS timer, ticks every 500ms) |
+| `durationMs` | `number` | Recording duration in milliseconds (JS timer, ticks every 500ms) |
 
 ### Key Functions
 
@@ -104,7 +104,7 @@ Speech recognition is **NOT stopped** during recording — it runs concurrently 
 - **`stopRecording()`** - Calls native `stopVideoRecording()`, stops JS timer
 - **`transcribe(language)`** - Calls native `sendRecordingForTranscription(language)`, validates response with `isValidTranscriptionResult()`. Requires a separate audio file (WebM/Opus) to be recorded.
 - **`saveVideo()`** - Gets file path from native, shares via `expo-sharing`
-- **`downloadTranscript()`** - Formats segments as text, writes to temp file via `expo-file-system/next`, shares via Android share sheet (falls back to clipboard)
+- **`downloadTranscript()`** - Formats segments as text, shares via `shareTextFile()` from `formDataHelper.ts` (which writes a temp file via `expo-file-system/next` and opens Android share sheet). Falls back to clipboard if sharing unavailable.
 - **`dismiss()`** - Calls native `dismissRecording()`, resets all state
 
 ### Native Event Subscriptions
@@ -137,10 +137,21 @@ The Notes mode video tab provides real-time on-device transcription during recor
    └─ saveVideo() → shares the MP4 file via Android share sheet
 ```
 
+### Video Playback Preview
+
+After recording stops, the `CameraPreviewView` native view switches from live camera to video playback:
+
+- `LiveCameraPreview` uses a dynamic `key` prop (`"live"` vs `"playback-{uri}"`) to force React to remount the native view when transitioning. This avoids Android's SurfaceView Z-ordering issue where the container's opaque background covers the VideoView surface.
+- Video starts **paused** by default (`isPaused = true`). User taps the preview to toggle play/pause.
+- The `onPreparedListener` always calls `mp.start()` first (to decode at least one frame), then posts a delayed `mp.pause()` if paused. Calling `seekTo(0) + pause()` on a freshly prepared MediaPlayer causes a broken state on Samsung devices.
+- When the view becomes inactive (mode switch), `showNothing()` stops playback. The `updateState()` method checks `isActive` first — never attempts playback inside a zero-dimension hidden container.
+
 ### Key Design Decisions
 
 - **`isVideoSession` state** replaces `speech.isListening` for guarding effects, because native speech events can arrive after `stopListening()` leaving `speech.isListening` stale
-- **`photoTranscriptBaseRef`** breaks the infinite re-render loop in photo mode (reading and writing `taggingTranscript` in the same effect dependency array)
+- **`isPhotoAudioRecording` state** gates all photo-tab speech effects to prevent video-tab transcription from leaking into photo mode when switching tabs
+- **`photoTranscriptBaseRef`** captures text that existed before recording started. It stays static during recording (the hook already accumulates results). This prevents the double-accumulation bug where `base + accumulated` snowballs.
+- **`pendingPreviewAcquire` cleared in `showPlayback()`** — when props are set before the view is in the hierarchy, `setActive(true)` triggers a deferred `acquirePreview()`. Without clearing this flag, the deferred camera preview would fire in playback mode.
 - **No server-side auto-transcribe** during video recording — on-device ASR provides the transcript in real-time
 
 ## Server-Side Transcription (Optional)
@@ -182,7 +193,7 @@ On web, video recording uses a single `MediaRecorder` (no CameraX) that captures
 
 5. **File cleanup**: Temp files are cleaned up on `dismiss()` but may persist if the app crashes during recording. Files are stored in the app cache directory which the OS can clean.
 
-6. **Duration tracking**: Duration is tracked by a JS timer (500ms interval) rather than from the native recorder, so it may drift slightly from actual recording duration. The native `RecordingEvent.Finalize` provides the accurate duration.
+6. **Duration tracking**: Duration is tracked by a JS timer (500ms interval) rather than from the native recorder, so it may drift slightly from actual recording duration. The native `RecordingEvent.Stopped` provides the accurate duration.
 
 ## File Locations
 
@@ -190,6 +201,10 @@ On web, video recording uses a single `MediaRecorder` (no CameraX) that captures
 |------|---------|
 | `modules/xr-glasses/android/.../VideoRecordingManager.kt` | Native recording logic |
 | `modules/xr-glasses/android/.../XRGlassesService.kt` | Service layer: starts/stops recording + speech |
+| `modules/xr-glasses/android/.../CameraPreviewView.kt` | Native view: CameraX live preview + VideoView playback |
+| `modules/xr-glasses/index.ts` | JS bridge: exports `NativeCameraPreview` with `active`, `playbackUri`, `paused` props |
+| `src/components/shared/LiveCameraPreview.tsx` | React wrapper: dynamic `key` for live/playback remount |
 | `src/hooks/useVideoRecording.ts` | React hook for recording lifecycle |
 | `src/components/modes/NotesMode.tsx` | UI: video/photo notes with real-time transcription |
 | `src/services/transcriptionApi.ts` | Types, validation, and formatting for transcription results |
+| `src/utils/formDataHelper.ts` | File sharing utilities (`shareFileFromUri`, `shareTextFile`) |

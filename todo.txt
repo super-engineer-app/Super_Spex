@@ -4,3 +4,26 @@ the clean up should  only happen on the "reset" button. make sure next recording
 in the photo mode, there are 2 flashing lights : 1 saying recording.... and one in the top right of the screen just a light with no text. remove the "recording ..." flashlight from photo mode -> only keep the same flash light as in the video mode.
 
 after making a video notes -> it keeps infinitely replaying in the preview, but it should be paused by dedfault and the user should be able to unpause / pause it at any point.
+
+--- Speech recognition network fallback (in progress) ---
+Problem: On emulators (and devices without language packs), the "speak to me" button in help mode
+shows "language pack not available" and never falls through to the HTTP transcription endpoint.
+
+What was done (2026-02-14):
+- Made error 13 (LANGUAGE_PACK_ERROR) non-recoverable in isRecoverableError() so glasses ASR
+  falls back to phone ASR instead of retrying in a loop (which caused repeated start/stop sounds).
+- Added fallback from Google's network SpeechRecognizer to NetworkSpeechRecognizer (HTTP /transcribe-dia)
+  in the onError handler of createRecognitionListener(). Previously the chain stopped at Google network
+  ASR and just emitted an error.
+
+Files changed:
+- modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/XRGlassesService.kt
+  - isRecoverableError(): added ERROR_SERVER and LANGUAGE_PACK_ERROR (13)
+  - onError(): added fallback block after the language pack → network switch, so if Google network
+    recognizer also fails, it switches to usingNetworkFallback = true and starts NetworkSpeechRecognizer
+
+Still needs testing:
+- Verify the full fallback chain works end-to-end on emulator (glasses → phone on-device → Google network → HTTP /transcribe-dia)
+- Check that TRANSCRIPTION_API_URL is baked into the APK correctly (BuildConfig)
+- Confirm NetworkSpeechRecognizer actually records audio and gets a response from the backend
+- Test on real device with language pack installed (should still use on-device ASR, no regression)
