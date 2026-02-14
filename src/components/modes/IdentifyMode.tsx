@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { sendImage } from "../../services/backendApi";
 import logger from "../../utils/logger";
@@ -17,6 +17,7 @@ export function IdentifyMode() {
 	const [aiError, setAiError] = useState<string | null>(null);
 	const [isSending, setIsSending] = useState(false);
 	const [hasPhoto, setHasPhoto] = useState(false);
+	const abortRef = useRef<AbortController | null>(null);
 
 	// Auto-initialize camera on mode entry
 	const initCamera = camera.initializeCamera;
@@ -31,6 +32,10 @@ export function IdentifyMode() {
 
 	const handleIdentify = useCallback(async () => {
 		if (!camera.lastImage) return;
+		abortRef.current?.abort();
+		const controller = new AbortController();
+		abortRef.current = controller;
+
 		setIsSending(true);
 		setAiResponse("");
 		setAiStatus(null);
@@ -38,14 +43,18 @@ export function IdentifyMode() {
 		try {
 			logger.debug(TAG, "Sending image to AI for identification");
 			await sendImage(camera.lastImage, {
+				signal: controller.signal,
 				onChunk: (chunk) => {
+					if (controller.signal.aborted) return;
 					setAiStatus(null);
 					setAiResponse((prev) => prev + chunk);
 				},
 				onStatus: (status) => {
+					if (controller.signal.aborted) return;
 					setAiStatus(status);
 				},
 				onComplete: (fullResponse) => {
+					if (controller.signal.aborted) return;
 					setAiStatus(null);
 					logger.debug(
 						TAG,
@@ -55,22 +64,30 @@ export function IdentifyMode() {
 					);
 				},
 				onError: (error) => {
+					if (controller.signal.aborted) return;
 					setAiStatus(null);
 					setAiError(error.message);
 				},
 			});
 		} catch (error) {
-			logger.error(TAG, "Error:", error);
-			setAiError(error instanceof Error ? error.message : "Unknown error");
+			if (!controller.signal.aborted) {
+				logger.error(TAG, "Error:", error);
+				setAiError(error instanceof Error ? error.message : "Unknown error");
+			}
 		} finally {
-			setIsSending(false);
+			if (!controller.signal.aborted) {
+				setIsSending(false);
+			}
 		}
 	}, [camera.lastImage]);
 
 	const handleReset = useCallback(() => {
+		abortRef.current?.abort();
+		abortRef.current = null;
 		setAiResponse("");
 		setAiStatus(null);
 		setAiError(null);
+		setIsSending(false);
 		setHasPhoto(false);
 		camera.clearImage();
 	}, [camera]);

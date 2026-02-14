@@ -62,6 +62,8 @@ export interface SendToBackendOptions {
 	onStatus?: (status: string) => void;
 	onComplete?: (fullResponse: string, conversationId: string | null) => void;
 	onError?: (error: Error) => void;
+	/** AbortSignal to cancel the in-flight request (e.g. on user reset). */
+	signal?: AbortSignal;
 }
 
 export interface BackendResponse {
@@ -159,7 +161,8 @@ function processSSEData(
 export async function sendToBackend(
 	options: SendToBackendOptions,
 ): Promise<BackendResponse> {
-	const { text, imageBase64, onChunk, onStatus, onComplete, onError } = options;
+	const { text, imageBase64, onChunk, onStatus, onComplete, onError, signal } =
+		options;
 
 	if (!text && !imageBase64) {
 		const error = new Error("Must provide either text or image");
@@ -195,6 +198,12 @@ export async function sendToBackend(
 		logger.debug(TAG, "conversation_id:", currentConversationId);
 		logger.debug(TAG, "has text:", !!text);
 		logger.debug(TAG, "has image:", !!imageBase64);
+
+		// Already aborted before the request was sent
+		if (signal?.aborted) {
+			if (tempFileUri) await cleanupTempFile(tempFileUri);
+			return { success: false, error: "Aborted" };
+		}
 
 		const result = await new Promise<BackendResponse>((resolve) => {
 			const xhr = new XMLHttpRequest();
@@ -294,6 +303,19 @@ export async function sendToBackend(
 
 				resolve({ success: false, error: err.message });
 			};
+
+			xhr.onabort = () => {
+				logger.debug(TAG, "Request aborted");
+				if (tempFileUri) {
+					cleanupTempFile(tempFileUri);
+				}
+				resolve({ success: false, error: "Aborted" });
+			};
+
+			// Wire up AbortSignal to cancel the XHR
+			if (signal) {
+				signal.addEventListener("abort", () => xhr.abort());
+			}
 
 			xhr.send(formData);
 		});

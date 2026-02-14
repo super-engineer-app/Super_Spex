@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { sendTextAndImage } from "../../services/backendApi";
 import { COLORS } from "../../theme";
@@ -20,6 +20,7 @@ export function HelpMode() {
 	const [isSending, setIsSending] = useState(false);
 	const [hasPhoto, setHasPhoto] = useState(false);
 	const [questionText, setQuestionText] = useState("");
+	const abortRef = useRef<AbortController | null>(null);
 
 	// Merge speech transcript into the editable text field
 	useEffect(() => {
@@ -53,91 +54,73 @@ export function HelpMode() {
 		const image = camera.lastImage;
 		if (!text && !image) return;
 
+		abortRef.current?.abort();
+		const controller = new AbortController();
+		abortRef.current = controller;
+
 		setIsSending(true);
 		setAiResponse("");
 		setAiStatus(null);
 		setAiError(null);
 
+		const callbacks = {
+			signal: controller.signal,
+			onChunk: (chunk: string) => {
+				if (controller.signal.aborted) return;
+				setAiStatus(null);
+				setAiResponse((prev) => prev + chunk);
+			},
+			onStatus: (status: string) => {
+				if (controller.signal.aborted) return;
+				setAiStatus(status);
+			},
+			onComplete: (fullResponse: string) => {
+				if (controller.signal.aborted) return;
+				setAiStatus(null);
+				logger.debug(
+					TAG,
+					"AI response complete:",
+					fullResponse.length,
+					"chars",
+				);
+			},
+			onError: (error: Error) => {
+				if (controller.signal.aborted) return;
+				setAiStatus(null);
+				setAiError(error.message);
+			},
+		};
+
 		try {
 			logger.debug(TAG, "Sending text+image to AI");
 			if (text && image) {
-				await sendTextAndImage(text, image, {
-					onChunk: (chunk) => {
-						setAiStatus(null);
-						setAiResponse((prev) => prev + chunk);
-					},
-					onStatus: (status) => setAiStatus(status),
-					onComplete: (fullResponse) => {
-						setAiStatus(null);
-						logger.debug(
-							TAG,
-							"AI response complete:",
-							fullResponse.length,
-							"chars",
-						);
-					},
-					onError: (error) => {
-						setAiStatus(null);
-						setAiError(error.message);
-					},
-				});
+				await sendTextAndImage(text, image, callbacks);
 			} else if (text) {
 				const { sendText } = await import("../../services/backendApi");
-				await sendText(text, {
-					onChunk: (chunk) => {
-						setAiStatus(null);
-						setAiResponse((prev) => prev + chunk);
-					},
-					onStatus: (status) => setAiStatus(status),
-					onComplete: (fullResponse) => {
-						setAiStatus(null);
-						logger.debug(
-							TAG,
-							"AI response complete:",
-							fullResponse.length,
-							"chars",
-						);
-					},
-					onError: (error) => {
-						setAiStatus(null);
-						setAiError(error.message);
-					},
-				});
+				await sendText(text, callbacks);
 			} else if (image) {
 				const { sendImage } = await import("../../services/backendApi");
-				await sendImage(image, {
-					onChunk: (chunk) => {
-						setAiStatus(null);
-						setAiResponse((prev) => prev + chunk);
-					},
-					onStatus: (status) => setAiStatus(status),
-					onComplete: (fullResponse) => {
-						setAiStatus(null);
-						logger.debug(
-							TAG,
-							"AI response complete:",
-							fullResponse.length,
-							"chars",
-						);
-					},
-					onError: (error) => {
-						setAiStatus(null);
-						setAiError(error.message);
-					},
-				});
+				await sendImage(image, callbacks);
 			}
 		} catch (error) {
-			logger.error(TAG, "Error:", error);
-			setAiError(error instanceof Error ? error.message : "Unknown error");
+			if (!controller.signal.aborted) {
+				logger.error(TAG, "Error:", error);
+				setAiError(error instanceof Error ? error.message : "Unknown error");
+			}
 		} finally {
-			setIsSending(false);
+			if (!controller.signal.aborted) {
+				setIsSending(false);
+			}
 		}
 	}, [questionText, camera.lastImage]);
 
 	const handleReset = useCallback(() => {
+		abortRef.current?.abort();
+		abortRef.current = null;
 		setAiResponse("");
 		setAiStatus(null);
 		setAiError(null);
+		setIsSending(false);
 		setHasPhoto(false);
 		setQuestionText("");
 		camera.clearImage();
