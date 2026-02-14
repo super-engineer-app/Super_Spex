@@ -48,7 +48,6 @@ export function NotesMode() {
 		startRecording,
 		stopRecording,
 		saveVideo,
-		transcribe,
 		dismiss: dismissRecording,
 		isRecording,
 	} = useVideoRecording();
@@ -101,41 +100,9 @@ export function NotesMode() {
 		}
 	}, [speech.partialTranscript, speech.transcript, isVideoSession, activeTab]);
 
-	// Auto-transcribe audio when recording stops (server-side, more accurate)
-	const prevRecordingStateRef = useRef(recordingState.recordingState);
-	useEffect(() => {
-		if (activeTab !== "video") return;
-		const prev = prevRecordingStateRef.current;
-		const current = recordingState.recordingState;
-		prevRecordingStateRef.current = current;
-
-		if (
-			(prev === "recording" || prev === "stopping") &&
-			current === "stopped"
-		) {
-			transcribe();
-		}
-	}, [activeTab, recordingState.recordingState, transcribe]);
-
-	// Display server transcription result in note text
-	useEffect(() => {
-		if (activeTab !== "video") return;
-		if (
-			recordingState.transcriptionState === "done" &&
-			recordingState.transcriptionResult
-		) {
-			const text = recordingState.transcriptionResult.segments
-				.map((seg) => seg.text)
-				.join(" ");
-			if (text.trim()) {
-				setVideoNoteText(text.trim());
-			}
-		}
-	}, [
-		activeTab,
-		recordingState.transcriptionState,
-		recordingState.transcriptionResult,
-	]);
+	// No server-side auto-transcribe — on-device speech recognition provides
+	// real-time transcription during recording. MediaRecorder is not started
+	// so SpeechRecognizer gets exclusive mic access.
 
 	// Photo mode: update transcript with partial speech results in real-time
 	// Uses photoTranscriptBaseRef instead of taggingTranscript to avoid infinite loop
@@ -300,26 +267,12 @@ export function NotesMode() {
 							value={videoNoteText}
 							onChangeText={setVideoNoteText}
 							placeholder={
-								isRecording
-									? "Listening..."
-									: recordingState.transcriptionState === "loading"
-										? "Transcribing your note..."
-										: "Record a note to transcribe"
+								isRecording ? "Listening..." : "Record a note to transcribe"
 							}
 							placeholderTextColor={COLORS.textMuted}
 							multiline
 							textAlignVertical="top"
 						/>
-						{recordingState.transcriptionState === "loading" ? (
-							<Text style={styles.transcriptionStatus}>
-								Transcribing your note...
-							</Text>
-						) : null}
-						{recordingState.transcriptionError ? (
-							<Text style={styles.transcriptionError}>
-								{recordingState.transcriptionError}
-							</Text>
-						) : null}
 					</View>
 				</>
 			) : (
@@ -418,16 +371,5 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 20,
 		minHeight: 120,
-	},
-	transcriptionStatus: {
-		color: COLORS.textMuted,
-		fontSize: 13,
-		marginTop: 6,
-		fontStyle: "italic",
-	},
-	transcriptionError: {
-		color: COLORS.destructive,
-		fontSize: 13,
-		marginTop: 6,
 	},
 });

@@ -78,6 +78,19 @@ SpeechRecognizer.createSpeechRecognizer(context)
 - Higher latency (~300-500ms)
 - Falls back automatically if on-device fails
 
+## Concurrent Use with Video Recording
+
+Speech recognition runs **concurrently** with CameraX video recording in Notes mode:
+
+- SpeechRecognizer uses `VOICE_RECOGNITION` source (higher priority)
+- CameraX uses `CAMCORDER` source (lower priority)
+- SpeechRecognizer gets clear mic access for real-time transcription
+- No separate MediaRecorder is started during recording (it blocks SpeechRecognizer on Samsung devices)
+
+The native `XRGlassesService.startVideoRecording()` does **NOT** stop speech recognition. The JS side (`NotesMode.tsx`) starts speech recognition after starting the video recording.
+
+See `docs/maintenance/video-recording.md` for full details on the microphone priority system.
+
 ## Common Issues & Fixes
 
 ### Issue: Speech recognition not available

@@ -1657,7 +1657,8 @@ class XRGlassesService(
 
         // Save current states for restoration after recording
         wasStreamingBeforeRecording = isStreamingActive
-        wasTaggingBeforeRecording = isListening
+        // Speech recognition is no longer paused during recording (mic is free)
+        wasTaggingBeforeRecording = false
 
         // 1. Stop Agora frame pushing if active
         if (isStreamingActive) {
@@ -1666,11 +1667,9 @@ class XRGlassesService(
             // Note: We don't stop Agora session itself, just frame pushing
         }
 
-        // 2. Stop speech recognition if active
-        if (isListening) {
-            Log.d(TAG, "Pausing speech recognition for recording")
-            stopSpeechRecognition()
-        }
+        // 2. Speech recognition continues during recording — CameraX records
+        //    video-only, so the mic stays free for on-device ASR.
+        //    (Previously stopped here, but no longer needed.)
 
         // 3. Initialize VideoRecordingManager if needed
         if (videoRecordingManager == null) {

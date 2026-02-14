@@ -42,11 +42,17 @@ enum class RecordingState {
 /**
  * VideoRecordingManager - Manages CameraX VideoCapture use case lifecycle.
  *
- * Isolated from service logic. Handles creating the VideoCapture use case,
- * starting/stopping recordings, and managing output files.
+ * CameraX records video with audio enabled (CAMCORDER source, lower priority).
+ * No separate MediaRecorder is started during recording — this gives Android's
+ * SpeechRecognizer (VOICE_RECOGNITION, higher priority) exclusive mic access
+ * for real-time on-device transcription.
  *
- * Recordings are saved to the app-private cache directory as MP4 files.
- * The user can then explicitly save/share them via the UI.
+ * On devices where concurrent audio capture works, CameraX gets audio too.
+ * On devices where it doesn't (e.g. Samsung), CameraX's audio track may be
+ * silent but the video file still has a valid audio container.
+ *
+ * A separate WebM/Opus audio recording can be started independently for
+ * server-side transcription when needed (e.g. post-recording fallback).
  */
 class VideoRecordingManager(
     private val context: Context,
@@ -61,7 +67,7 @@ class VideoRecordingManager(
     private var state: RecordingState = RecordingState.IDLE
     private var recordingStartTimeMs: Long = 0
 
-    // Separate audio recorder for WebM/Opus (required by transcription endpoint)
+    // Separate audio recorder for WebM/Opus (sent to transcription endpoint)
     private var audioRecorder: MediaRecorder? = null
     private var audioOutputFile: File? = null
 
@@ -83,8 +89,12 @@ class VideoRecordingManager(
     /**
      * Start recording video using the provided VideoCapture use case.
      *
+     * CameraX records video-only (no audio enabled) so the microphone remains
+     * available for on-device speech recognition. Audio is captured separately
+     * via MediaRecorder and muxed into the final MP4 after recording stops.
+     *
      * @param videoCapture The CameraX VideoCapture use case (must be bound to camera)
-     * @param audioEnabled Whether to record audio (requires RECORD_AUDIO permission)
+     * @param audioEnabled Whether to enable audio on CameraX (CAMCORDER source)
      * @param onEvent Callback for recording lifecycle events
      */
     fun startRecording(
@@ -113,7 +123,10 @@ class VideoRecordingManager(
             videoCapture.output
                 .prepareRecording(context, fileOutputOptions)
 
-        // Enable audio if requested and permission is granted
+        // Enable CameraX audio so the saved video has an audio track.
+        // SpeechRecognizer (VOICE_RECOGNITION, higher priority) gets clear mic access
+        // while CameraX (CAMCORDER, lower priority) may get degraded audio — but the
+        // video file still has a valid audio track.
         if (audioEnabled) {
             val hasAudioPermission =
                 ContextCompat.checkSelfPermission(
@@ -122,7 +135,7 @@ class VideoRecordingManager(
 
             if (hasAudioPermission) {
                 pendingRecording.withAudioEnabled()
-                Log.d(TAG, "Audio recording enabled")
+                Log.d(TAG, "CameraX audio enabled (low priority — SpeechRecognizer has mic priority)")
             } else {
                 Log.w(TAG, "RECORD_AUDIO permission not granted, recording video only")
             }
@@ -137,10 +150,9 @@ class VideoRecordingManager(
                 handleRecordingEvent(event, onEvent)
             }
 
-        // Start separate audio recording as WebM/Opus for transcription
-        if (audioEnabled) {
-            startAudioRecording()
-        }
+        // No separate MediaRecorder — SpeechRecognizer needs exclusive mic access
+        // for real-time on-device transcription. CameraX audio (CAMCORDER source)
+        // runs at lower priority and doesn't block SpeechRecognizer.
 
         state = RecordingState.RECORDING
         onEvent(RecordingEvent.Started)
@@ -177,7 +189,7 @@ class VideoRecordingManager(
     fun getOutputUri(): Uri? = outputUri
 
     /**
-     * Get the file path of the last completed recording (MP4 video).
+     * Get the file path of the last completed recording (MP4 video-only).
      */
     fun getOutputFilePath(): String? = outputFile?.absolutePath
 
@@ -233,8 +245,13 @@ class VideoRecordingManager(
 
     /**
      * Start a separate MediaRecorder for audio-only WebM/Opus recording.
-     * The transcription endpoint requires WebM/Opus format, while CameraX produces MP4.
-     * Both recordings run simultaneously: CameraX for video, MediaRecorder for audio.
+     *
+     * Uses AudioSource.MIC (lower priority) so that Android's SpeechRecognizer
+     * (which uses VOICE_RECOGNITION internally, higher priority) gets clear mic
+     * access for real-time on-device transcription. Both capture concurrently
+     * on Android 10+ within the same app UID.
+     *
+     * The WebM/Opus format is required by the transcription backend endpoint.
      */
     @Suppress("MissingPermission") // Permission already checked in startRecording
     private fun startAudioRecording() {
@@ -261,11 +278,12 @@ class VideoRecordingManager(
                     MediaRecorder()
                 }
 
+            // MIC source (lower priority) so SpeechRecognizer (VOICE_RECOGNITION) gets priority
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
             recorder.setOutputFormat(MediaRecorder.OutputFormat.WEBM)
             recorder.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
             recorder.setAudioEncodingBitRate(64_000)
-            recorder.setAudioSamplingRate(16_000) // 16kHz is good for speech
+            recorder.setAudioSamplingRate(16_000)
             recorder.setOutputFile(audioFile.absolutePath)
 
             recorder.prepare()
@@ -327,8 +345,8 @@ class VideoRecordingManager(
                     val uri = event.outputResults.outputUri
                     val durationMs = System.currentTimeMillis() - recordingStartTimeMs
                     outputUri = uri
-                    state = RecordingState.STOPPED
                     activeRecording = null
+                    state = RecordingState.STOPPED
                     Log.d(TAG, "Recording finalized: uri=$uri, duration=${durationMs}ms")
                     onEvent(RecordingEvent.Stopped(uri, durationMs))
                 }
