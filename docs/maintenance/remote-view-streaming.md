@@ -213,12 +213,23 @@ Separate repo: `~/coding/spex-web-viewer/` — see its own `CLAUDE.md` and `docs
 - **Stats**: Real-time video quality and latency display (bottom-right)
 - **Host Disconnect Auto-Leave**: 30s countdown when host leaves (see above)
 
-### Token Server (Cloudflare Worker)
+### Token Server (Cloudflare Worker) -- Shared Infrastructure
+
+The Agora Token Worker lives in **this repo** at `cloudflare-workers/` and is deployed to Cloudflare under Dima's account. It is **shared between this app and the EngineersGambit web integration** -- changes affect both.
 
 | File | Purpose |
 |------|---------|
 | `cloudflare-workers/src/index.ts` | Token generation, viewer tracking, WebSocket handling (TypeScript) |
 | `cloudflare-workers/wrangler.toml` | Worker config with Durable Objects and KV bindings |
+
+```bash
+# Deploy
+cd cloudflare-workers && npm run deploy
+
+# Secrets
+npx wrangler secret put AGORA_APP_ID
+npx wrangler secret put AGORA_APP_CERTIFICATE
+```
 
 ## Video Format Pipeline
 

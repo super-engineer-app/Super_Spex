@@ -96,6 +96,8 @@ modules/xr-glasses/android/src/main/java/expo/modules/xrglasses/
 ├── GlassesCameraManager.kt         # Image capture logic (main process)
 ├── StreamingCameraManager.kt       # Video streaming frame capture (main process)
 ├── NativeErrorHandler.kt           # Error reporting to Discord (main process)
+├── NetworkSpeechRecognizer.kt     # Network-based speech recognition fallback (main process)
+├── CameraPreviewView.kt          # Native camera preview view component (main process)
 ├── ProjectionLauncherActivity.kt   # XR SDK setup (:xr_process)
 ├── stream/                         # Remote View (Agora streaming)
 │   ├── AgoraStreamManager.kt       # Agora RTC engine wrapper (main process)
@@ -162,13 +164,19 @@ Main Process (on phone)               Cloud                    Browser
 
 | Repository | Location | Description |
 |------------|----------|-------------|
-| **spex** (this repo) | `~/coding/spex` | Main React Native app + native modules |
+| **spex** (this repo) | `~/coding/spex` | Native app + Cloudflare Worker (`cloudflare-workers/`) |
+| **EngineersGambit** | `~/coding/EngineersGambit` | Web platform -- Spex features ported as JS under `frontend/components/spex/` |
 | **spex-web-viewer** | `~/coding/spex-web-viewer` | Vite + TS web viewer for Remote View (Cloudflare Pages) |
-| **superspex-backend** | `~/coding/superspex-backend` | AI backend (Fly.dev) |
+| **superspex-backend** | `~/coding/superspex-backend` | AI backend (Render) |
 
-**Web Viewer Deployment:**
-- Viewer: `https://REDACTED_VIEWER_URL/view/{channelId}`
-- Token server: `https://REDACTED_TOKEN_SERVER/`
+### Shared Infrastructure
+
+The Agora Token Worker (`cloudflare-workers/` in this repo) is shared between the native app and the EngineersGambit web integration. Both apps use the same worker for token generation and viewer tracking. Owner: **Dima**.
+
+| Service | URL |
+|---------|-----|
+| Token server | `https://REDACTED_TOKEN_SERVER/` |
+| Web Viewer | `https://REDACTED_VIEWER_URL/view/{channelId}` |
 
 ---
 

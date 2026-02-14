@@ -17,6 +17,9 @@
 | `modules/xr-glasses/android/.../stream/StreamQuality.kt` | Quality presets enum |
 | `modules/xr-glasses/android/.../stream/StreamSession.kt` | Session/viewer data classes |
 | `modules/xr-glasses/android/.../VideoRecordingManager.kt` | CameraX video recording + audio extraction |
+| `modules/xr-glasses/android/.../NetworkSpeechRecognizer.kt` | Network-based speech recognition fallback |
+| `modules/xr-glasses/android/.../CameraPreviewView.kt` | Native camera preview view component |
+| `modules/xr-glasses/android/.../NativeErrorHandler.kt` | Error reporting to Discord |
 
 **:xr_process (phone process, displays to glasses):**
 | File | Purpose |
@@ -38,6 +41,7 @@
 | `src/hooks/useVideoRecording.ts` | Video recording + transcription hook |
 | `src/hooks/useParkingTimer.ts` | Parking countdown timer hook |
 | `src/hooks/useTaggingSession.ts` | Voice-activated tagging session hook |
+| `src/hooks/useTeaChecker.ts` | Tea analysis mode hook |
 | `src/hooks/useGlassesInput.ts` | Input event tracking hook |
 | `src/services/backendApi.ts` | AI backend (send text/image, SSE response) |
 | `src/services/taggingApi.ts` | Tagging backend + GPS location cache |
@@ -54,7 +58,7 @@
 | `src/components/modes/HelpMode.tsx` | Photo + voice/text → AI help response |
 | `src/components/modes/NotesMode.tsx` | Two tabs: photo tagging session, video recording + transcription; state persists across tab switches |
 | `src/components/modes/LiveStreamMode.tsx` | Stream glasses camera to web viewers via Agora |
-| `src/components/modes/TeaCheckerMode.tsx` | Tea analysis mode (placeholder) |
+| `src/components/modes/TeaCheckerMode.tsx` | Tea analysis mode |
 | `src/components/modes/ConfigMode.tsx` | Parking timer + disconnect button |
 | `src/components/shared/ModeHeader.tsx` | Title + subtitle header for each mode |
 | `src/components/shared/CameraPreview.tsx` | Displays base64 captured image or placeholder |
@@ -79,6 +83,8 @@
 | `modules/xr-glasses/src/XRGlassesModule.web.ts` | `XRGlassesModule.ts` | `WebXRGlassesService` (browser APIs) |
 | `src/utils/formDataHelper.web.ts` | `formDataHelper.ts` | Blob + download instead of expo-file-system |
 | `src/services/errorReporting.web.ts` | `errorReporting.ts` | `window` event listeners instead of RN polyfill |
+| `src/utils/cameraCapture.web.ts` | `cameraCapture.ts` | Browser `getUserMedia` instead of native camera |
+| `src/components/shared/LiveCameraPreview.web.tsx` | `LiveCameraPreview.tsx` | Browser `<video>` element instead of native preview |
 
 ---
 
@@ -137,10 +143,10 @@ For detailed troubleshooting, see the maintenance docs:
 
 | Repository | Location | Description |
 |------------|----------|-------------|
-| **spex** (this repo) | `~/coding/spex` | Main React Native app + native modules |
+| **spex** (this repo) | `~/coding/spex` | Native app + Cloudflare Worker (`cloudflare-workers/`) |
+| **EngineersGambit** | `~/coding/EngineersGambit` | Web platform -- Spex features ported as JS under `frontend/components/spex/` |
 | **spex-web-viewer** | `~/coding/spex-web-viewer` | Vite + TS web viewer (Cloudflare Pages) — lobby, participant grid, recording, transcription |
-| **SuperSpexWins** | `~/coding/backend-with-testing-frontend/SuperSpexWins` | FastAPI backend (transcription, tagging, AI) — runs locally during dev |
-| **cloudflare-workers** | `~/coding/spex/cloudflare-workers` | Agora token server + viewer presence (NOT transcription) |
+| **superspex-backend** | `~/coding/superspex-backend` | FastAPI backend (transcription, tagging, AI) — runs locally during dev |
 
 ---
 

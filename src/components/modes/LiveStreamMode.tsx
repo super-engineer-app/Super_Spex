@@ -4,6 +4,7 @@ import {
 	Platform,
 	Pressable,
 	ScrollView,
+	Share,
 	StyleSheet,
 	Text,
 	View,
@@ -57,6 +58,15 @@ export function LiveStreamMode() {
 			setTimeout(() => setCopiedUrl(false), 2000);
 		} catch (error) {
 			logger.error(TAG, "Failed to copy URL:", error);
+		}
+	}, [viewerUrl]);
+
+	const handleShareUrl = useCallback(async () => {
+		if (!viewerUrl) return;
+		try {
+			await Share.share({ message: viewerUrl });
+		} catch (error) {
+			logger.error(TAG, "Failed to share URL:", error);
 		}
 	}, [viewerUrl]);
 
@@ -135,14 +145,23 @@ export function LiveStreamMode() {
 						</Text>
 						<Pressable
 							style={({ pressed }) => [
-								styles.copyButton,
-								pressed && styles.copyButtonPressed,
+								styles.linkButton,
+								pressed && styles.linkButtonPressed,
 							]}
 							onPress={handleCopyUrl}
 						>
-							<Text style={styles.copyButtonText}>
+							<Text style={styles.linkButtonText}>
 								{copiedUrl ? "Copied!" : "Copy"}
 							</Text>
+						</Pressable>
+						<Pressable
+							style={({ pressed }) => [
+								styles.linkButton,
+								pressed && styles.linkButtonPressed,
+							]}
+							onPress={handleShareUrl}
+						>
+							<Text style={styles.linkButtonText}>Share</Text>
 						</Pressable>
 					</View>
 				</View>
@@ -201,7 +220,7 @@ const styles = StyleSheet.create({
 		fontFamily: Platform.OS === "web" ? "monospace" : undefined,
 		flex: 1,
 	},
-	copyButton: {
+	linkButton: {
 		backgroundColor: COLORS.secondary,
 		borderRadius: 6,
 		paddingHorizontal: 16,
@@ -209,10 +228,10 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: "#D1D5DB",
 	},
-	copyButtonPressed: {
+	linkButtonPressed: {
 		opacity: 0.8,
 	},
-	copyButtonText: {
+	linkButtonText: {
 		color: COLORS.textPrimary,
 		fontSize: 12,
 		fontWeight: "500",

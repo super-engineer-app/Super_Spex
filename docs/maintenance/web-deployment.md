@@ -69,12 +69,19 @@ Set these in Render's Environment settings:
 | `BRAVE_API_KEY` | Web search tool |
 | `SECRET_KEY` | JWT signing (generate a new random value!) |
 
-### Cloudflare Worker Secrets
+### Cloudflare Worker (Agora Token Server)
+
+The worker at `cloudflare-workers/` in this repo is **shared infrastructure** -- both this app and the EngineersGambit web integration use it. Redeploying or changing the worker affects both. Owner: **Dima**.
 
 ```bash
+# Deploy the worker
+cd cloudflare-workers && npm run deploy
+
+# Set secrets (first time or rotation)
 cd cloudflare-workers
+npx wrangler secret put AGORA_APP_ID
+npx wrangler secret put AGORA_APP_CERTIFICATE
 npx wrangler secret put DISCORD_WEBHOOK_URL
-# Paste the Discord webhook URL when prompted
 ```
 
 ## Services

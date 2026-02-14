@@ -15,6 +15,8 @@ This folder contains troubleshooting guides and maintenance documentation for ea
 | [tagging-system.md](tagging-system.md) | Voice-activated tagging with GPS & images | Tagging workflow issues |
 | [web-platform.md](web-platform.md) | Web platform — browser APIs, `.web.ts` files, responsive layout | Web version issues |
 | [emulator-testing.md](emulator-testing.md) | Emulator setup, pairing, known issues | Emulator problems |
+| [web-deployment.md](web-deployment.md) | Web demo deployment (Cloudflare Pages, Render) | Deploying web version |
+| [database.md](database.md) | Database schema, migrations, Neon PostgreSQL | Database issues |
 | [build-deploy.md](build-deploy.md) | Build process, installation, dependencies | Build failing |
 
 ## Critical Knowledge

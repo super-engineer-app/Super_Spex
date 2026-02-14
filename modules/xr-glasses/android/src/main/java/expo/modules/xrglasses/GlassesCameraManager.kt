@@ -88,14 +88,18 @@ class GlassesCameraManager(
                         lifecycleOwner = lifecycleOwner,
                         config = config,
                         emulationMode = emulationMode,
+                        onBound = {
+                            // Only declare ready AFTER use cases are bound to the camera.
+                            // On first launch ProcessCameraProvider resolves asynchronously,
+                            // so without this callback isCameraReady would be set before binding.
+                            cameraSource = SharedCameraProvider.getInstance(context).getCameraSource()
+                            isCameraReady = true
+                            onCameraStateChanged(true)
+                            Log.d(TAG, "Camera initialized and bound (resolution: ${width}x$height, source: $cameraSource)")
+                        },
                     )
 
-                if (imageCapture != null) {
-                    cameraSource = SharedCameraProvider.getInstance(context).getCameraSource()
-                    isCameraReady = true
-                    onCameraStateChanged(true)
-                    Log.d(TAG, "Camera initialized successfully (resolution: ${width}x$height, source: $cameraSource)")
-                } else {
+                if (imageCapture == null) {
                     Log.e(TAG, "Failed to acquire ImageCapture from SharedCameraProvider")
                     onError("Failed to initialize camera")
                 }

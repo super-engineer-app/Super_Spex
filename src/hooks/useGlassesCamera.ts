@@ -114,14 +114,25 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 	const wasInitializedRef = useRef(false);
 	const lastLowPowerModeRef = useRef(false);
 
+	// Capture timeout ref — reset isCapturing if no event fires
+	const captureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 	useEffect(() => {
 		mountedRef.current = true;
 
 		const service = getXRGlassesService();
 
 		// Subscribe to camera events
+		const clearCaptureTimeout = () => {
+			if (captureTimeoutRef.current) {
+				clearTimeout(captureTimeoutRef.current);
+				captureTimeoutRef.current = null;
+			}
+		};
+
 		const imageSub = service.onImageCaptured((event: ImageCapturedEvent) => {
 			if (!mountedRef.current) return;
+			clearCaptureTimeout();
 
 			logger.debug(
 				TAG,
@@ -140,6 +151,7 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 
 		const errorSub = service.onCameraError((event: CameraErrorEvent) => {
 			if (!mountedRef.current) return;
+			clearCaptureTimeout();
 
 			logger.debug(TAG, `onCameraError: ${event.message}`);
 			setError(event.message);
@@ -159,6 +171,7 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 
 		return () => {
 			mountedRef.current = false;
+			clearCaptureTimeout();
 			imageSub.remove();
 			errorSub.remove();
 			stateSub.remove();
@@ -236,7 +249,17 @@ export function useGlassesCamera(): UseGlassesCameraReturn {
 
 		try {
 			await service.captureImage();
-			// Result will be delivered via onImageCaptured event
+			// Result will be delivered via onImageCaptured event.
+			// Start a safety timeout — if neither onImageCaptured nor onCameraError
+			// fires (e.g. CameraX surfaceList timeout), reset UI after 10s.
+			captureTimeoutRef.current = setTimeout(() => {
+				if (!mountedRef.current) return;
+				logger.debug(TAG, "Capture timed out — no event received within 10s");
+				setIsCapturing(false);
+				setError(
+					"Capture timed out. Try again or switch modes to reset the camera.",
+				);
+			}, 10_000);
 		} catch (e) {
 			const errorMessage =
 				e instanceof Error ? e.message : "Failed to capture image";

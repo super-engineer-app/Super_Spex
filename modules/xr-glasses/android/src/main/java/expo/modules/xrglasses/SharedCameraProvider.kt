@@ -83,6 +83,13 @@ class SharedCameraProvider private constructor(private val context: Context) {
     @Volatile
     private var cameraSource: String = "unknown"
 
+    // Track pending provider initialization to coalesce rapid initAndBind calls.
+    // When multiple acquires happen before the ProcessCameraProvider future resolves,
+    // we only register one listener and collect onBound callbacks to invoke after
+    // a single rebindUseCases() call.
+    private var providerInitPending = false
+    private val pendingOnBoundCallbacks = mutableListOf<(() -> Unit)?>()
+
     /**
      * Configuration for ImageAnalysis use case.
      */
@@ -237,6 +244,7 @@ class SharedCameraProvider private constructor(private val context: Context) {
         lifecycleOwner: LifecycleOwner,
         config: CaptureConfig,
         emulationMode: Boolean,
+        onBound: (() -> Unit)? = null,
     ): ImageCapture? {
         val count = captureRefCount.incrementAndGet()
         Log.d(TAG, "acquireImageCapture: refCount=$count")
@@ -266,7 +274,10 @@ class SharedCameraProvider private constructor(private val context: Context) {
                     .build()
 
             // Initialize camera provider and bind
-            initAndBind(lifecycleOwner, emulationMode)
+            initAndBind(lifecycleOwner, emulationMode, onBound)
+        } else {
+            // Already bound, invoke callback immediately
+            onBound?.invoke()
         }
 
         return imageCapture
@@ -357,10 +368,20 @@ class SharedCameraProvider private constructor(private val context: Context) {
 
     /**
      * Initialize ProcessCameraProvider and bind active use cases.
+     *
+     * @param onBound Optional callback invoked after use cases are bound to the camera.
+     *                On first call this fires asynchronously (after ProcessCameraProvider resolves).
+     *                On subsequent calls it fires synchronously (provider already cached).
+     *
+     * Coalescing: If multiple acquires call initAndBind before the ProcessCameraProvider
+     * future resolves, only one listener is registered. All accumulated use cases are bound
+     * in a single rebindUseCases() call, avoiding rapid unbind/rebind cycles that cause
+     * CameraX surfaceList timeouts on slower camera HALs (e.g. emulated glasses camera).
      */
     private fun initAndBind(
         lifecycleOwner: LifecycleOwner,
         emulationMode: Boolean,
+        onBound: (() -> Unit)? = null,
     ) {
         currentLifecycleOwner = lifecycleOwner
         this.isEmulationMode = emulationMode
@@ -372,16 +393,35 @@ class SharedCameraProvider private constructor(private val context: Context) {
         if (cameraProvider != null) {
             // Already have provider, just rebind
             rebindUseCases()
+            onBound?.invoke()
             return
         }
 
+        // Provider is still initializing — queue the callback and skip duplicate listener
+        if (providerInitPending) {
+            Log.d(TAG, "Provider init already pending, coalescing onBound callback")
+            pendingOnBoundCallbacks.add(onBound)
+            return
+        }
+
+        providerInitPending = true
         val cameraProviderFuture = ProcessCameraProvider.getInstance(cameraContext)
         cameraProviderFuture.addListener({
             try {
                 cameraProvider = cameraProviderFuture.get()
+                providerInitPending = false
                 Log.d(TAG, "ProcessCameraProvider obtained")
+                // Single rebind with ALL use cases accumulated so far
                 rebindUseCases()
+                onBound?.invoke()
+                // Invoke any coalesced callbacks
+                for (cb in pendingOnBoundCallbacks) {
+                    cb?.invoke()
+                }
+                pendingOnBoundCallbacks.clear()
             } catch (e: Exception) {
+                providerInitPending = false
+                pendingOnBoundCallbacks.clear()
                 Log.e(TAG, "Failed to get camera provider", e)
             }
         }, ContextCompat.getMainExecutor(context))
@@ -541,6 +581,8 @@ class SharedCameraProvider private constructor(private val context: Context) {
         analysisRefCount.set(0)
         captureRefCount.set(0)
         videoCaptureRefCount.set(0)
+        providerInitPending = false
+        pendingOnBoundCallbacks.clear()
         cameraSource = "unknown"
     }
 }

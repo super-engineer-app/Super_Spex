@@ -2,8 +2,8 @@
 
 Items to implement after the sidebar navigation refactor.
 
-## 1. Tea Checker
-Entire feature is new (analyze tea from image). Needs design, backend endpoint, and UI. Currently a placeholder.
+## ~~1. Tea Checker~~ (DONE)
+Implemented in `TeaCheckerMode.tsx` and `useTeaChecker.ts`. Uses backend endpoints `/memes/tea-colour-preference` and `/memes/checking-tea` (SSE streaming).
 
 ## 2. Notes: Video Recording with Live Camera Preview
 Current video recording doesn't show a camera preview feed in the UI (it records via native CameraX). The mockup shows a live camera feed in video mode. This would require a native camera preview surface, which is a larger effort. For now, show a placeholder/last-frame during recording.

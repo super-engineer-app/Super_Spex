@@ -12,7 +12,7 @@ The backend uses **PostgreSQL** hosted on **Neon** (serverless Postgres). The ba
 
 ## Schema
 
-All models live in `~/coding/backend-with-testing-frontend/SuperSpexWins/models/`. The database is created via `Base.metadata.create_all()` in the init script.
+All models live in `~/coding/superspex-backend/models/`. The database is created via `Base.metadata.create_all()` in the init script.
 
 ### Enum Types
 
@@ -86,7 +86,7 @@ These are managed via AWS SDK, not the PostgreSQL database.
 ### Init Script
 
 ```
-~/coding/backend-with-testing-frontend/SuperSpexWins/scripts/init_fake_db.py
+~/coding/superspex-backend/scripts/init_fake_db.py
 ```
 
 This script:
@@ -96,7 +96,7 @@ This script:
 ### Running Against Neon (from local machine)
 
 ```bash
-cd ~/coding/backend-with-testing-frontend/SuperSpexWins
+cd ~/coding/superspex-backend
 source .venv/bin/activate
 DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>/<db>?ssl=require" PYTHONPATH=. python3 scripts/init_fake_db.py
 ```

@@ -122,7 +122,7 @@ class CameraPreviewView(
                 val extraScale = coverScale / fitScale
                 videoView.scaleX = extraScale
                 videoView.scaleY = extraScale
-                Log.d(TAG, "Video cover scale: ${extraScale}x (video: ${vw}x${vh}, container: ${cw}x${ch})")
+                Log.d(TAG, "Video cover scale: ${extraScale}x (video: ${vw}x$vh, container: ${cw}x$ch)")
             }
 
             mp.start()
