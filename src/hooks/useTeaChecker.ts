@@ -6,9 +6,7 @@ import {
 	cleanupTempFile,
 } from "../utils/formDataHelper";
 
-const BACKEND_URL =
-	process.env.EXPO_PUBLIC_BACKEND_URL ||
-	"https://REDACTED_BACKEND_URL";
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "";
 
 export interface PickedImage {
 	base64: string;

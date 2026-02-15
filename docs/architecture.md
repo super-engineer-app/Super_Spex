@@ -176,10 +176,10 @@ Main Process (on phone)               Cloud                    Browser
 
 The Agora Token Worker (`cloudflare-workers/` in this repo) is shared between the native app and the EngineersGambit web integration. Both apps use the same worker for token generation and viewer tracking. Owner: **Dima**.
 
-| Service | URL |
-|---------|-----|
-| Token server | `https://REDACTED_TOKEN_SERVER/` |
-| Web Viewer | `https://REDACTED_VIEWER_URL/view/{channelId}` |
+| Service | Configuration |
+|---------|---------------|
+| Token server | Set in `.env` as `AGORA_TOKEN_SERVER_URL` |
+| Web Viewer | Set in `.env` as `SPEX_VIEWER_URL_BASE` |
 
 ---
 

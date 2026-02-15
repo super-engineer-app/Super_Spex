@@ -105,7 +105,7 @@ Viewer count is tracked in real-time using WebSockets and Cloudflare Durable Obj
 ### How It Works
 
 **Phone App (Publisher):**
-- Opens WebSocket to `wss://REDACTED_TOKEN_SERVER/ws/{channelId}?role=host`
+- Opens WebSocket to `wss://<AGORA_TOKEN_SERVER_URL>/ws/{channelId}?role=host`
 - Receives real-time `viewer_count` updates when viewers join/leave
 - Auto-reconnects on disconnect
 
@@ -335,7 +335,7 @@ config.mEventHandler = object : IRtcEngineEventHandler() { ... }
 
 ```
 AGORA_APP_ID=your_app_id
-SPEX_VIEWER_URL_BASE=https://REDACTED_VIEWER_URL/view/
+SPEX_VIEWER_URL_BASE=https://your-viewer.pages.dev/view/
 ```
 
 ### Cloudflare Worker Secrets
@@ -349,8 +349,8 @@ wrangler secret put AGORA_APP_CERTIFICATE
 
 | Service | URL |
 |---------|-----|
-| Web Viewer | https://REDACTED_VIEWER_URL/view/{channelId} |
-| Token Server | https://REDACTED_TOKEN_SERVER/ |
+| Web Viewer | Set in `.env` as `SPEX_VIEWER_URL_BASE` + `{channelId}` |
+| Token Server | Set in `.env` as `AGORA_TOKEN_SERVER_URL` |
 
 ## Audio Streaming
 

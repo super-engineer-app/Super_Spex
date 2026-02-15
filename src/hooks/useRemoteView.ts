@@ -14,7 +14,10 @@ import logger from "../utils/logger";
 const TAG = "RemoteView";
 
 // WebSocket URL for real-time channel updates
-const WS_BASE_URL = "wss://REDACTED_TOKEN_SERVER/ws";
+const WS_BASE_URL =
+	(process.env.EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL || "")
+		.replace(/^https?:\/\//, "wss://")
+		.replace(/\/$/, "") + "/ws";
 
 // Idle detection: warn after 5 min with 0 viewers, auto-stop 60s later
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;

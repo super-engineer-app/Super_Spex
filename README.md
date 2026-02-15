@@ -14,9 +14,9 @@ Both this repo and EngineersGambit share the following services:
 
 | Service | URL | Source | Owner |
 |---------|-----|--------|-------|
-| Agora Token Worker | `https://REDACTED_TOKEN_SERVER` | `cloudflare-workers/` (this repo) | Dima |
-| Web Viewer | `https://REDACTED_VIEWER_URL` | `~/coding/spex-web-viewer/` (separate repo) | Dima |
-| Spex Backend | `https://REDACTED_BACKEND_URL` | `~/coding/superspex-backend/` (separate repo) | - |
+| Agora Token Worker | Set in `.env` as `AGORA_TOKEN_SERVER_URL` | `cloudflare-workers/` (this repo) | Dima |
+| Web Viewer | Set in `.env` as `SPEX_VIEWER_URL_BASE` | `~/coding/spex-web-viewer/` (separate repo) | Dima |
+| Spex Backend | Set in `.env` as `EXPO_PUBLIC_BACKEND_URL` | `~/coding/superspex-backend/` (separate repo) | - |
 
 ### Agora Token Worker
 

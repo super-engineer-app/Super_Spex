@@ -6,10 +6,10 @@ How to deploy the SPEX web demo to production.
 
 ```
 User Browser
-  └─ https://REDACTED_WEB_APP (Cloudflare Pages - static)
-       ├─ API calls → https://REDACTED_BACKEND_URL (Render - FastAPI)
+  └─ Cloudflare Pages (static)
+       ├─ API calls → Render (FastAPI backend, set via EXPO_PUBLIC_BACKEND_URL)
        │                 └─ DB → Neon PostgreSQL (free tier)
-       ├─ Agora calls → https://REDACTED_TOKEN_SERVER (existing Worker)
+       ├─ Agora calls → Cloudflare Worker (set via EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL)
        └─ Error reports → Worker /report-error → Discord webhook (proxied, rate-limited)
 ```
 
@@ -39,10 +39,10 @@ This script:
 | Variable | Value |
 |----------|-------|
 | `EXPO_PUBLIC_AGORA_APP_ID` | Agora app ID |
-| `EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL` | `https://REDACTED_TOKEN_SERVER/` |
-| `EXPO_PUBLIC_SPEX_VIEWER_URL_BASE` | `https://REDACTED_VIEWER_URL/view/` |
-| `EXPO_PUBLIC_BACKEND_URL` | `https://REDACTED_BACKEND_URL` |
-| `EXPO_PUBLIC_TAGGING_API_URL` | `https://REDACTED_BACKEND_URL` |
+| `EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL` | Your Agora token worker URL |
+| `EXPO_PUBLIC_SPEX_VIEWER_URL_BASE` | Your web viewer URL |
+| `EXPO_PUBLIC_BACKEND_URL` | Your backend API URL |
+| `EXPO_PUBLIC_TAGGING_API_URL` | Your backend API URL (same as above) |
 
 Note: `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` is **not** set in the web bundle. Error reports go through the Worker proxy (`/report-error`) instead.
 
@@ -88,10 +88,10 @@ npx wrangler secret put DISCORD_WEBHOOK_URL
 
 | Service | Dashboard | URL |
 |---------|-----------|-----|
-| Web app | [Cloudflare Pages](https://dash.cloudflare.com/) | `https://REDACTED_WEB_APP` |
-| Backend | [Render](https://dashboard.render.com/) | `https://REDACTED_BACKEND_URL` |
+| Web app | [Cloudflare Pages](https://dash.cloudflare.com/) | Set in `.env.production` |
+| Backend | [Render](https://dashboard.render.com/) | Set in `.env` as `EXPO_PUBLIC_BACKEND_URL` |
 | Database | [Neon](https://console.neon.tech/) | Connection string in Render env vars |
-| Agora Worker | [Cloudflare Workers](https://dash.cloudflare.com/) | `https://REDACTED_TOKEN_SERVER/` |
+| Agora Worker | [Cloudflare Workers](https://dash.cloudflare.com/) | Set in `.env` as `AGORA_TOKEN_SERVER_URL` |
 
 ## Troubleshooting
 

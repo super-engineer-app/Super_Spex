@@ -121,9 +121,7 @@ function emit<T>(callbacks: Set<(event: T) => void>, event: T): void {
 	}
 }
 
-const BACKEND_URL =
-	process.env.EXPO_PUBLIC_BACKEND_URL ||
-	"https://REDACTED_BACKEND_URL";
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "";
 
 class WebXRGlassesService {
 	private emulationEnabled = false;
