@@ -11,31 +11,32 @@ import { useDashboard } from "./DashboardContext";
 export function ContentArea() {
 	const { activeMode } = useDashboard();
 
-	const renderMode = () => {
-		switch (activeMode) {
-			case "identify":
-				return <IdentifyMode />;
-			case "help":
-				return <HelpMode />;
-			case "notes":
-				return null;
-			case "livestream":
-				return <LiveStreamMode />;
-			case "teachecker":
-				return <TeaCheckerMode />;
-			case "config":
-				return <ConfigMode />;
-		}
-	};
-
 	return (
 		<View style={styles.content}>
-			{renderMode()}
+			{/* Persistent modes — always mounted, hidden when inactive */}
+			<View
+				style={[
+					styles.persistentMode,
+					activeMode !== "identify" && styles.hidden,
+				]}
+			>
+				<IdentifyMode />
+			</View>
+			<View
+				style={[styles.persistentMode, activeMode !== "help" && styles.hidden]}
+			>
+				<HelpMode />
+			</View>
 			<View
 				style={[styles.persistentMode, activeMode !== "notes" && styles.hidden]}
 			>
 				<NotesMode />
 			</View>
+
+			{/* Non-persistent modes — mount/unmount normally */}
+			{activeMode === "livestream" && <LiveStreamMode />}
+			{activeMode === "teachecker" && <TeaCheckerMode />}
+			{activeMode === "config" && <ConfigMode />}
 		</View>
 	);
 }
