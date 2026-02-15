@@ -999,12 +999,12 @@ class XRGlassesService(
         }
 
     private fun isRecoverableError(error: Int): Boolean {
-        val LANGUAGE_PACK_ERROR = 13
+        val languagePackError = 13
         return error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS &&
             error != SpeechRecognizer.ERROR_CLIENT &&
             error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY &&
             error != SpeechRecognizer.ERROR_SERVER &&
-            error != LANGUAGE_PACK_ERROR
+            error != languagePackError
     }
 
     /**
@@ -1173,7 +1173,10 @@ class XRGlassesService(
         glassesSpeechStartTimeoutJob?.cancel()
         glassesSpeechStartTimeoutJob = null
 
-        // Stop network recognizer if active
+        // NetworkSpeechRecognizer.stop() emits its own isListening:false event,
+        // so we only emit from here when NOT using the network fallback to avoid
+        // duplicate events that can race with the next start() call.
+        val networkHandledEvent = usingNetworkFallback && networkSpeechRecognizer != null
         networkSpeechRecognizer?.stop()
 
         when (currentSpeechSource) {
@@ -1202,13 +1205,15 @@ class XRGlassesService(
         continuousMode = false
         currentSpeechSource = SpeechSource.NONE
 
-        module.emitEvent(
-            "onSpeechStateChanged",
-            mapOf(
-                "isListening" to false,
-                "timestamp" to System.currentTimeMillis(),
-            ),
-        )
+        if (!networkHandledEvent) {
+            module.emitEvent(
+                "onSpeechStateChanged",
+                mapOf(
+                    "isListening" to false,
+                    "timestamp" to System.currentTimeMillis(),
+                ),
+            )
+        }
     }
 
     /**

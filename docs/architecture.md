@@ -127,6 +127,9 @@ Video recording and photo capture default to the glasses camera (via `ProjectedC
 ### Mode State Persistence
 `ContentArea.tsx` keeps `IdentifyMode`, `HelpMode`, and `NotesMode` permanently mounted (hidden with `display: "none"` when another mode is active). This preserves AI responses, captured photos, question text, transcript text, and the active sub-tab across mode switches. LiveStreamMode, TeaCheckerMode, and ConfigMode use standard conditional rendering (unmount/remount).
 
+### Phone-First Layout
+All mode screens use a vertical (top-to-bottom) layout designed for regular smartphone widths: preview/content area on top, action buttons in a horizontal row underneath, then additional content (text inputs, AI responses) below. The sidebar is 64px (icon-only) on narrow screens and 280px with labels on screens wider than 600px.
+
 ### Capabilities Validation Only
 Device capabilities are checked internally before connecting but not displayed in UI.
 

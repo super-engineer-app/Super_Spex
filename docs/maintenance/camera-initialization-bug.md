@@ -150,7 +150,10 @@ Added a dimension check that **defers** `acquirePreview()` until `onLayout()` de
 - `onLayout()` checks the flag and retries when dimensions are valid
 - `showNothing()` clears the pending flag
 
-### 3. Diagnostic logging — `SharedCameraProvider.kt`
+### 3. MediaPlayer state guards — `CameraPreviewView.kt`
+`setPaused()` and the deferred `mp.pause()` in `showPlayback()` are wrapped in try-catch for `IllegalStateException`. When starting a new recording during playback, `showLivePreview()` → `stopPlayback()` releases the MediaPlayer. A posted `pause()` lambda that fires afterwards would crash the app without this guard. See `docs/maintenance/video-recording.md` for the full re-record flow.
+
+### 4. Diagnostic logging — `SharedCameraProvider.kt`
 Added rebind counter, lifecycle state, use case state, and coalescing info to `initAndBind()` and `rebindUseCases()`.
 
 ## Diagnostic Logging (permanently added)

@@ -120,6 +120,7 @@ The Notes mode video tab provides real-time on-device transcription during recor
 
 ```
 1. User taps "Record note"
+   ├─ dismissRecording() → cleans up any previous recording (native resources, temp file, state reset)
    ├─ startRecording() → CameraX begins (video+audio, CAMCORDER source)
    └─ speech.startListening(true) → SpeechRecognizer begins (VOICE_RECOGNITION, higher priority)
 
@@ -144,7 +145,28 @@ After recording stops, the `CameraPreviewView` native view switches from live ca
 - `LiveCameraPreview` uses a dynamic `key` prop (`"live"` vs `"playback-{uri}"`) to force React to remount the native view when transitioning. This avoids Android's SurfaceView Z-ordering issue where the container's opaque background covers the VideoView surface.
 - Video starts **paused** by default (`isPaused = true`). User taps the preview to toggle play/pause.
 - The `onPreparedListener` always calls `mp.start()` first (to decode at least one frame), then posts a delayed `mp.pause()` if paused. Calling `seekTo(0) + pause()` on a freshly prepared MediaPlayer causes a broken state on Samsung devices.
+- **MediaPlayer state guards**: Both `setPaused()` and the deferred `mp.pause()` in `showPlayback()` are wrapped in try-catch for `IllegalStateException`. When the user starts a new recording while playback is active, `showLivePreview()` calls `videoView.stopPlayback()` which releases the MediaPlayer. A posted `pause()` lambda may still fire after the player is released — the try-catch prevents a crash.
 - When the view becomes inactive (mode switch), `showNothing()` stops playback. The `updateState()` method checks `isActive` first — never attempts playback inside a zero-dimension hidden container.
+
+### Starting a New Recording After Playback
+
+When the user presses "Record note" while a previous recording exists (stopped or playing), `handleRecordNote` **must dismiss the old recording first** before starting a new one. This is critical because:
+
+1. `dismissRecording()` cleans up native resources (old VideoCapture, temp file) and resets `VideoRecordingManager` state to IDLE
+2. It resets `isVideoPaused` to `true`, preventing the `CameraPreviewView` from staying in playback mode
+3. It avoids a surface acquisition race: without dismiss, `startVideoRecording()` rebuilds the CameraX pipeline while `CameraPreviewView` is still transitioning from VideoView playback to PreviewView live, causing CameraX to request surfaces that aren't ready yet (`"Surface requested in PENDING_RECORDING, surface: 0"`)
+
+The flow in `handleRecordNote` start branch:
+```
+dismissRecording()        ← clean up old recording + native resources
+setVideoNoteSaved(false)
+setVideoNoteText("")
+setIsVideoPaused(true)    ← reset playback state
+speech.clearTranscript()
+setIsVideoSession(true)
+await startRecording()    ← now starts with a clean slate
+await speech.startListening(true)
+```
 
 ### Key Design Decisions
 
