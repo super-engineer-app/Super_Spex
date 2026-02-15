@@ -131,9 +131,9 @@ class XRGlassesService(
     private var speechRecognizer: SpeechRecognizer? = null
     private var networkSpeechRecognizer: NetworkSpeechRecognizer? = null
     private var usingNetworkFallback = false
+    private var onDeviceEverReady = false // true once on-device ASR fires onReadyForSpeech
     private var isListening = false
     private var continuousMode = false
-    private var useNetworkRecognizer = false // Falls back to true if on-device fails
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // Speech source routing: glasses-first with phone fallback
@@ -776,57 +776,56 @@ class XRGlassesService(
      * Initialize speech recognizer.
      * Always uses phone context (which has RECORD_AUDIO permission).
      * When connected via Jetpack XR, the system routes glasses mic audio automatically.
-     * Tries on-device first for low latency, falls back to network if language packs unavailable.
+     * Tries on-device ASR first for low latency, falls back to backend HTTP transcription.
      */
     private fun initSpeechRecognizer() {
-        // Always use phone context for SpeechRecognizer - it has the RECORD_AUDIO permission
-        // When connected via Jetpack XR, audio from glasses mic is routed automatically
         val recognizerContext = context
         Log.d(TAG, "Creating speech recognizer with phone context (connected=$isConnected)")
 
         if (!SpeechRecognizer.isRecognitionAvailable(recognizerContext)) {
-            Log.w(TAG, "Android SpeechRecognizer not available, trying network fallback")
-
-            // Try network-based speech recognition as fallback (e.g. on emulators)
-            if (networkSpeechRecognizer == null) {
-                networkSpeechRecognizer = NetworkSpeechRecognizer(context, module)
-            }
-            if (networkSpeechRecognizer?.isAvailable() == true) {
-                Log.d(TAG, "Network speech recognizer available as fallback")
-                usingNetworkFallback = true
-                return
-            }
-
-            Log.e(TAG, "Neither Android nor network speech recognition available")
-            module.emitEvent(
-                "onSpeechError",
-                mapOf(
-                    "code" to -1,
-                    "message" to "Speech recognition not available on this device",
-                    "timestamp" to System.currentTimeMillis(),
-                ),
-            )
+            Log.w(TAG, "Android SpeechRecognizer not available, trying backend fallback")
+            switchToNetworkFallback()
             return
         }
 
-        speechRecognizer =
-            if (useNetworkRecognizer) {
-                Log.d(TAG, "Creating network-based speech recognizer")
-                SpeechRecognizer.createSpeechRecognizer(recognizerContext)
-            } else {
-                // Try on-device first for lower latency
-                try {
-                    Log.d(TAG, "Creating on-device speech recognizer")
-                    SpeechRecognizer.createOnDeviceSpeechRecognizer(recognizerContext)
-                } catch (e: Exception) {
-                    Log.w(TAG, "On-device recognizer failed, using network: ${e.message}")
-                    useNetworkRecognizer = true
-                    SpeechRecognizer.createSpeechRecognizer(recognizerContext)
-                }
-            }
+        try {
+            Log.d(TAG, "Creating on-device speech recognizer")
+            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(recognizerContext)
+            speechRecognizer?.setRecognitionListener(createRecognitionListener())
+            Log.d(TAG, "On-device SpeechRecognizer initialized")
+        } catch (e: Exception) {
+            Log.w(TAG, "On-device recognizer creation failed: ${e.message}, trying backend fallback")
+            switchToNetworkFallback()
+        }
+    }
 
-        speechRecognizer?.setRecognitionListener(createRecognitionListener())
-        Log.d(TAG, "SpeechRecognizer initialized (network=$useNetworkRecognizer)")
+    /**
+     * Switch to backend HTTP transcription (NetworkSpeechRecognizer).
+     * Destroys any existing Android SpeechRecognizer first.
+     */
+    private fun switchToNetworkFallback() {
+        val recognizer = speechRecognizer
+        speechRecognizer = null
+        recognizer?.destroy()
+
+        if (networkSpeechRecognizer == null) {
+            networkSpeechRecognizer = NetworkSpeechRecognizer(context, module)
+        }
+        if (networkSpeechRecognizer?.isAvailable() == true) {
+            Log.d(TAG, "Backend speech recognizer available as fallback")
+            usingNetworkFallback = true
+            return
+        }
+
+        Log.e(TAG, "Neither on-device nor backend speech recognition available")
+        module.emitEvent(
+            "onSpeechError",
+            mapOf(
+                "code" to -1,
+                "message" to "Speech recognition not available on this device",
+                "timestamp" to System.currentTimeMillis(),
+            ),
+        )
     }
 
     // Track audio levels for debugging
@@ -837,6 +836,7 @@ class XRGlassesService(
         object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "Speech: Ready for speech - SPEAK NOW")
+                onDeviceEverReady = true
                 maxRmsThisSession = -100f // Reset max RMS for new session
                 module.emitEvent(
                     "onSpeechStateChanged",
@@ -875,44 +875,22 @@ class XRGlassesService(
             }
 
             override fun onError(error: Int) {
-                // Error 13 = LANGUAGE_PACK_ERROR (on-device model not available)
-                val isLanguagePackError = error == 13
-
-                // If on-device failed with language pack error, switch to network and retry
-                if (isLanguagePackError && !useNetworkRecognizer) {
-                    Log.w(TAG, "On-device language pack not available, switching to network recognizer")
-                    useNetworkRecognizer = true
-                    speechRecognizer?.destroy()
-                    speechRecognizer = null
-                    initSpeechRecognizer()
-                    if (isListening) {
-                        mainHandler.postDelayed({
-                            startListeningInternal()
-                        }, 100)
-                    }
+                // Ignore stale errors from destroyed Android SpeechRecognizer
+                if (usingNetworkFallback) {
+                    Log.d(TAG, "Ignoring stale SpeechRecognizer error (code=$error) - using backend fallback")
                     return
                 }
 
-                // If Google's network recognizer also failed with a non-recoverable error,
-                // fall through to NetworkSpeechRecognizer (HTTP /transcribe-dia endpoint)
-                val isGoogleRecognizerFatal = useNetworkRecognizer && !usingNetworkFallback &&
-                    (isLanguagePackError || error == SpeechRecognizer.ERROR_SERVER ||
-                        error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_NETWORK)
-                if (isGoogleRecognizerFatal) {
-                    Log.w(TAG, "Google network recognizer failed (error=$error), switching to HTTP transcription fallback")
-                    speechRecognizer?.destroy()
-                    speechRecognizer = null
-                    if (networkSpeechRecognizer == null) {
-                        networkSpeechRecognizer = NetworkSpeechRecognizer(context, module)
+                // If on-device ASR has never successfully started (e.g. emulator),
+                // silently switch to backend on ANY error — don't show error to user
+                if (!onDeviceEverReady) {
+                    Log.w(TAG, "On-device ASR failed before ready (error=$error), switching to backend")
+                    switchToNetworkFallback()
+                    if (usingNetworkFallback && isListening) {
+                        networkSpeechRecognizer?.start(continuousMode)
                     }
-                    if (networkSpeechRecognizer?.isAvailable() == true) {
-                        usingNetworkFallback = true
-                        if (isListening) {
-                            networkSpeechRecognizer?.start(continuousMode)
-                        }
-                        return
-                    }
-                    Log.e(TAG, "HTTP transcription fallback also unavailable")
+                    // If backend also unavailable, fall through to show error
+                    if (usingNetworkFallback) return
                 }
 
                 val errorMessage =
@@ -1144,11 +1122,19 @@ class XRGlassesService(
             }
             "onSpeechError" -> {
                 val errorCode = data["code"] as? Int ?: -1
-                if (currentSpeechSource == SpeechSource.GLASSES && !isRecoverableError(errorCode)) {
-                    Log.w(TAG, "Glasses ASR non-recoverable error (code: $errorCode), falling back to phone")
-                    glassesSpeechStartTimeoutJob?.cancel()
-                    glassesSpeechStartTimeoutJob = null
-                    fallbackToPhoneSpeechRecognition()
+                if (!isRecoverableError(errorCode)) {
+                    // Non-recoverable error — fall back to phone if still on glasses, otherwise ignore
+                    if (currentSpeechSource == SpeechSource.GLASSES) {
+                        Log.w(TAG, "Glasses ASR non-recoverable error (code: $errorCode), falling back to phone")
+                        glassesSpeechStartTimeoutJob?.cancel()
+                        glassesSpeechStartTimeoutJob = null
+                        fallbackToPhoneSpeechRecognition()
+                    } else {
+                        Log.d(TAG, "Ignoring stale glasses error (code: $errorCode) - already on phone")
+                    }
+                } else if (currentSpeechSource == SpeechSource.GLASSES) {
+                    // Recoverable error while still on glasses — forward to JS
+                    module.emitEvent("onSpeechError", data)
                 }
             }
         }
@@ -1164,7 +1150,7 @@ class XRGlassesService(
 
         try {
             speechRecognizer?.startListening(intent)
-            Log.d(TAG, "Speech recognition started (network=$useNetworkRecognizer) - listening for speech...")
+            Log.d(TAG, "Speech recognition started - listening for speech...")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start listening: ${e.message}")
             module.emitEvent(

@@ -21,10 +21,26 @@ Speech recognition runs **ON THE GLASSES** using Android's `SpeechRecognizer` AP
 ┌─────────────────────────────────────────────────────────────────┐
 │                    PHONE (Main Process)                          │
 │                                                                  │
-│  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
-│  │ GlassesBroadcast    │───▶│ XRGlassesModule                 │ │
-│  │ Receiver            │    │ (emits to React Native)         │ │
-│  └─────────────────────┘    └─────────────────────────────────┘ │
+│  ┌─────────────────────┐    ┌──────────────────┐                │
+│  │ GlassesBroadcast    │───▶│ XRGlassesService │                │
+│  │ Receiver            │    │ (routes errors,  │                │
+│  │ (results→JS,        │    │  decides fallback)│                │
+│  │  errors→service)    │    └────────┬─────────┘                │
+│  └─────────────────────┘             │                          │
+│                                      ▼                          │
+│  ┌─────────────────────┐    ┌──────────────────┐                │
+│  │ On-device ASR       │ OR │ NetworkSpeech    │                │
+│  │ (SpeechRecognizer)  │    │ Recognizer       │                │
+│  │                     │    │ (HTTP /transcribe │                │
+│  │                     │    │  -dia backend)   │                │
+│  └─────────────────────┘    └──────────────────┘                │
+│                                      │                          │
+│                    ┌─────────────────┘                          │
+│                    ▼                                            │
+│           ┌──────────────────┐                                  │
+│           │ XRGlassesModule  │                                  │
+│           │ (emits to RN)    │                                  │
+│           └──────────────────┘                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -33,8 +49,9 @@ Speech recognition runs **ON THE GLASSES** using Android's `SpeechRecognizer` AP
 | File | Location | Purpose |
 |------|----------|---------|
 | `GlassesActivity.kt` | `:xr_process` | Creates and manages SpeechRecognizer |
-| `GlassesBroadcastReceiver.kt` | Main process | Receives speech results via broadcast |
+| `GlassesBroadcastReceiver.kt` | Main process | Receives speech results via broadcast; routes errors through service |
 | `XRGlassesModule.kt` | Main process | Emits events to React Native |
+| `NetworkSpeechRecognizer.kt` | Main process | Backend HTTP fallback — records 3s audio chunks, POSTs to `/transcribe-dia` |
 | `useSpeechRecognition.ts` | React Native | Hook for speech state/results |
 | `DashboardContext.tsx` | React Native | Provides shared speech instance, clears transcript on mode switch |
 
@@ -61,9 +78,11 @@ When glasses are connected, `XRGlassesService` uses a **glasses-first strategy**
 4. On non-recoverable glasses ASR error, immediately falls back to phone ASR
 5. `SpeechSource` enum tracks the active source: `NONE`, `GLASSES`, or `PHONE`
 
-## Speech Recognizer Modes
+## Speech Recognizer Fallback Chain
 
-### On-Device (Preferred)
+Two-tier fallback, fully transparent to the user (no errors shown during transitions):
+
+### Tier 1: On-Device ASR (Preferred)
 ```kotlin
 SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
 ```
@@ -71,13 +90,26 @@ SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
 - Lower latency (~100ms)
 - Requires language pack installed
 
-### Network-Based (Fallback)
+### Tier 2: Backend HTTP Transcription (Fallback)
 ```kotlin
-SpeechRecognizer.createSpeechRecognizer(context)
+NetworkSpeechRecognizer(context, module)
 ```
-- Requires network connection
-- Higher latency (~300-500ms)
-- Falls back automatically if on-device fails
+- Records 3-second audio chunks as WebM/Opus via MediaRecorder
+- POSTs each chunk to `TRANSCRIPTION_API_URL/transcribe-dia`
+- Parses response: `{ "segments": [{ "text": "..." }] }`
+- Continuous mode: starts next chunk while HTTP request is in flight
+- Requires `TRANSCRIPTION_API_URL` set in `.env` (baked into APK at build time via BuildConfig)
+- Requires `RECORD_AUDIO` permission
+
+### Silent Fallback Logic
+
+The fallback is designed to be invisible to the user:
+
+- **`onDeviceEverReady` flag**: tracks whether on-device ASR ever fired `onReadyForSpeech`. If it hasn't (e.g. emulator), ANY error silently switches to backend — no error shown to the user.
+- **Glasses error routing**: `GlassesBroadcastReceiver` sends speech errors ONLY to the service (not directly to JS). The service decides whether to forward or suppress. Non-recoverable errors trigger silent fallback; only recoverable errors (like "no speech detected") reach JS.
+- **Stale error guard**: once `usingNetworkFallback` is true, all errors from the destroyed Android SpeechRecognizer are silently ignored.
+
+**Note**: Google's network-based `SpeechRecognizer.createSpeechRecognizer()` was removed from the fallback chain because it added an unreliable middle step that still failed on emulators and caused error spam.
 
 ## Concurrent Use with Video Recording
 
@@ -148,14 +180,7 @@ Within Notes mode, the video and photo tabs each have session flags that prevent
 
 **Symptoms**: On-device ASR fails with error code 13
 
-**Fix**: Code automatically falls back to network-based recognition:
-```kotlin
-if (isLanguagePackError && !useNetworkRecognizer) {
-    useNetworkRecognizer = true
-    speechRecognizer?.destroy()
-    initSpeechRecognizer()  // Reinit with network
-}
-```
+**Fix**: Code automatically falls back to backend HTTP transcription. Since `onDeviceEverReady` is false (ASR never started successfully), the error is suppressed and `switchToNetworkFallback()` activates the `NetworkSpeechRecognizer`.
 
 ### Issue: Speech results not reaching React Native
 
@@ -209,11 +234,11 @@ sendBroadcast(intent)
 
 ## Emulator Limitations
 
-| Environment | On-Device ASR | Network ASR |
-|-------------|---------------|-------------|
-| Glasses emulator | ❌ No | ❌ No |
-| Phone emulator | ❌ No | ✅ Yes (needs Google app) |
-| Real glasses | ✅ Yes | ✅ Yes |
-| Real phone | ✅ Yes | ✅ Yes |
+| Environment | On-Device ASR | Backend HTTP Fallback |
+|-------------|---------------|----------------------|
+| Glasses emulator | ❌ No | N/A (falls back to phone) |
+| Phone emulator | ❌ No | ✅ Yes (needs `TRANSCRIPTION_API_URL` in `.env`) |
+| Real glasses | ✅ Yes | N/A (falls back to phone if fails) |
+| Real phone | ✅ Yes | ✅ Yes (automatic if on-device fails) |
 
-**Note**: For full testing, use real glasses hardware or test network ASR on phone emulator.
+**Note**: On emulators, the fallback chain is fully automatic and silent. On-device ASR fails immediately, and `NetworkSpeechRecognizer` takes over transparently. Ensure `TRANSCRIPTION_API_URL` is set in `.env` before building the APK.

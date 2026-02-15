@@ -81,7 +81,7 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
                 val code = intent.getIntExtra(GlassesActivity.EXTRA_ERROR_CODE, -1)
                 val message = intent.getStringExtra(GlassesActivity.EXTRA_ERROR_MESSAGE) ?: "Unknown error"
 
-                Log.e(TAG, "Speech error: $message (code: $code)")
+                Log.e(TAG, "Speech error from glasses: $message (code: $code)")
 
                 val data =
                     mapOf<String, Any?>(
@@ -89,7 +89,7 @@ class GlassesBroadcastReceiver : BroadcastReceiver() {
                         "message" to message,
                         "timestamp" to System.currentTimeMillis(),
                     )
-                callback("onSpeechError", data)
+                // Route through service — it decides whether to forward to JS or fall back silently
                 serviceCallback?.invoke("onSpeechError", data)
             }
 
