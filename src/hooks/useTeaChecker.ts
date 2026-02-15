@@ -7,6 +7,7 @@ import {
 } from "../utils/formDataHelper";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY || "";
 
 export interface PickedImage {
 	base64: string;
@@ -76,6 +77,7 @@ export function useTeaChecker() {
 			const res = await fetch(`${BACKEND_URL}/memes/tea-colour-preference`, {
 				method: "POST",
 				body: formData,
+				headers: API_KEY ? { "X-API-Key": API_KEY } : undefined,
 			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -141,6 +143,7 @@ export function useTeaChecker() {
 				(xhr as any)._incrementalEvents = true;
 
 				xhr.open("POST", `${BACKEND_URL}/memes/checking-tea`);
+				if (API_KEY) xhr.setRequestHeader("X-API-Key", API_KEY);
 
 				xhr.onprogress = () => {
 					const newData = xhr.responseText.slice(processedLength);

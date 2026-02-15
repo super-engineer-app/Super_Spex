@@ -17,6 +17,7 @@ const TAG = "TaggingAPI";
 const BACKEND_URL =
 	process.env.EXPO_PUBLIC_TAGGING_API_URL || "http://10.0.2.2:8000";
 const TAGGING_ENDPOINT = `${BACKEND_URL}/tagging-sessions`;
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY || "";
 
 // DEV MODE: Fixed IDs for testing with local backend
 // These must match users/orgs that exist in the backend database
@@ -189,6 +190,7 @@ export async function submitTaggingSession(
 			(xhr as any)._incrementalEvents = true;
 
 			xhr.open("POST", TAGGING_ENDPOINT);
+			if (API_KEY) xhr.setRequestHeader("X-API-Key", API_KEY);
 
 			xhr.onprogress = () => {
 				const newData = xhr.responseText.slice(processedLength);

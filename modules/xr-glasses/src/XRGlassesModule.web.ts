@@ -122,6 +122,7 @@ function emit<T>(callbacks: Set<(event: T) => void>, event: T): void {
 }
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY || "";
 
 class WebXRGlassesService {
 	private emulationEnabled = false;
@@ -607,6 +608,7 @@ class WebXRGlassesService {
 			const response = await fetch(`${BACKEND_URL}/transcribe-dia`, {
 				method: "POST",
 				body: formData,
+				headers: API_KEY ? { "X-API-Key": API_KEY } : undefined,
 			});
 
 			if (!response.ok) return;
@@ -904,6 +906,7 @@ class WebXRGlassesService {
 		const response = await fetch(`${BACKEND_URL}/transcribe-dia`, {
 			method: "POST",
 			body: formData,
+			headers: API_KEY ? { "X-API-Key": API_KEY } : undefined,
 		});
 
 		if (!response.ok) {

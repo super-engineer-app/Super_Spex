@@ -19,6 +19,7 @@ const TAG = "BackendAPI";
 const BACKEND_URL =
 	process.env.EXPO_PUBLIC_BACKEND_URL || "http://10.0.2.2:8000";
 const GENERATE_ENDPOINT = `${BACKEND_URL}/generate_temp`;
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY || "";
 
 function generateUUID(): string {
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -239,6 +240,7 @@ export async function sendToBackend(
 			(xhr as any)._incrementalEvents = true; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 			xhr.open("POST", GENERATE_ENDPOINT);
+			if (API_KEY) xhr.setRequestHeader("X-API-Key", API_KEY);
 
 			xhr.onprogress = () => {
 				const newData = xhr.responseText.slice(processedLength);
