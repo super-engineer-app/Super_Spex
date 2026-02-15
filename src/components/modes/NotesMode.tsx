@@ -136,14 +136,20 @@ export function NotesMode() {
 			await stopRecording();
 			await speech.stopListening();
 		} else {
+			// Dismiss any previous recording before starting a new one.
+			// This cleans up native resources (old VideoCapture, file) and resets
+			// CameraPreviewView from playback mode back to idle, avoiding a race
+			// between VideoView teardown and CameraX surface acquisition.
+			dismissRecording();
 			setVideoNoteSaved(false);
 			setVideoNoteText("");
+			setIsVideoPaused(true);
 			speech.clearTranscript();
 			setIsVideoSession(true);
 			await startRecording();
 			await speech.startListening(true);
 		}
-	}, [isRecording, stopRecording, startRecording, speech]);
+	}, [isRecording, stopRecording, startRecording, speech, dismissRecording]);
 
 	// Photo mode: toggle audio recording (speech only, no video)
 	const handlePhotoRecordNote = useCallback(async () => {
@@ -228,57 +234,58 @@ export function NotesMode() {
 
 			{activeTab === "video" ? (
 				<>
-					<View style={styles.row}>
-						<Pressable
-							style={styles.previewColumn}
-							onPress={
-								isStopped ? () => setIsVideoPaused((p) => !p) : undefined
-							}
-						>
-							<LiveCameraPreview
-								active={activeMode === "notes"}
-								playbackUrl={playbackUrl}
-								paused={isVideoPaused}
-							/>
-							{isStopped && isVideoPaused ? (
-								<View style={styles.playOverlay}>
-									<Text style={styles.playIcon}>▶</Text>
-								</View>
-							) : null}
-						</Pressable>
+					{tabToggle}
 
-						<View style={styles.buttonsColumn}>
-							{tabToggle}
+					<Pressable
+						onPress={isStopped ? () => setIsVideoPaused((p) => !p) : undefined}
+						style={styles.previewWrapper}
+					>
+						<LiveCameraPreview
+							active={activeMode === "notes"}
+							playbackUrl={playbackUrl}
+							paused={isVideoPaused}
+						/>
+						{isStopped && isVideoPaused ? (
+							<View style={styles.playOverlay}>
+								<Text style={styles.playIcon}>▶</Text>
+							</View>
+						) : null}
+					</Pressable>
+
+					<View style={styles.buttonsRow}>
+						<ActionButton
+							label={isRecording ? "Stop" : "Record note"}
+							onPress={handleRecordNote}
+							variant={isRecording ? "danger" : "secondary"}
+							style={styles.buttonFlex}
+						/>
+						{isStopped ? (
+							<>
+								{videoNoteSaved ? (
+									<ActionButton
+										label="New note"
+										onPress={handleClearVideoNote}
+										variant="secondary"
+										style={styles.buttonFlex}
+									/>
+								) : (
+									<ActionButton
+										label="Save"
+										onPress={handleSaveVideoNote}
+										variant="secondary"
+										style={styles.buttonFlex}
+									/>
+								)}
+							</>
+						) : null}
+						{hasVideoContent && !isRecording ? (
 							<ActionButton
-								label={isRecording ? "Stop" : "Record note"}
-								onPress={handleRecordNote}
-								variant={isRecording ? "danger" : "secondary"}
+								label="Clear"
+								onPress={handleClearVideoNote}
+								variant="secondary"
+								style={styles.buttonFlex}
 							/>
-							{isStopped ? (
-								<>
-									{videoNoteSaved ? (
-										<ActionButton
-											label="New note"
-											onPress={handleClearVideoNote}
-											variant="secondary"
-										/>
-									) : (
-										<ActionButton
-											label="Save"
-											onPress={handleSaveVideoNote}
-											variant="secondary"
-										/>
-									)}
-								</>
-							) : null}
-							{hasVideoContent && !isRecording ? (
-								<ActionButton
-									label="Clear"
-									onPress={handleClearVideoNote}
-									variant="secondary"
-								/>
-							) : null}
-						</View>
+						) : null}
 					</View>
 
 					<View style={styles.noteSection}>
@@ -328,7 +335,7 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	scrollContent: {
-		padding: 20,
+		padding: 16,
 	},
 	headerRow: {
 		flexDirection: "row",
@@ -344,6 +351,7 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		alignSelf: "flex-start",
+		marginBottom: 8,
 	},
 	tabButton: {
 		paddingHorizontal: 24,
@@ -361,13 +369,7 @@ const styles = StyleSheet.create({
 	tabButtonTextActive: {
 		color: COLORS.primaryForeground,
 	},
-	row: {
-		flexDirection: "row",
-		gap: 16,
-		alignItems: "flex-start",
-	},
-	previewColumn: {
-		flex: 3,
+	previewWrapper: {
 		position: "relative",
 	},
 	playOverlay: {
@@ -386,9 +388,13 @@ const styles = StyleSheet.create({
 		fontSize: 40,
 		color: "#fff",
 	},
-	buttonsColumn: {
-		flex: 2,
+	buttonsRow: {
+		flexDirection: "row",
 		gap: 12,
+		marginTop: 12,
+	},
+	buttonFlex: {
+		flex: 1,
 	},
 	noteSection: {
 		marginTop: 16,

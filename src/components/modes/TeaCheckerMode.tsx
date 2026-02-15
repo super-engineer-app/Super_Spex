@@ -191,10 +191,9 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	scrollContent: {
-		padding: 20,
+		padding: 16,
 	},
 	panels: {
-		flexDirection: "row",
 		gap: 16,
 	},
 	panel: {

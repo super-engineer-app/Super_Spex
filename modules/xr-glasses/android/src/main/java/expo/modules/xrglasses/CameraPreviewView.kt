@@ -106,10 +106,14 @@ class CameraPreviewView(
         isPaused = paused
         Log.d(TAG, "setPaused: $paused")
         val mp = mediaPlayer ?: return
-        if (paused) {
-            mp.pause()
-        } else {
-            mp.start()
+        try {
+            if (paused) {
+                mp.pause()
+            } else {
+                mp.start()
+            }
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "MediaPlayer state error in setPaused($paused): ${e.message}")
         }
     }
 
@@ -176,7 +180,11 @@ class CameraPreviewView(
             if (isPaused) {
                 videoView.post {
                     if (isPaused && mediaPlayer === mp) {
-                        mp.pause()
+                        try {
+                            mp.pause()
+                        } catch (e: IllegalStateException) {
+                            Log.w(TAG, "MediaPlayer.pause() failed (player already released): ${e.message}")
+                        }
                     }
                 }
             }

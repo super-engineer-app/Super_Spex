@@ -104,45 +104,44 @@ export function IdentifyMode() {
 				subtitle="Take a photo and I'll tell you what it is!"
 			/>
 
-			<View style={styles.row}>
-				<View style={styles.previewColumn}>
-					<CameraPreview
-						key={camera.lastImage ? "captured" : "empty"}
-						base64Image={camera.lastImage}
-						imageSize={camera.lastImageSize}
-						placeholder="Take a photo to identify something"
-					/>
-				</View>
+			<CameraPreview
+				key={camera.lastImage ? "captured" : "empty"}
+				base64Image={camera.lastImage}
+				imageSize={camera.lastImageSize}
+				placeholder="Take a photo to identify something"
+			/>
 
-				<View style={styles.buttonsColumn}>
+			<View style={styles.buttonsRow}>
+				<ActionButton
+					label={
+						camera.isCapturing
+							? "Capturing..."
+							: hasPhoto
+								? "Re-take photo"
+								: "Take photo"
+					}
+					onPress={handleTakePhoto}
+					variant="secondary"
+					disabled={camera.isCapturing || !camera.isReady}
+					style={styles.buttonFlex}
+				/>
+
+				{hasResponse ? (
 					<ActionButton
-						label={
-							camera.isCapturing
-								? "Capturing..."
-								: hasPhoto
-									? "Re-take photo"
-									: "Take photo"
-						}
-						onPress={handleTakePhoto}
+						label="Re-set"
+						onPress={handleReset}
 						variant="secondary"
-						disabled={camera.isCapturing || !camera.isReady}
+						style={styles.buttonFlex}
 					/>
-
-					{hasResponse ? (
-						<ActionButton
-							label="Re-set"
-							onPress={handleReset}
-							variant="secondary"
-						/>
-					) : (
-						<ActionButton
-							label={isSending ? "Identifying..." : "Identify!"}
-							onPress={handleIdentify}
-							variant="secondary"
-							disabled={isSending || !hasPhoto || !camera.lastImage}
-						/>
-					)}
-				</View>
+				) : (
+					<ActionButton
+						label={isSending ? "Identifying..." : "Identify!"}
+						onPress={handleIdentify}
+						variant="secondary"
+						disabled={isSending || !hasPhoto || !camera.lastImage}
+						style={styles.buttonFlex}
+					/>
+				)}
 			</View>
 
 			{camera.error ? (
@@ -176,18 +175,14 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	scrollContent: {
-		padding: 20,
+		padding: 16,
 	},
-	row: {
+	buttonsRow: {
 		flexDirection: "row",
-		gap: 16,
-		alignItems: "flex-start",
-	},
-	previewColumn: {
-		flex: 3,
-	},
-	buttonsColumn: {
-		flex: 2,
 		gap: 12,
+		marginTop: 12,
+	},
+	buttonFlex: {
+		flex: 1,
 	},
 });

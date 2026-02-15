@@ -68,80 +68,77 @@ export function TaggingMode({
 
 	return (
 		<>
-			<View style={styles.row}>
-				<View style={styles.gridColumn}>
-					<View style={styles.imageGrid}>
-						{SLOT_KEYS.map((key, i) => {
-							const slot = images[i] || null;
-							return (
-								<View key={key} style={styles.imageSlot}>
-									{slot ? (
-										<>
-											<Image
-												source={{
-													uri: `data:image/jpeg;base64,${slot.base64}`,
-												}}
-												style={styles.imageThumbnail}
-											/>
-											<Pressable
-												style={styles.removeButton}
-												onPress={() => onRemoveImage(i)}
-											>
-												<X size={12} color={COLORS.destructiveForeground} />
-											</Pressable>
-										</>
-									) : i === images.length && canTakeMore ? (
-										<Plus size={24} color={COLORS.textMuted} />
-									) : (
-										<View style={styles.emptySlot} />
-									)}
-								</View>
-							);
-						})}
-					</View>
-				</View>
+			{tabToggle}
 
-				<View style={styles.buttonsColumn}>
-					{tabToggle}
-					<ActionButton
-						label={isRecordingAudio ? "Stop" : "Record note"}
-						onPress={onToggleRecordNote}
-						variant={isRecordingAudio ? "danger" : "secondary"}
-					/>
-					<ActionButton
-						label={
-							isGlassesCapturing
-								? "Capturing..."
-								: hasPhotos
-									? "New photo"
-									: "Take photo"
-						}
-						onPress={onCaptureFromPhone}
-						variant="secondary"
-						disabled={isGlassesCapturing || !canTakeMore}
-					/>
-					<View style={styles.saveRow}>
-						{isSaving ? (
-							<View style={[styles.savingContainer, styles.saveButton]}>
-								<ActivityIndicator
-									color={COLORS.primaryForeground}
-									size="small"
-								/>
-							</View>
-						) : (
-							<ActionButton
-								label="Save"
-								onPress={onSaveTagging}
-								variant="secondary"
-								disabled={!hasPhotos || !transcript.trim()}
-								style={styles.saveButton}
-							/>
-						)}
-						<Pressable style={styles.trashButton} onPress={onCancelTagging}>
-							<Trash2 size={18} color={COLORS.textSecondary} />
-						</Pressable>
+			<View style={styles.imageGrid}>
+				{SLOT_KEYS.map((key, i) => {
+					const slot = images[i] || null;
+					return (
+						<View key={key} style={styles.imageSlot}>
+							{slot ? (
+								<>
+									<Image
+										source={{
+											uri: `data:image/jpeg;base64,${slot.base64}`,
+										}}
+										style={styles.imageThumbnail}
+									/>
+									<Pressable
+										style={styles.removeButton}
+										onPress={() => onRemoveImage(i)}
+									>
+										<X size={12} color={COLORS.destructiveForeground} />
+									</Pressable>
+								</>
+							) : i === images.length && canTakeMore ? (
+								<Plus size={24} color={COLORS.textMuted} />
+							) : (
+								<View style={styles.emptySlot} />
+							)}
+						</View>
+					);
+				})}
+			</View>
+
+			<View style={styles.buttonsRow}>
+				<ActionButton
+					label={isRecordingAudio ? "Stop" : "Record note"}
+					onPress={onToggleRecordNote}
+					variant={isRecordingAudio ? "danger" : "secondary"}
+					style={styles.buttonFlex}
+				/>
+				<ActionButton
+					label={
+						isGlassesCapturing
+							? "Capturing..."
+							: hasPhotos
+								? "New photo"
+								: "Take photo"
+					}
+					onPress={onCaptureFromPhone}
+					variant="secondary"
+					disabled={isGlassesCapturing || !canTakeMore}
+					style={styles.buttonFlex}
+				/>
+			</View>
+
+			<View style={styles.buttonsRow}>
+				{isSaving ? (
+					<View style={[styles.savingContainer, styles.buttonFlex]}>
+						<ActivityIndicator color={COLORS.primaryForeground} size="small" />
 					</View>
-				</View>
+				) : (
+					<ActionButton
+						label="Save"
+						onPress={onSaveTagging}
+						variant="secondary"
+						disabled={!hasPhotos || !transcript.trim()}
+						style={styles.buttonFlex}
+					/>
+				)}
+				<Pressable style={styles.trashButton} onPress={onCancelTagging}>
+					<Trash2 size={18} color={COLORS.textSecondary} />
+				</Pressable>
 			</View>
 
 			{statusMessage ? (
@@ -167,18 +164,6 @@ export function TaggingMode({
 }
 
 const styles = StyleSheet.create({
-	row: {
-		flexDirection: "row",
-		gap: 16,
-		alignItems: "flex-start",
-	},
-	gridColumn: {
-		flex: 3,
-	},
-	buttonsColumn: {
-		flex: 2,
-		gap: 12,
-	},
 	imageGrid: {
 		flexDirection: "row",
 		flexWrap: "wrap",
@@ -218,11 +203,12 @@ const styles = StyleSheet.create({
 		height: "100%",
 		backgroundColor: COLORS.backgroundSecondary,
 	},
-	saveRow: {
+	buttonsRow: {
 		flexDirection: "row",
-		gap: 8,
+		gap: 12,
+		marginTop: 12,
 	},
-	saveButton: {
+	buttonFlex: {
 		flex: 1,
 	},
 	savingContainer: {

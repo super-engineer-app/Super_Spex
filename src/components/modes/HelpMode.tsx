@@ -151,52 +151,54 @@ export function HelpMode() {
 				{speech.isListening ? <RecordingIndicator label="" /> : null}
 			</View>
 
-			<View style={styles.row}>
-				<View style={styles.previewColumn}>
-					<CameraPreview
-						key={camera.lastImage ? "captured" : "empty"}
-						base64Image={camera.lastImage}
-						imageSize={camera.lastImageSize}
-						placeholder="Take a photo of what you need help with"
-					/>
-				</View>
+			<CameraPreview
+				key={camera.lastImage ? "captured" : "empty"}
+				base64Image={camera.lastImage}
+				imageSize={camera.lastImageSize}
+				placeholder="Take a photo of what you need help with"
+			/>
 
-				<View style={styles.buttonsColumn}>
+			<View style={styles.buttonsRow}>
+				<ActionButton
+					label={
+						camera.isCapturing
+							? "Capturing..."
+							: hasPhoto
+								? "Re-take photo"
+								: "Take photo"
+					}
+					onPress={handleTakePhoto}
+					variant="secondary"
+					disabled={camera.isCapturing || !camera.isReady}
+					style={styles.buttonFlex}
+				/>
+
+				<ActionButton
+					label={speech.isListening ? "Stop" : "Talk to me!"}
+					onPress={handleTalkToMe}
+					variant={speech.isListening ? "danger" : "secondary"}
+					style={styles.buttonFlex}
+				/>
+			</View>
+
+			<View style={styles.buttonsRow}>
+				{hasContent && !isSending && !speech.isListening ? (
 					<ActionButton
-						label={
-							camera.isCapturing
-								? "Capturing..."
-								: hasPhoto
-									? "Re-take photo"
-									: "Take photo"
-						}
-						onPress={handleTakePhoto}
+						label="Submit"
+						onPress={handleSubmit}
 						variant="secondary"
-						disabled={camera.isCapturing || !camera.isReady}
+						style={styles.buttonFlex}
 					/>
+				) : null}
 
+				{(hasContent || hasResponse) && !speech.isListening ? (
 					<ActionButton
-						label={speech.isListening ? "Stop" : "Talk to me!"}
-						onPress={handleTalkToMe}
-						variant={speech.isListening ? "danger" : "secondary"}
+						label="Reset"
+						onPress={handleReset}
+						variant="secondary"
+						style={styles.buttonFlex}
 					/>
-
-					{hasContent && !isSending && !speech.isListening ? (
-						<ActionButton
-							label="Submit"
-							onPress={handleSubmit}
-							variant="secondary"
-						/>
-					) : null}
-
-					{(hasContent || hasResponse) && !speech.isListening ? (
-						<ActionButton
-							label="Reset"
-							onPress={handleReset}
-							variant="secondary"
-						/>
-					) : null}
-				</View>
+				) : null}
 			</View>
 
 			{speech.error ? <Text style={styles.error}>{speech.error}</Text> : null}
@@ -235,24 +237,20 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	scrollContent: {
-		padding: 20,
+		padding: 16,
 	},
 	headerRow: {
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 12,
 	},
-	row: {
+	buttonsRow: {
 		flexDirection: "row",
-		gap: 16,
-		alignItems: "flex-start",
-	},
-	previewColumn: {
-		flex: 3,
-	},
-	buttonsColumn: {
-		flex: 2,
 		gap: 12,
+		marginTop: 12,
+	},
+	buttonFlex: {
+		flex: 1,
 	},
 	fieldLabel: {
 		fontSize: 14,

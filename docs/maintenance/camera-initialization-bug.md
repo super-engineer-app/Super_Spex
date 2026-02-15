@@ -121,7 +121,7 @@ Read these files carefully to understand the full flow:
     - Single `useGlassesCamera()` instance shared across all modes via context
 
 13. **`src/components/dashboard/ContentArea.tsx`**
-    - Mode rendering: some modes unmount/remount on switch, NotesMode is persistent (hidden with display:none)
+    - Mode rendering: IdentifyMode, HelpMode, NotesMode are persistent (hidden with display:none); LiveStreamMode, TeaCheckerMode, ConfigMode unmount/remount on switch
 
 ## Root Cause
 
@@ -170,7 +170,7 @@ Added rebind counter, lifecycle state, use case state, and coalescing info to `i
 When adding or modifying any component that uses `LiveCameraPreview` or `CameraPreviewView`:
 
 - [ ] Is the `active` prop gated on the component actually being visible?
-- [ ] If the component is inside a persistent/always-mounted container (like NotesMode in ContentArea), does it deactivate the preview when hidden?
+- [ ] If the component is inside a persistent/always-mounted container (like IdentifyMode, HelpMode, or NotesMode in ContentArea), does it deactivate the preview when hidden?
 - [ ] If adding a new persistent mode in `ContentArea.tsx`, does its camera preview respect `activeMode`?
 
 ## Key Principle: CameraX Session Creation is All-or-Nothing

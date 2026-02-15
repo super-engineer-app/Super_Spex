@@ -124,8 +124,8 @@ Communication between processes uses Android broadcasts with `setPackage(package
 ### Glasses-First Camera Selection
 Video recording and photo capture default to the glasses camera (via `ProjectedContext`). If unavailable (e.g. emulator, no glasses connected), they fall back to the phone camera automatically. See [maintenance/camera-capture.md](maintenance/camera-capture.md).
 
-### Notes Mode State Persistence
-`ContentArea.tsx` keeps `NotesMode` permanently mounted (hidden with `display: "none"` when another mode is active). This preserves video recordings, captured photos, transcript text, and the active sub-tab across mode switches. Other modes use standard conditional rendering (unmount/remount).
+### Mode State Persistence
+`ContentArea.tsx` keeps `IdentifyMode`, `HelpMode`, and `NotesMode` permanently mounted (hidden with `display: "none"` when another mode is active). This preserves AI responses, captured photos, question text, transcript text, and the active sub-tab across mode switches. LiveStreamMode, TeaCheckerMode, and ConfigMode use standard conditional rendering (unmount/remount).
 
 ### Capabilities Validation Only
 Device capabilities are checked internally before connecting but not displayed in UI.
