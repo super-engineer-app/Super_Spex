@@ -139,14 +139,13 @@ For detailed troubleshooting, see the maintenance docs:
 
 ---
 
-## Related Repositories
+## Related Components
 
-| Repository | Location | Description |
-|------------|----------|-------------|
-| **spex** (this repo) | `~/coding/spex` | Native app + Cloudflare Worker (`cloudflare-workers/`) |
-| **EngineersGambit** | `~/coding/EngineersGambit` | Web platform -- Spex features ported as JS under `frontend/components/spex/` |
-| **spex-web-viewer** | `~/coding/spex-web-viewer` | Vite + TS web viewer (Cloudflare Pages) — lobby, participant grid, recording, transcription |
-| **superspex-backend** | `~/coding/superspex-backend` | FastAPI backend (transcription, tagging, AI) — runs locally during dev |
+| Component | Description |
+|-----------|-------------|
+| **spex** (this repo) | Native app + Cloudflare Worker (`cloudflare-workers/`) |
+| **spex-web-viewer** | Vite + TS web viewer (Cloudflare Pages) — lobby, participant grid, recording, transcription |
+| **Backend** | FastAPI backend (transcription, tagging, AI) — runs locally during dev |
 
 ---
 

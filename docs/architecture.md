@@ -163,18 +163,17 @@ Main Process (on phone)               Cloud                    Browser
 
 ---
 
-## Related Repositories
+## Related Components
 
-| Repository | Location | Description |
-|------------|----------|-------------|
-| **spex** (this repo) | `~/coding/spex` | Native app + Cloudflare Worker (`cloudflare-workers/`) |
-| **EngineersGambit** | `~/coding/EngineersGambit` | Web platform -- Spex features ported as JS under `frontend/components/spex/` |
-| **spex-web-viewer** | `~/coding/spex-web-viewer` | Vite + TS web viewer for Remote View (Cloudflare Pages) |
-| **superspex-backend** | `~/coding/superspex-backend` | AI backend (Render) |
+| Component | Description |
+|-----------|-------------|
+| **spex** (this repo) | Native app + Cloudflare Worker (`cloudflare-workers/`) |
+| **spex-web-viewer** | Vite + TS web viewer for Remote View (Cloudflare Pages) |
+| **Backend** | FastAPI backend for AI, transcription, and tagging |
 
 ### Shared Infrastructure
 
-The Agora Token Worker (`cloudflare-workers/` in this repo) is shared between the native app and the EngineersGambit web integration. Both apps use the same worker for token generation and viewer tracking. Changes affect both.
+The Agora Token Worker (`cloudflare-workers/` in this repo) handles token generation and viewer tracking.
 
 | Service | Configuration |
 |---------|---------------|
