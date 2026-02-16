@@ -18,51 +18,31 @@ Open-sourced by [SuperEngineer](https://github.com/super-engineer-app) to showca
 Take a photo and ask a question about it — AI streams back an answer via speech and text.
 `src/components/modes/HelpMode.tsx`
 
-
 https://github.com/user-attachments/assets/f772436d-05b4-4132-ae65-07d5c26b9753
-
-
-https://github.com/super-engineer-app/spex/raw/main/videos/help-mode.mp4
 
 ### Identify Mode
 Snap a photo and AI identifies what's in frame, streaming results to the glasses display.
-`src
+`src/components/modes/IdentifyMode.tsx`
 
 https://github.com/user-attachments/assets/9c9b637a-0936-4776-89af-3b40628b1751
-
-/components/modes/IdentifyMode.tsx`
-
-https://github.com/super-engineer-app/spex/raw/main/videos/identify-mode.mp4
 
 ### Photo Note
 Capture a photo while dictating — speech and image are tagged and saved as a note.
 `src/components/modes/NotesMode.tsx`
 
-
 https://github.com/user-attachments/assets/62e356b4-eafe-45f2-9850-407e4fa5cf2c
-
-
-https://github.com/super-engineer-app/spex/raw/main/videos/photo-note.mp4
 
 ### Video Note
 Record video with continuous speech transcription — everything is saved as a timestamped note.
 `src/components/modes/NotesMode.tsx`
 
-
 https://github.com/user-attachments/assets/aee1cf66-6d53-4f91-af76-b1008065677e
-
-
-https://github.com/super-engineer-app/spex/raw/main/videos/video-note.mp4
 
 ### Live Stream
 Stream the glasses camera and audio to a shareable web link via Agora RTC, with live viewer count.
 `src/components/modes/LiveStreamMode.tsx`
 
-
 https://github.com/user-attachments/assets/09596cda-7a88-44f5-a75c-74d665a1e535
-
-
-https://github.com/super-engineer-app/spex/raw/main/videos/live-stream.mp4
 
 ## Tech Stack
 
