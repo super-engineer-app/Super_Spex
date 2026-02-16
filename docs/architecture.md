@@ -174,7 +174,7 @@ Main Process (on phone)               Cloud                    Browser
 
 ### Shared Infrastructure
 
-The Agora Token Worker (`cloudflare-workers/` in this repo) is shared between the native app and the EngineersGambit web integration. Both apps use the same worker for token generation and viewer tracking. Owner: **Dima**.
+The Agora Token Worker (`cloudflare-workers/` in this repo) is shared between the native app and the EngineersGambit web integration. Both apps use the same worker for token generation and viewer tracking. Changes affect both.
 
 | Service | Configuration |
 |---------|---------------|

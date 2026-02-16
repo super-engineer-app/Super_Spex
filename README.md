@@ -14,13 +14,13 @@ Both this repo and EngineersGambit share the following services:
 
 | Service | URL | Source | Owner |
 |---------|-----|--------|-------|
-| Agora Token Worker | Set in `.env` as `AGORA_TOKEN_SERVER_URL` | `cloudflare-workers/` (this repo) | Dima |
-| Web Viewer | Set in `.env` as `SPEX_VIEWER_URL_BASE` | `~/coding/spex-web-viewer/` (separate repo) | Dima |
+| Agora Token Worker | Set in `.env` as `AGORA_TOKEN_SERVER_URL` | `cloudflare-workers/` (this repo) | Team |
+| Web Viewer | Set in `.env` as `SPEX_VIEWER_URL_BASE` | `~/coding/spex-web-viewer/` (separate repo) | Team |
 | Spex Backend | Set in `.env` as `EXPO_PUBLIC_BACKEND_URL` | `~/coding/superspex-backend/` (separate repo) | - |
 
 ### Agora Token Worker
 
-The Cloudflare Worker that generates Agora RTC tokens and manages real-time viewer tracking lives in **this repo** at `cloudflare-workers/`. It is deployed to Cloudflare under Dima's account.
+The Cloudflare Worker that generates Agora RTC tokens and manages real-time viewer tracking lives in **this repo** at `cloudflare-workers/`. It is deployed to Cloudflare under Team's account.
 
 Both the native app (this repo) and the EngineersGambit web integration use this same worker. If you redeploy or change the worker, both apps are affected.
 

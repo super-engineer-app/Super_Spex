@@ -91,7 +91,7 @@ These are managed via AWS SDK, not the PostgreSQL database.
 
 This script:
 1. Calls `Base.metadata.create_all()` — creates all tables (idempotent, skips existing)
-2. Seeds a dev user (`dev@example.com` / `devpassword123`), user settings, dev org (`DevOrg`), and owner membership
+2. Seeds a dev user, user settings, dev org, and owner membership
 
 ### Running Against Neon (from local machine)
 

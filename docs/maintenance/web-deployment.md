@@ -72,7 +72,7 @@ Set these in Render's Environment settings:
 
 ### Cloudflare Worker (Agora Token Server)
 
-The worker at `cloudflare-workers/` in this repo is **shared infrastructure** -- both this app and the EngineersGambit web integration use it. Redeploying or changing the worker affects both. Owner: **Dima**.
+The worker at `cloudflare-workers/` in this repo is **shared infrastructure** -- both this app and the EngineersGambit web integration use it. Redeploying or changing the worker affects both. Changes affect both.
 
 ```bash
 # Deploy the worker

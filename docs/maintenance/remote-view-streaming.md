@@ -215,7 +215,7 @@ Separate repo: `~/coding/spex-web-viewer/` — see its own `CLAUDE.md` and `docs
 
 ### Token Server (Cloudflare Worker) -- Shared Infrastructure
 
-The Agora Token Worker lives in **this repo** at `cloudflare-workers/` and is deployed to Cloudflare under Dima's account. It is **shared between this app and the EngineersGambit web integration** -- changes affect both.
+The Agora Token Worker lives in **this repo** at `cloudflare-workers/` and is deployed to Cloudflare. It is **shared between this app and the EngineersGambit web integration** -- changes affect both.
 
 | File | Purpose |
 |------|---------|
