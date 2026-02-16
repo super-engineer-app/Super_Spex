@@ -215,22 +215,16 @@ class AgoraStreamManager(
                             Log.e(TAG, "Failed to read WORKER_API_KEY from BuildConfig", e)
                             ""
                         }
-                        Log.d(TAG, "fetchToken: apiKey length=${apiKey.length}, empty=${apiKey.isEmpty()}")
                         if (apiKey.isNotEmpty()) {
                             connection.setRequestProperty("X-API-Key", apiKey)
                         }
 
-                        val responseCode = connection.responseCode
-                        Log.d(TAG, "fetchToken: HTTP $responseCode")
-                        if (responseCode == HttpURLConnection.HTTP_OK) {
+                        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                             val response = connection.inputStream.bufferedReader().readText()
                             val json = JSONObject(response)
                             json.getString("token")
                         } else {
-                            val errorBody = try {
-                                connection.errorStream?.bufferedReader()?.readText() ?: "no body"
-                            } catch (_: Exception) { "unreadable" }
-                            Log.e(TAG, "Token server error: HTTP $responseCode — $errorBody")
+                            Log.e(TAG, "Token server returned error: ${connection.responseCode}")
                             null
                         }
                     } catch (e: Exception) {
