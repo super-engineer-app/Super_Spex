@@ -15,6 +15,7 @@ interface Env {
 	AGORA_APP_ID: string;
 	AGORA_APP_CERTIFICATE: string;
 	DISCORD_WEBHOOK_URL: string;
+	API_KEY: string;
 	VIEWERS: KVNamespace;
 	CHANNEL_ROOM: DurableObjectNamespace;
 }
@@ -24,11 +25,6 @@ interface ErrorReport {
 	message: string;
 	context?: Record<string, unknown>;
 }
-
-// Simple in-memory rate limiter for error reporting (per-isolate)
-const errorReportCounts = new Map<string, { count: number; resetAt: number }>();
-const ERROR_REPORT_LIMIT = 10;
-const ERROR_REPORT_WINDOW_MS = 60_000;
 
 interface ViewerData {
 	joinedAt: number;
@@ -62,6 +58,93 @@ interface NotifyPayload {
 // ============================================================================
 
 const VIEWER_TTL_SECONDS = 60;
+const MAX_CHAT_MESSAGE_LENGTH = 500;
+
+// Input validation: alphanumeric, hyphens, underscores, max 128 chars
+const VALID_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+
+// CORS origin allowlist
+const ALLOWED_ORIGINS = new Set([
+	"https://spex-demo.pages.dev",
+	"https://spex-viewer.pages.dev",
+	"http://localhost:8081",
+	"http://localhost:19006",
+]);
+
+// Rate limiting constants
+const ERROR_REPORT_LIMIT = 10;
+const ERROR_REPORT_WINDOW_SECONDS = 60;
+
+// ============================================================================
+// Auth & Validation Helpers
+// ============================================================================
+
+function validateApiKey(request: Request, env: Env): boolean {
+	if (!env.API_KEY) return true; // No key configured = skip validation
+	const key = request.headers.get("X-API-Key");
+	return key === env.API_KEY;
+}
+
+function validateApiKeyFromQuery(url: URL, env: Env): boolean {
+	if (!env.API_KEY) return true;
+	const key = url.searchParams.get("key");
+	return key === env.API_KEY;
+}
+
+function isValidId(value: string): boolean {
+	return VALID_ID_PATTERN.test(value);
+}
+
+function getOrigin(request: Request): string | null {
+	return request.headers.get("Origin");
+}
+
+function corsHeaders(request: Request): Record<string, string> {
+	const origin = getOrigin(request);
+	const allowedOrigin =
+		origin && ALLOWED_ORIGINS.has(origin)
+			? origin
+			: (ALLOWED_ORIGINS.values().next().value ??
+				"https://spex-demo.pages.dev");
+
+	return {
+		"Access-Control-Allow-Origin": allowedOrigin,
+		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+		"Access-Control-Allow-Headers":
+			"Content-Type, Upgrade, Connection, X-API-Key",
+		Vary: "Origin",
+	};
+}
+
+function unauthorizedResponse(request: Request): Response {
+	return jsonResponse(
+		request,
+		{ error: "Unauthorized: invalid or missing API key" },
+		401,
+	);
+}
+
+// ============================================================================
+// KV Rate Limiting (replaces in-memory Map)
+// ============================================================================
+
+async function checkRateLimit(
+	kv: KVNamespace,
+	clientIp: string,
+): Promise<boolean> {
+	const key = `ratelimit:error:${clientIp}`;
+	const existing = await kv.get<{ count: number }>(key, { type: "json" });
+
+	if (existing && existing.count >= ERROR_REPORT_LIMIT) {
+		return false; // Rate limited
+	}
+
+	const newCount = existing ? existing.count + 1 : 1;
+	await kv.put(key, JSON.stringify({ count: newCount }), {
+		expirationTtl: ERROR_REPORT_WINDOW_SECONDS,
+	});
+	return true;
+}
 
 // ============================================================================
 // Main Worker - Routes requests
@@ -74,28 +157,42 @@ export default {
 
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
-			return new Response(null, { headers: corsHeaders() });
+			return new Response(null, { headers: corsHeaders(request) });
 		}
 
 		// WebSocket upgrade for real-time channel connection
 		if (path.startsWith("/ws/")) {
+			// WebSocket can't set custom headers from browsers — use query param
+			if (!validateApiKeyFromQuery(url, env)) {
+				return unauthorizedResponse(request);
+			}
 			return handleWebSocket(request, env, url);
 		}
 
 		// Viewer presence endpoints (KV-based, for web viewers without WebSocket)
 		if (path === "/heartbeat" || path === "/heartbeat/") {
-			return handleHeartbeat(url, env);
+			if (!validateApiKey(request, env)) {
+				return unauthorizedResponse(request);
+			}
+			return handleHeartbeat(request, url, env);
 		}
 
 		if (path === "/leave" || path === "/leave/") {
-			return handleLeave(url, env);
+			if (!validateApiKey(request, env)) {
+				return unauthorizedResponse(request);
+			}
+			return handleLeave(request, url, env);
 		}
 
 		if (path === "/viewers" || path === "/viewers/") {
-			return handleViewerCount(url, env);
+			if (!validateApiKey(request, env)) {
+				return unauthorizedResponse(request);
+			}
+			return handleViewerCount(request, url, env);
 		}
 
-		// Error reporting proxy (Discord webhook)
+		// Error reporting proxy (Discord webhook) — unauthenticated on purpose
+		// (needs to work from broken app state; rate-limited via KV)
 		if (
 			(path === "/report-error" || path === "/report-error/") &&
 			request.method === "POST"
@@ -104,7 +201,10 @@ export default {
 		}
 
 		// Default: token generation
-		return handleTokenRequest(env, url);
+		if (!validateApiKey(request, env)) {
+			return unauthorizedResponse(request);
+		}
+		return handleTokenRequest(request, env, url);
 	},
 };
 
@@ -122,13 +222,28 @@ async function handleWebSocket(
 	const channelId = pathParts[2];
 
 	if (!channelId) {
-		return jsonResponse({ error: "Missing channel ID in WebSocket path" }, 400);
+		return jsonResponse(
+			request,
+			{ error: "Missing channel ID in WebSocket path" },
+			400,
+		);
+	}
+
+	if (!isValidId(channelId)) {
+		return jsonResponse(
+			request,
+			{
+				error:
+					"Invalid channel ID: must be alphanumeric/hyphens, max 128 chars",
+			},
+			400,
+		);
 	}
 
 	// Check for WebSocket upgrade
 	const upgradeHeader = request.headers.get("Upgrade");
 	if (upgradeHeader !== "websocket") {
-		return jsonResponse({ error: "Expected WebSocket upgrade" }, 426);
+		return jsonResponse(request, { error: "Expected WebSocket upgrade" }, 426);
 	}
 
 	// Get the Durable Object for this channel
@@ -143,12 +258,17 @@ async function handleWebSocket(
 // Token Generation
 // ============================================================================
 
-async function handleTokenRequest(env: Env, url: URL): Promise<Response> {
+async function handleTokenRequest(
+	request: Request,
+	env: Env,
+	url: URL,
+): Promise<Response> {
 	const appId = env.AGORA_APP_ID;
 	const appCertificate = env.AGORA_APP_CERTIFICATE;
 
 	if (!appId || !appCertificate) {
 		return jsonResponse(
+			request,
 			{
 				error:
 					"Server misconfigured: Missing AGORA_APP_ID or AGORA_APP_CERTIFICATE secrets",
@@ -163,7 +283,25 @@ async function handleTokenRequest(env: Env, url: URL): Promise<Response> {
 	const viewerId = url.searchParams.get("viewerId");
 
 	if (!channel) {
-		return jsonResponse({ error: "Missing channel parameter" }, 400);
+		return jsonResponse(request, { error: "Missing channel parameter" }, 400);
+	}
+
+	if (!isValidId(channel)) {
+		return jsonResponse(
+			request,
+			{ error: "Invalid channel: must be alphanumeric/hyphens, max 128 chars" },
+			400,
+		);
+	}
+
+	if (viewerId && !isValidId(viewerId)) {
+		return jsonResponse(
+			request,
+			{
+				error: "Invalid viewerId: must be alphanumeric/hyphens, max 128 chars",
+			},
+			400,
+		);
 	}
 
 	try {
@@ -188,11 +326,11 @@ async function handleTokenRequest(env: Env, url: URL): Promise<Response> {
 			await notifyDurableObject(env, channel, "viewer_join", viewerId);
 		}
 
-		return jsonResponse({ token, appId, channel, uid });
+		return jsonResponse(request, { token, appId, channel, uid });
 	} catch (err) {
 		console.error("Token generation error:", err);
 		const message = err instanceof Error ? err.message : String(err);
-		return jsonResponse({ error: message }, 500);
+		return jsonResponse(request, { error: message }, 500);
 	}
 }
 
@@ -212,13 +350,29 @@ async function registerViewer(
 	});
 }
 
-async function handleHeartbeat(url: URL, env: Env): Promise<Response> {
+async function handleHeartbeat(
+	request: Request,
+	url: URL,
+	env: Env,
+): Promise<Response> {
 	const channel = url.searchParams.get("channel");
 	const viewerId = url.searchParams.get("viewerId");
 
 	if (!channel || !viewerId) {
 		return jsonResponse(
+			request,
 			{ error: "Missing channel or viewerId parameter" },
+			400,
+		);
+	}
+
+	if (!isValidId(channel) || !isValidId(viewerId)) {
+		return jsonResponse(
+			request,
+			{
+				error:
+					"Invalid channel or viewerId: must be alphanumeric/hyphens, max 128 chars",
+			},
 			400,
 		);
 	}
@@ -235,16 +389,32 @@ async function handleHeartbeat(url: URL, env: Env): Promise<Response> {
 		});
 	}
 
-	return jsonResponse({ success: true });
+	return jsonResponse(request, { success: true });
 }
 
-async function handleLeave(url: URL, env: Env): Promise<Response> {
+async function handleLeave(
+	request: Request,
+	url: URL,
+	env: Env,
+): Promise<Response> {
 	const channel = url.searchParams.get("channel");
 	const viewerId = url.searchParams.get("viewerId");
 
 	if (!channel || !viewerId) {
 		return jsonResponse(
+			request,
 			{ error: "Missing channel or viewerId parameter" },
+			400,
+		);
+	}
+
+	if (!isValidId(channel) || !isValidId(viewerId)) {
+		return jsonResponse(
+			request,
+			{
+				error:
+					"Invalid channel or viewerId: must be alphanumeric/hyphens, max 128 chars",
+			},
 			400,
 		);
 	}
@@ -257,14 +427,26 @@ async function handleLeave(url: URL, env: Env): Promise<Response> {
 	// Notify Durable Object
 	await notifyDurableObject(env, channel, "viewer_leave", viewerId);
 
-	return jsonResponse({ success: true });
+	return jsonResponse(request, { success: true });
 }
 
-async function handleViewerCount(url: URL, env: Env): Promise<Response> {
+async function handleViewerCount(
+	request: Request,
+	url: URL,
+	env: Env,
+): Promise<Response> {
 	const channel = url.searchParams.get("channel");
 
 	if (!channel) {
-		return jsonResponse({ error: "Missing channel parameter" }, 400);
+		return jsonResponse(request, { error: "Missing channel parameter" }, 400);
+	}
+
+	if (!isValidId(channel)) {
+		return jsonResponse(
+			request,
+			{ error: "Invalid channel: must be alphanumeric/hyphens, max 128 chars" },
+			400,
+		);
 	}
 
 	// Get count from Durable Object (most accurate)
@@ -273,15 +455,15 @@ async function handleViewerCount(url: URL, env: Env): Promise<Response> {
 		const room = env.CHANNEL_ROOM.get(id);
 		const response = await room.fetch(new Request("http://internal/count"));
 		const data = (await response.json()) as { count: number };
-		return jsonResponse({ channel, viewerCount: data.count });
+		return jsonResponse(request, { channel, viewerCount: data.count });
 	} catch {
 		// Fallback to KV count
 		if (env.VIEWERS) {
 			const prefix = `viewer:${channel}:`;
 			const list = await env.VIEWERS.list({ prefix });
-			return jsonResponse({ channel, viewerCount: list.keys.length });
+			return jsonResponse(request, { channel, viewerCount: list.keys.length });
 		}
-		return jsonResponse({ channel, viewerCount: 0 });
+		return jsonResponse(request, { channel, viewerCount: 0 });
 	}
 }
 
@@ -327,7 +509,9 @@ export class ChannelRoom implements DurableObject {
 				(s) => s.role === "viewer",
 			).length;
 			const kvViewers = this.viewers.size;
-			return jsonResponse({ count: wsViewers + kvViewers });
+			return new Response(JSON.stringify({ count: wsViewers + kvViewers }), {
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
 		// Internal: notify of viewer join/leave (from KV)
@@ -340,7 +524,9 @@ export class ChannelRoom implements DurableObject {
 				this.viewers.delete(data.viewerId);
 				this.broadcast({ type: "viewer_count", count: this.getViewerCount() });
 			}
-			return jsonResponse({ success: true });
+			return new Response(JSON.stringify({ success: true }), {
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
 		// WebSocket upgrade
@@ -349,7 +535,10 @@ export class ChannelRoom implements DurableObject {
 			return this.handleWebSocketUpgrade(url);
 		}
 
-		return jsonResponse({ error: "Expected WebSocket" }, 400);
+		return new Response(JSON.stringify({ error: "Expected WebSocket" }), {
+			status: 400,
+			headers: { "Content-Type": "application/json" },
+		});
 	}
 
 	private handleWebSocketUpgrade(url: URL): Response {
@@ -402,16 +591,28 @@ export class ChannelRoom implements DurableObject {
 			const session = this.sessions.get(sessionId);
 
 			switch (message.type) {
-				case "chat":
+				case "chat": {
+					const text = (message as ChatMessage).text;
+					// Enforce chat message length limit
+					if (!text || text.length > MAX_CHAT_MESSAGE_LENGTH) {
+						session?.ws.send(
+							JSON.stringify({
+								type: "error",
+								message: `Chat message must be 1-${MAX_CHAT_MESSAGE_LENGTH} characters`,
+							}),
+						);
+						return;
+					}
 					// Broadcast chat message to all
 					this.broadcast({
 						type: "chat",
 						from: session?.name ?? "Anonymous",
 						role: session?.role ?? "viewer",
-						text: (message as ChatMessage).text,
+						text,
 						timestamp: Date.now(),
 					});
 					break;
+				}
 
 				case "ping":
 					// Respond with pong
@@ -455,35 +656,31 @@ async function handleErrorReport(
 	env: Env,
 ): Promise<Response> {
 	if (!env.DISCORD_WEBHOOK_URL) {
-		return jsonResponse({ error: "Error reporting not configured" }, 503);
+		return jsonResponse(
+			request,
+			{ error: "Error reporting not configured" },
+			503,
+		);
 	}
 
-	// Rate limit by client IP
+	// Rate limit by client IP using KV
 	const clientIp = request.headers.get("CF-Connecting-IP") ?? "unknown";
-	const now = Date.now();
-	const entry = errorReportCounts.get(clientIp);
-
-	if (entry && now < entry.resetAt) {
-		if (entry.count >= ERROR_REPORT_LIMIT) {
-			return jsonResponse({ error: "Rate limit exceeded" }, 429);
+	if (env.VIEWERS) {
+		const allowed = await checkRateLimit(env.VIEWERS, clientIp);
+		if (!allowed) {
+			return jsonResponse(request, { error: "Rate limit exceeded" }, 429);
 		}
-		entry.count++;
-	} else {
-		errorReportCounts.set(clientIp, {
-			count: 1,
-			resetAt: now + ERROR_REPORT_WINDOW_MS,
-		});
 	}
 
 	let body: ErrorReport;
 	try {
 		body = (await request.json()) as ErrorReport;
 	} catch {
-		return jsonResponse({ error: "Invalid JSON body" }, 400);
+		return jsonResponse(request, { error: "Invalid JSON body" }, 400);
 	}
 
 	if (!body.message) {
-		return jsonResponse({ error: "Missing message field" }, 400);
+		return jsonResponse(request, { error: "Missing message field" }, 400);
 	}
 
 	// Forward to Discord as an embed
@@ -506,7 +703,7 @@ async function handleErrorReport(
 	const color = severityColors[level] ?? 0xff6b6b;
 
 	const embed: Record<string, unknown> = {
-		title: `${emoji} ${level.toUpperCase()}: Web Error Report`,
+		title: `${emoji} ${level.toUpperCase()}: Error Report`,
 		description: body.message.substring(0, 2000),
 		color,
 		fields: [] as Array<Record<string, unknown>>,
@@ -526,20 +723,28 @@ async function handleErrorReport(
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
-				username: "SPEX Web Error Reporter",
+				username: "SPEX Error Reporter",
 				embeds: [embed],
 			}),
 		});
 
 		if (!discordResponse.ok) {
 			console.error("Discord webhook failed:", discordResponse.status);
-			return jsonResponse({ error: "Failed to forward error report" }, 502);
+			return jsonResponse(
+				request,
+				{ error: "Failed to forward error report" },
+				502,
+			);
 		}
 
-		return jsonResponse({ success: true });
+		return jsonResponse(request, { success: true });
 	} catch (err) {
 		console.error("Discord webhook error:", err);
-		return jsonResponse({ error: "Failed to forward error report" }, 502);
+		return jsonResponse(
+			request,
+			{ error: "Failed to forward error report" },
+			502,
+		);
 	}
 }
 
@@ -547,17 +752,13 @@ async function handleErrorReport(
 // Utilities
 // ============================================================================
 
-function corsHeaders(): Record<string, string> {
-	return {
-		"Access-Control-Allow-Origin": "*",
-		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-		"Access-Control-Allow-Headers": "Content-Type, Upgrade, Connection",
-	};
-}
-
-function jsonResponse(data: Record<string, unknown>, status = 200): Response {
+function jsonResponse(
+	request: Request,
+	data: Record<string, unknown>,
+	status = 200,
+): Response {
 	return new Response(JSON.stringify(data), {
 		status,
-		headers: { "Content-Type": "application/json", ...corsHeaders() },
+		headers: { "Content-Type": "application/json", ...corsHeaders(request) },
 	});
 }

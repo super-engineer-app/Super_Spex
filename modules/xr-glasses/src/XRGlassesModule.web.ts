@@ -983,8 +983,11 @@ class WebXRGlassesService {
 			this.agoraClient = client;
 
 			// Fetch token
+			const workerApiKey = process.env.EXPO_PUBLIC_WORKER_API_KEY || "";
 			const tokenUrl = `${tokenServerUrl}token?channel=${channelId}&role=publisher`;
-			const tokenResponse = await fetch(tokenUrl);
+			const tokenResponse = await fetch(tokenUrl, {
+				headers: workerApiKey ? { "X-API-Key": workerApiKey } : {},
+			});
 			if (!tokenResponse.ok) {
 				throw new Error(`Token fetch failed: ${tokenResponse.status}`);
 			}

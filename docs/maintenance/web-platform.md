@@ -92,7 +92,7 @@ Web requires `EXPO_PUBLIC_` prefix for env vars to be embedded in the bundle:
 | Agora App ID | `AGORA_APP_ID` | `EXPO_PUBLIC_AGORA_APP_ID` |
 | Agora Token Server | `AGORA_TOKEN_SERVER_URL` | `EXPO_PUBLIC_AGORA_TOKEN_SERVER_URL` |
 | Viewer URL Base | `SPEX_VIEWER_URL_BASE` | `EXPO_PUBLIC_SPEX_VIEWER_URL_BASE` |
-| Discord Webhook | — | `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` |
+| Worker API Key | `WORKER_API_KEY` | `EXPO_PUBLIC_WORKER_API_KEY` |
 
 ### Responsive Web Layout
 

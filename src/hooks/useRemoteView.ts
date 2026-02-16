@@ -19,6 +19,9 @@ const WS_BASE_URL =
 		.replace(/^https?:\/\//, "wss://")
 		.replace(/\/$/, "") + "/ws";
 
+// Worker API key for authenticated WebSocket connections
+const WORKER_API_KEY = process.env.EXPO_PUBLIC_WORKER_API_KEY || "";
+
 // Idle detection: warn after 5 min with 0 viewers, auto-stop 60s later
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const IDLE_AUTO_STOP_S = 60;
@@ -274,7 +277,8 @@ export function useRemoteView(): UseRemoteViewReturn {
 
 		if (state.isStreaming && state.channelId) {
 			const connectWebSocket = () => {
-				const wsUrl = `${WS_BASE_URL}/${state.channelId}?role=host&name=Broadcaster`;
+				const keyParam = WORKER_API_KEY ? `&key=${WORKER_API_KEY}` : "";
+				const wsUrl = `${WS_BASE_URL}/${state.channelId}?role=host&name=Broadcaster${keyParam}`;
 				logger.debug(TAG, "Opening WebSocket:", wsUrl);
 
 				const ws = new WebSocket(wsUrl);

@@ -43,8 +43,9 @@ This script:
 | `EXPO_PUBLIC_SPEX_VIEWER_URL_BASE` | Your web viewer URL |
 | `EXPO_PUBLIC_BACKEND_URL` | Your backend API URL |
 | `EXPO_PUBLIC_TAGGING_API_URL` | Your backend API URL (same as above) |
+| `EXPO_PUBLIC_WORKER_API_KEY` | API key for Cloudflare Worker auth (same value as `wrangler secret put API_KEY`) |
 
-Note: `EXPO_PUBLIC_DISCORD_WEBHOOK_URL` is **not** set in the web bundle. Error reports go through the Worker proxy (`/report-error`) instead.
+Error reports go through the Worker proxy (`/report-error`) — no Discord webhook in client bundles.
 
 ### Backend (Render Dashboard)
 

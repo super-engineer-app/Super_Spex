@@ -71,7 +71,13 @@ class AgoraStreamManager(
         }
 
         private val TOKEN_SERVER_URL: String by lazy {
-            "https://REDACTED_TOKEN_SERVER/"
+            try {
+                val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+                val field = buildConfigClass.getField("AGORA_TOKEN_SERVER_URL")
+                field.get(null) as? String ?: "https://REDACTED_TOKEN_SERVER/"
+            } catch (e: Exception) {
+                "https://REDACTED_TOKEN_SERVER/"
+            }
         }
     }
 
@@ -200,12 +206,31 @@ class AgoraStreamManager(
                         connection.connectTimeout = CONNECT_TIMEOUT_MS
                         connection.readTimeout = READ_TIMEOUT_MS
 
-                        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                        // Add API key for worker authentication
+                        val apiKey = try {
+                            val buildConfigClass = Class.forName("com.xrglasses.app.BuildConfig")
+                            val field = buildConfigClass.getField("WORKER_API_KEY")
+                            field.get(null) as? String ?: ""
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to read WORKER_API_KEY from BuildConfig", e)
+                            ""
+                        }
+                        Log.d(TAG, "fetchToken: apiKey length=${apiKey.length}, empty=${apiKey.isEmpty()}")
+                        if (apiKey.isNotEmpty()) {
+                            connection.setRequestProperty("X-API-Key", apiKey)
+                        }
+
+                        val responseCode = connection.responseCode
+                        Log.d(TAG, "fetchToken: HTTP $responseCode")
+                        if (responseCode == HttpURLConnection.HTTP_OK) {
                             val response = connection.inputStream.bufferedReader().readText()
                             val json = JSONObject(response)
                             json.getString("token")
                         } else {
-                            Log.e(TAG, "Token server returned error: ${connection.responseCode}")
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.readText() ?: "no body"
+                            } catch (_: Exception) { "unreadable" }
+                            Log.e(TAG, "Token server error: HTTP $responseCode — $errorBody")
                             null
                         }
                     } catch (e: Exception) {
