@@ -12,6 +12,41 @@ Open-sourced by [SuperEngineer](https://github.com/super-engineer-app) to showca
 - **Web Demo** — Same app runs in the browser via platform-split files (`.web.ts` / `.ts`)
 - **Parking Timer** — Timer with glasses display and phone notifications
 
+## Demo
+
+<table>
+  <tr>
+    <td align="center"><b>Help Mode</b></td>
+    <td align="center"><b>Identify Mode</b></td>
+    <td align="center"><b>Photo Note</b></td>
+  </tr>
+  <tr>
+    <td><video src="videos/help-mode.mp4" controls width="250"></video></td>
+    <td><video src="videos/identify-mode.mp4" controls width="250"></video></td>
+    <td><video src="videos/photo-note.mp4" controls width="250"></video></td>
+  </tr>
+  <tr>
+    <td>Take a photo and ask a question about it — AI streams back an answer via speech and text. <br><code>src/components/modes/HelpMode.tsx</code></td>
+    <td>Snap a photo and AI identifies what's in frame, streaming results to the glasses display. <br><code>src/components/modes/IdentifyMode.tsx</code></td>
+    <td>Capture a photo while dictating — speech and image are tagged and saved as a note. <br><code>src/components/modes/NotesMode.tsx</code></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Video Note</b></td>
+    <td align="center"><b>Live Stream</b></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><video src="videos/video-note.mp4" controls width="250"></video></td>
+    <td><video src="videos/live-stream.mp4" controls width="250"></video></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Record video with continuous speech transcription — everything is saved as a timestamped note. <br><code>src/components/modes/NotesMode.tsx</code></td>
+    <td>Stream the glasses camera and audio to a shareable web link via Agora RTC, with live viewer count. <br><code>src/components/modes/LiveStreamMode.tsx</code></td>
+    <td></td>
+  </tr>
+</table>
+
 ## Tech Stack
 
 - **TypeScript** — UI, services, hooks. Platform-split files (`.web.ts` / `.ts`) for cross-platform.
