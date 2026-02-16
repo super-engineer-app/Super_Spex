@@ -22,7 +22,11 @@ https://github.com/super-engineer-app/spex/raw/main/videos/help-mode.mp4
 
 ### Identify Mode
 Snap a photo and AI identifies what's in frame, streaming results to the glasses display.
-`src/components/modes/IdentifyMode.tsx`
+`src
+
+https://github.com/user-attachments/assets/9c9b637a-0936-4776-89af-3b40628b1751
+
+/components/modes/IdentifyMode.tsx`
 
 https://github.com/super-engineer-app/spex/raw/main/videos/identify-mode.mp4
 
