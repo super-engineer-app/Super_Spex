@@ -1,4 +1,4 @@
-# SPEX
+# SUPER SPEX
 
 AI-powered glasses companion app built with **React Native (Expo)** and **Kotlin native modules** for **Android XR**. The phone is the hub; glasses are the display.
 
