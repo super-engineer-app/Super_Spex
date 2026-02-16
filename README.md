@@ -125,6 +125,11 @@ cd android && ./gradlew ktlintCheck detekt    # Kotlin (after touching .kt files
 
 See `docs/architecture.md` for the full system design.
 
+## Contact
+
+- Website: [superengineer.app](https://www.superengineer.app/about)
+- Email: team@superengineer.app
+
 ## License
 
 This project is open source. See [LICENSE](LICENSE) for details.
