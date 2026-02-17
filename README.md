@@ -75,10 +75,11 @@ https://github.com/user-attachments/assets/c901b700-7126-4bc7-b9d8-a069bb193c09
 ### Live Stream
 Stream the glasses camera and audio to a shareable web link via Agora RTC, with live viewer count.
 
-<!-- live-s
-https://github.com/user-attachments/assets/51ffb21a-5a9c-404a-8a2e-b6bc6e051f87
 
-tream.mp4 -->
+
+https://github.com/user-attachments/assets/9a4c8076-a3d3-45f4-9701-011bc3425792
+
+
 
 ### Projection on glasses
 Project the view to glasses emulation.
