@@ -21,37 +21,72 @@ Open-sourced by [SuperEngineer](https://github.com/super-engineer-app) to showca
 ### Setup
 Connect the phone to XR glasses and pair the devices.
 
+
+https://github.com/user-attachments/assets/73d9e9bc-1cea-4528-bd9b-ed22e29044f4
+
+
 <!-- setup.mp4 -->
 
 ### Help Mode
 Take a photo and ask a question about it — AI streams back an answer via speech and text.
+
+
+https://github.com/user-attachments/assets/b233342f-4695-4a9d-a9a0-2970046633ae
+
 
 <!-- help.mp4 -->
 
 ### Identify Mode
 Snap a photo and AI identifies what's in frame, streaming results to the glasses display.
 
+
+https://github.com/user-attachments/assets/b174ea32-4c11-4c27-a996-7e167565c01b
+
+
 <!-- identify.mp4 -->
 
 ### Photo Note
 Capture a photo while dictating — speech and image are tagged and saved as a note.
+
+
+https://github.com/user-attachments/assets/ea00aa60-4f07-4758-889c-e72d8eeaed54
+
 
 <!-- photo-note.mp4 -->
 
 ### Video Note
 Record video with continuous speech transcription — everything is saved as a timestamped note.
 
+
+https://github.com/user-attachments/assets/9d548a3a-d34f-4f69-ba52-6cefe6508b2d
+
+
 <!-- video-note.mp4 -->
 
 ### Timer
 Set a parking timer with glasses display and phone notifications.
+
+
+https://github.com/user-attachments/assets/c901b700-7126-4bc7-b9d8-a069bb193c09
+
 
 <!-- timer.mp4 -->
 
 ### Live Stream
 Stream the glasses camera and audio to a shareable web link via Agora RTC, with live viewer count.
 
-<!-- live-stream.mp4 -->
+<!-- live-s
+https://github.com/user-attachments/assets/51ffb21a-5a9c-404a-8a2e-b6bc6e051f87
+
+tream.mp4 -->
+
+### Projection on glasses
+Project the view to glasses emulation.
+
+
+https://github.com/user-attachments/assets/131e0761-01f5-4e0b-be71-4b8c876652cc
+
+
 
 ## Tech Stack
 
