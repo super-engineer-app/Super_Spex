@@ -4,7 +4,7 @@ Super Spex is an AI-powered glasses companion app built with **React Native (Exp
 
 The app includes ‘modes’ built around workflows designed specifically for use by tradespeople / field technicians - enabling them to do handsfree work using AI Glasses powered by the Android XR toolset + AI.
 
-AI answers are streamed via Super Engineer – an Gemini-based multi-agent RAG wrapper focused on providing technical answers - inc data sourced from 1000’s of technical instruction manuals.
+AI answers are streamed via [SuperEngineer](https://www.superengineer.app) – an Gemini-based multi-agent RAG wrapper focused on providing technical answers - inc data sourced from 1000’s of technical instruction manuals.
 
 Open-sourced by [SuperEngineer](https://github.com/super-engineer-app) to showcase the **Jetpack XR SDK** and help developers build their own XR glasses applications.
 
