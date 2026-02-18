@@ -90,7 +90,7 @@ https://github.com/user-attachments/assets/131e0761-01f5-4e0b-be71-4b8c876652cc
 
 
 ### Tea Mode
-Check someone's tea!
+Make the perfect cup of tea for your colleague - using the magic of AI Glasses! (Trades are powered by tea!)
 
 
 https://github.com/user-attachments/assets/6b0b360d-be69-4cdd-a269-9a9ba4d2cea3
