@@ -89,6 +89,13 @@ https://github.com/user-attachments/assets/131e0761-01f5-4e0b-be71-4b8c876652cc
 
 
 
+### Tea Mode
+Check someone's tea!
+
+
+https://github.com/user-attachments/assets/6b0b360d-be69-4cdd-a269-9a9ba4d2cea3
+
+
 ## Tech Stack
 
 - **TypeScript** — UI, services, hooks. Platform-split files (`.web.ts` / `.ts`) for cross-platform.
