@@ -216,4 +216,6 @@ See `docs/architecture.md` for the full system design.
 
 ## License
 
-This project is open source. See [LICENSE](LICENSE) for details.
+This project is open source and under the Apache License 2.0 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt).  See [LICENSE](LICENSE) for details.  This repository includes code that interfaces with Agora RTC and Android Jetpack XR. Use of these SDKs is subject to their respective terms of service. You must obtain your own API keys and ensure compliance with their licenses when building this application.
+
+
