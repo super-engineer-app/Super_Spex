@@ -11,7 +11,7 @@ Open-sourced by [SuperEngineer](https://github.com/super-engineer-app) to showca
 ## Features
 
 - **XR Glasses Projection** — Display content on connected XR glasses via Jetpack XR SDK
-- **AI-Powered Modes** — Speech recognition, camera capture, tagging, and AI generation
+- **AI-Powered Modes** — Speech recognition, camera capture, tagging, and AI generation.  Inc 'Tea Mode' for making the perfect cup of AI-powered tea ;-)
 - **Remote View Streaming** — Stream glasses view to web viewers via Agora RTC (two-way audio/video)
 - **Web Demo** — Same app runs in the browser via platform-split files (`.web.ts` / `.ts`)
 - **Parking Timer** — Timer with glasses display and phone notifications
