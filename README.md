@@ -63,8 +63,8 @@ https://github.com/user-attachments/assets/9d548a3a-d34f-4f69-ba52-6cefe6508b2d
 
 <!-- video-note.mp4 -->
 
-### Timer
-Set a parking timer with glasses display and phone notifications.
+### Parking Timer
+Set a parking timer with glasses display and phone notifications.  Never get a parking fine again ;-)
 
 
 https://github.com/user-attachments/assets/c901b700-7126-4bc7-b9d8-a069bb193c09
@@ -90,7 +90,7 @@ https://github.com/user-attachments/assets/131e0761-01f5-4e0b-be71-4b8c876652cc
 
 
 ### Tea Mode
-Make the perfect cup of tea for your colleague - using the magic of AI Glasses! (Trades are powered by tea!)
+Make the perfect cup of tea - using the magic of AI Glasses! (All Trades are powered by tea!)
 
 
 https://github.com/user-attachments/assets/6b0b360d-be69-4cdd-a269-9a9ba4d2cea3
