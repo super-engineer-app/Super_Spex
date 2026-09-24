@@ -1,6 +1,6 @@
-# SUPER SPEX
+# Vision XR
 
-Super Spex is an AI-powered glasses companion app built with **React Native (Expo)** and **Kotlin native modules** for **Android XR**. The phone is the hub; glasses are the display.
+Vision XR is an AI-powered glasses companion app built with **React Native (Expo)** and **Kotlin native modules** for **Android XR**. The phone is the hub; glasses are the display.
 
 The app includes ‘modes’ built around workflows designed specifically for use by tradespeople / field technicians - enabling them to do handsfree work using AI Glasses powered by the Android XR toolset + AI.
 
